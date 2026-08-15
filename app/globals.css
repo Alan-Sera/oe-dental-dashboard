@@ -1,0 +1,64 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: #080a0d;
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  background:
+    linear-gradient(180deg, rgba(13, 17, 23, 0.96), rgba(8, 10, 13, 1)),
+    #080a0d;
+  color: #e5eaf0;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+@layer base {
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+}
+
+@layer components {
+  .panel {
+    @apply rounded-lg border border-ink-700 bg-ink-850 shadow-panel;
+  }
+
+  .surface {
+    @apply rounded-lg border border-ink-700 bg-ink-800;
+  }
+
+  .muted {
+    @apply text-sm text-ink-400;
+  }
+
+  .page-shell {
+    @apply mx-auto flex w-full max-w-[1480px] flex-col gap-6 px-4 py-4 sm:px-6 lg:px-8;
+  }
+
+  .section-title {
+    @apply text-lg font-semibold text-ink-200;
+  }
+
+  .table-row {
+    @apply grid gap-3 border-b border-ink-700 px-4 py-3 last:border-0;
+  }
+}

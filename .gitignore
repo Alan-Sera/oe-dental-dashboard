@@ -1,0 +1,17 @@
+node_modules
+.next
+out
+dist
+coverage
+.env*.local
+data/app.db
+data/app.db-journal
+data/app.db-shm
+data/app.db-wal
+data/vault/**
+data/backups/**
+data/imports/**
+!.gitkeep
+*.tsbuildinfo
+dev.log
+dev.err
