@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, FolderDown, Loader2, UploadCloud } from "lucide-react";
+import { CheckCircle2, FolderDown, Loader2, Table2, UploadCloud } from "lucide-react";
 
 import { categoryLabels, paymentMethods } from "@/constants";
 import {
@@ -22,6 +23,11 @@ type BatchResponse = {
   };
 };
 
+type GoogleStatus = {
+  configured: boolean;
+  connected: boolean;
+};
+
 export function ImportWizard() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -29,6 +35,8 @@ export function ImportWizard() {
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const [progress, setProgress] = useState(0);
+  const [googleFolderId, setGoogleFolderId] = useState("");
+  const [googleStatus, setGoogleStatus] = useState<GoogleStatus | null>(null);
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -36,10 +44,28 @@ export function ImportWizard() {
     fileInputRef.current?.setAttribute("directory", "");
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch("/api/google/status")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((status: GoogleStatus | null) => {
+        if (!cancelled) setGoogleStatus(status);
+      })
+      .catch(() => {
+        if (!cancelled) setGoogleStatus(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const sourceRootName = useMemo(() => {
     const firstPath = files[0]?.relativePath;
     return firstPath?.split("/").filter(Boolean)[0] ?? "Importación local";
   }, [files]);
+  const hasPaymentHistoryFiles = files.some((file) => file.category === "PAYMENT_HISTORY");
 
   async function handleSelection(fileList: FileList | null) {
     if (!fileList?.length) return;
@@ -146,6 +172,7 @@ export function ImportWizard() {
           formData.append("paymentAmount", file.paymentAmount ?? "");
           formData.append("paymentMethod", file.paymentMethod ?? "");
           formData.append("paymentDate", file.paymentDate ?? "");
+          formData.append("googleFolderId", googleFolderId);
 
           setStatus(`Copiando ${index + 1} de ${files.length}`);
 
@@ -217,6 +244,43 @@ export function ImportWizard() {
         </div>
       ) : null}
 
+      {hasPaymentHistoryFiles ? (
+        <div className="surface grid gap-4 p-4 md:grid-cols-[1fr_280px]">
+          <div className="flex items-start gap-3">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-lavender-800/80 text-lavender-100 ring-1 ring-lavender-300/35">
+              <Table2 className="size-5" aria-hidden="true" />
+            </div>
+            <div className="min-w-0 space-y-2">
+              <div>
+                <p className="text-sm font-medium text-lavender-50">Historiales de pago .xlsx</p>
+                <p className="text-sm text-lavender-200/60">
+                  Se guardarán localmente. Si Google está conectado y agregas una carpeta, también se convertirán a Sheets.
+                </p>
+              </div>
+              <Input
+                value={googleFolderId}
+                onChange={(event) => setGoogleFolderId(event.target.value)}
+                placeholder="Link o ID de carpeta compartida de Google Drive"
+              />
+            </div>
+          </div>
+          <div className="flex flex-col justify-center gap-2">
+            <Badge tone={googleStatus?.connected ? "brand" : "neutral"}>
+              {googleStatus?.connected
+                ? "Google conectado"
+                : googleStatus?.configured
+                  ? "Google sin conectar"
+                  : "Google no configurado"}
+            </Badge>
+            {googleStatus?.configured && !googleStatus.connected ? (
+              <Button asChild variant="secondary" size="sm">
+                <Link href="/api/google/oauth/start?returnTo=/import">Conectar Google</Link>
+              </Button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
       {files.length ? (
         <div className="panel overflow-x-auto">
           <div className="min-w-[980px]">
@@ -253,7 +317,9 @@ export function ImportWizard() {
                     </option>
                   ))}
                 </Select>
-                {file.category === "PAYMENT_RECEIPT" ? (
+                {file.category === "PAYMENT_HISTORY" ? (
+                  <p className="text-sm text-lavender-200/55">Google Sheets</p>
+                ) : file.category === "PAYMENT_RECEIPT" ? (
                   <div className="grid grid-cols-3 gap-2">
                     <Input
                       placeholder="Monto"

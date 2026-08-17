@@ -1,6 +1,7 @@
 import type {
   AttachmentCategory,
   ChargeStatus,
+  PaymentHistoryUploadStatus,
   PaymentStatus
 } from "@prisma/client";
 
@@ -65,5 +66,20 @@ export type SerializedPatientDetail = {
     status: PaymentStatus;
     notes: string | null;
     attachments: SerializedAttachment[];
+  }>;
+  paymentHistorySheets: Array<{
+    id: string;
+    patientId: string;
+    attachmentId: string;
+    googleFileId: string | null;
+    googleUrl: string | null;
+    googleFolderId: string | null;
+    uploadStatus: PaymentHistoryUploadStatus;
+    uploadedAt: string | null;
+    errorMessage: string | null;
+    isActive: boolean;
+    createdAt: string;
+    updatedAt: string;
+    attachment: SerializedAttachment;
   }>;
 };

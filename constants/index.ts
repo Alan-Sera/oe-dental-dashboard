@@ -20,6 +20,7 @@ export const categoryLabels = {
   RADIOGRAPH: "Radiografías",
   CLINICAL_HISTORY: "Historia clínica",
   PAYMENT_RECEIPT: "Pagos",
+  PAYMENT_HISTORY: "Historial pagos",
   OTHER: "Otros"
 };
 
@@ -28,6 +29,7 @@ export const categoryIcons = {
   RADIOGRAPH: ClipboardList,
   CLINICAL_HISTORY: ClipboardList,
   PAYMENT_RECEIPT: BadgeDollarSign,
+  PAYMENT_HISTORY: BadgeDollarSign,
   OTHER: Archive
 };
 

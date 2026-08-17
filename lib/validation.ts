@@ -60,7 +60,7 @@ export const settingsSchema = z.object({
 export const importCandidateSchema = z.object({
   candidateId: z.string().min(1),
   patientName: z.string().min(1),
-  category: z.enum(["PHOTO", "RADIOGRAPH", "CLINICAL_HISTORY", "PAYMENT_RECEIPT", "OTHER"]),
+  category: z.enum(["PHOTO", "RADIOGRAPH", "CLINICAL_HISTORY", "PAYMENT_RECEIPT", "PAYMENT_HISTORY", "OTHER"]),
   originalName: z.string().min(1),
   sourceRelativePath: z.string().min(1),
   sha256: z.string().min(32),

@@ -12,6 +12,7 @@ enum AttachmentCategory {
   RADIOGRAPH
   CLINICAL_HISTORY
   PAYMENT_RECEIPT
+  PAYMENT_HISTORY
   OTHER
 }
 
@@ -40,6 +41,12 @@ enum PaymentStatus {
   VOID
 }
 
+enum PaymentHistoryUploadStatus {
+  LOCAL_ONLY
+  UPLOADED
+  FAILED
+}
+
 model Setting {
   key       String   @id
   value     String
@@ -54,46 +61,48 @@ model Session {
 }
 
 model Patient {
-  id              String            @id @default(cuid())
-  fullName        String
-  email           String?
-  phone           String?
-  birthDate       DateTime?
-  notes           String?
-  folderAliases   String?
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-  attachments     Attachment[]
-  clinicalEntries ClinicalEntry[]
-  charges         TreatmentCharge[]
-  payments        Payment[]
+  id                   String                @id @default(cuid())
+  fullName             String
+  email                String?
+  phone                String?
+  birthDate            DateTime?
+  notes                String?
+  folderAliases        String?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  attachments          Attachment[]
+  clinicalEntries      ClinicalEntry[]
+  charges              TreatmentCharge[]
+  payments             Payment[]
+  paymentHistorySheets PaymentHistorySheet[]
 
   @@index([fullName])
 }
 
 model Attachment {
-  id                 String             @id @default(cuid())
-  patientId          String
-  category           AttachmentCategory
-  originalName       String
-  vaultPath          String
-  mimeType           String?
-  sizeBytes          Int
-  sha256             String             @unique
-  sourceRelativePath String
-  importedAt         DateTime           @default(now())
-  serviceDate        DateTime?
-  capturedAt         DateTime?
-  importBatchId      String?
-  clinicalEntryId    String?
-  chargeId           String?
-  paymentId          String?
-  patient            Patient            @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  importBatch        ImportBatch?       @relation(fields: [importBatchId], references: [id])
-  clinicalEntry      ClinicalEntry?     @relation(fields: [clinicalEntryId], references: [id])
-  charge             TreatmentCharge?   @relation(fields: [chargeId], references: [id])
-  payment            Payment?           @relation(fields: [paymentId], references: [id])
-  importItems        ImportItem[]
+  id                  String               @id @default(cuid())
+  patientId           String
+  category            AttachmentCategory
+  originalName        String
+  vaultPath           String
+  mimeType            String?
+  sizeBytes           Int
+  sha256              String               @unique
+  sourceRelativePath  String
+  importedAt          DateTime             @default(now())
+  serviceDate         DateTime?
+  capturedAt          DateTime?
+  importBatchId       String?
+  clinicalEntryId     String?
+  chargeId            String?
+  paymentId           String?
+  patient             Patient              @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  importBatch         ImportBatch?         @relation(fields: [importBatchId], references: [id])
+  clinicalEntry       ClinicalEntry?       @relation(fields: [clinicalEntryId], references: [id])
+  charge              TreatmentCharge?     @relation(fields: [chargeId], references: [id])
+  payment             Payment?             @relation(fields: [paymentId], references: [id])
+  importItems         ImportItem[]
+  paymentHistorySheet PaymentHistorySheet?
 
   @@index([patientId, category])
   @@index([importBatchId])
@@ -147,6 +156,26 @@ model Payment {
   attachments Attachment[]
 
   @@index([patientId, paidAt])
+}
+
+model PaymentHistorySheet {
+  id             String                     @id @default(cuid())
+  patientId      String
+  attachmentId   String                     @unique
+  googleFileId   String?
+  googleUrl      String?
+  googleFolderId String?
+  uploadStatus   PaymentHistoryUploadStatus @default(LOCAL_ONLY)
+  uploadedAt     DateTime?
+  errorMessage   String?
+  isActive       Boolean                    @default(false)
+  createdAt      DateTime                   @default(now())
+  updatedAt      DateTime                   @updatedAt
+  patient        Patient                    @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  attachment     Attachment                 @relation(fields: [attachmentId], references: [id], onDelete: Cascade)
+
+  @@index([patientId, isActive])
+  @@index([patientId, createdAt])
 }
 
 model ImportBatch {
