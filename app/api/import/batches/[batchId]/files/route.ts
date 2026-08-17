@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { AttachmentCategory } from "@prisma/client";
 
 import { recordAudit } from "@/lib/actions/audit.actions";
+import { createPaymentHistorySheetForAttachment } from "@/lib/actions/payment-history.actions";
 import { getClinicSettings } from "@/lib/actions/settings.actions";
 import { findOrCreatePatientByName } from "@/lib/actions/patient.actions";
 import { requireSession } from "@/lib/auth";
@@ -48,6 +49,7 @@ export async function POST(
     paymentMethod: String(formData.get("paymentMethod") ?? ""),
     paymentDate: String(formData.get("paymentDate") ?? "")
   });
+  const googleFolderId = String(formData.get("googleFolderId") ?? "");
 
   const batch = await prisma.importBatch.findUnique({
     where: { id: batchId }
@@ -151,6 +153,16 @@ export async function POST(
         data: { paymentId: payment.id }
       });
     }
+  }
+
+  if (category === "PAYMENT_HISTORY") {
+    await createPaymentHistorySheetForAttachment({
+      patientId: patient.id,
+      attachmentId: attachment.id,
+      originalName: parsed.originalName,
+      vaultPath: vaultRelativePath,
+      googleFolderInput: googleFolderId
+    });
   }
 
   await prisma.importItem.update({

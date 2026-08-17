@@ -1,18 +1,12 @@
 import { spawn } from "node:child_process";
-import { mkdir, readFile } from "node:fs/promises";
+import { mkdir, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const dataDir = path.join(root, "data");
 const dbPath = path.join(dataDir, "app.db");
-const migrationPath = path.join(
-  root,
-  "prisma",
-  "migrations",
-  "20260815150000_init",
-  "migration.sql"
-);
+const migrationsRoot = path.join(root, "prisma", "migrations");
 
 await Promise.all([
   mkdir(dataDir, { recursive: true }),
@@ -21,7 +15,16 @@ await Promise.all([
   mkdir(path.join(dataDir, "imports"), { recursive: true })
 ]);
 
-const sql = await readFile(migrationPath, "utf8");
+const migrationDirs = (await readdir(migrationsRoot, { withFileTypes: true }))
+  .filter((entry) => entry.isDirectory())
+  .map((entry) => entry.name)
+  .sort();
+
+const sql = (
+  await Promise.all(
+    migrationDirs.map(async (directory) => readFile(path.join(migrationsRoot, directory, "migration.sql"), "utf8"))
+  )
+).join("\n\n");
 
 await new Promise((resolve, reject) => {
   const child = spawn("sqlite3", [dbPath], {

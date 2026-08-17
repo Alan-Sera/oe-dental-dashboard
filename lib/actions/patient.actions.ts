@@ -55,7 +55,11 @@ export async function getPatients() {
       attachments: true,
       clinicalEntries: true,
       charges: true,
-      payments: true
+      payments: true,
+      paymentHistorySheets: {
+        include: { attachment: true },
+        orderBy: { createdAt: "desc" }
+      }
     }
   });
 }
@@ -78,6 +82,10 @@ export async function getPatientById(patientId: string) {
       payments: {
         include: { attachments: true },
         orderBy: { paidAt: "desc" }
+      },
+      paymentHistorySheets: {
+        include: { attachment: true },
+        orderBy: [{ isActive: "desc" }, { createdAt: "desc" }]
       }
     }
   });

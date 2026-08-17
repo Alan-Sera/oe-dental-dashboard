@@ -3,14 +3,31 @@
 import Image from "next/image";
 import Link from "next/link";
 import * as Tabs from "@radix-ui/react-tabs";
-import { BadgeDollarSign, FileText, FolderOpen, ImageIcon, NotebookPen } from "lucide-react";
+import {
+  BadgeDollarSign,
+  CheckCircle2,
+  ExternalLink,
+  FileText,
+  FolderOpen,
+  ImageIcon,
+  LoaderCircle,
+  NotebookPen,
+  Table2,
+  UploadCloud
+} from "lucide-react";
 
 import { categoryLabels } from "@/constants";
 import type { SerializedAttachment, SerializedPatientDetail } from "@/types";
+import {
+  retryPaymentHistorySheetUpload,
+  setActivePaymentHistorySheet
+} from "@/lib/actions/payment-history.actions";
 import { calculateLedgerTotals } from "@/lib/ledger";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { ClinicalEntryForm } from "@/components/forms/clinical-entry-form";
 import { PaymentForm, TreatmentChargeForm } from "@/components/forms/ledger-forms";
 import { PatientForm } from "@/components/forms/patient-form";
@@ -21,6 +38,7 @@ export function PatientDetailTabs({ patient }: { patient: SerializedPatientDetai
   const photos = patient.attachments.filter((attachment) =>
     ["PHOTO", "RADIOGRAPH"].includes(attachment.category)
   );
+  const activePaymentHistory = patient.paymentHistorySheets.find((sheet) => sheet.isActive);
 
   return (
     <Tabs.Root defaultValue="summary" className="space-y-5">
@@ -29,6 +47,7 @@ export function PatientDetailTabs({ patient }: { patient: SerializedPatientDetai
         <Tab value="media" icon={ImageIcon} label="Fotos" />
         <Tab value="clinical" icon={NotebookPen} label="Historia" />
         <Tab value="ledger" icon={BadgeDollarSign} label="Cuenta" />
+        <Tab value="payment-history" icon={Table2} label="Historial pagos" />
         <Tab value="files" icon={FolderOpen} label="Archivos" />
       </Tabs.List>
 
@@ -127,6 +146,43 @@ export function PatientDetailTabs({ patient }: { patient: SerializedPatientDetai
         </Card>
       </Tabs.Content>
 
+      <Tabs.Content value="payment-history" className="space-y-5">
+        <Card className="space-y-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="section-title">Historial de pagos activo</h2>
+              <p className="mt-1 text-sm text-lavender-200/60">
+                Archivo local importado y, cuando esté conectado, convertido a Google Sheets.
+              </p>
+            </div>
+            {activePaymentHistory ? <PaymentHistoryStatusBadge status={activePaymentHistory.uploadStatus} /> : null}
+          </div>
+
+          {activePaymentHistory ? (
+            <PaymentHistoryPanel patientId={patient.id} sheet={activePaymentHistory} featured />
+          ) : (
+            <EmptyState text="Sin historial activo. Importa un .xlsx o elige uno de la lista como historial activo." />
+          )}
+        </Card>
+
+        <Card className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="section-title">Historiales importados</h2>
+            <Badge tone="neutral">{patient.paymentHistorySheets.length} archivo(s)</Badge>
+          </div>
+
+          {patient.paymentHistorySheets.length > 0 ? (
+            <div className="space-y-3">
+              {patient.paymentHistorySheets.map((sheet) => (
+                <PaymentHistoryPanel key={sheet.id} patientId={patient.id} sheet={sheet} />
+              ))}
+            </div>
+          ) : (
+            <EmptyState text="Aún no hay archivos .xlsx de historial de pagos para este paciente" />
+          )}
+        </Card>
+      </Tabs.Content>
+
       <Tabs.Content value="files" className="space-y-3">
         {patient.attachments.length > 0 ? (
           patient.attachments.map((attachment) => (
@@ -148,6 +204,105 @@ export function PatientDetailTabs({ patient }: { patient: SerializedPatientDetai
         )}
       </Tabs.Content>
     </Tabs.Root>
+  );
+}
+
+function PaymentHistoryPanel({
+  patientId,
+  sheet,
+  featured = false
+}: {
+  patientId: string;
+  sheet: SerializedPatientDetail["paymentHistorySheets"][number];
+  featured?: boolean;
+}) {
+  return (
+    <div className="surface space-y-4 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 space-y-1">
+          <div className="flex flex-wrap items-center gap-2">
+            {sheet.isActive ? <Badge tone="brand">Activo</Badge> : null}
+            <PaymentHistoryStatusBadge status={sheet.uploadStatus} />
+          </div>
+          <p className="truncate font-medium text-ink-100">{sheet.attachment.originalName}</p>
+          <p className="truncate text-sm text-lavender-200/55">{sheet.attachment.sourceRelativePath}</p>
+          <p className="text-xs text-lavender-200/45">
+            Importado {formatDate(sheet.createdAt)}
+            {sheet.uploadedAt ? ` · Subido ${formatDate(sheet.uploadedAt)}` : ""}
+          </p>
+          {sheet.errorMessage ? <p className="text-sm text-coral-300">{sheet.errorMessage}</p> : null}
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          {sheet.googleUrl ? (
+            <Button asChild size="sm">
+              <Link href={sheet.googleUrl} target="_blank" rel="noreferrer">
+                <ExternalLink className="size-4" aria-hidden="true" />
+                Abrir en Google Sheets
+              </Link>
+            </Button>
+          ) : null}
+          <Button asChild variant="secondary" size="sm">
+            <Link href={`/api/files/${sheet.attachment.id}`} target="_blank">
+              <FileText className="size-4" aria-hidden="true" />
+              Abrir local
+            </Link>
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid gap-3 lg:grid-cols-[1fr_auto]">
+        <form action={retryPaymentHistorySheetUpload} className="grid gap-2 sm:grid-cols-[1fr_auto]">
+          <input type="hidden" name="sheetId" value={sheet.id} />
+          <Input
+            name="googleFolderId"
+            defaultValue={sheet.googleFolderId ?? ""}
+            placeholder="Link o ID de carpeta compartida de Google Drive"
+          />
+          <Button type="submit" variant="secondary" size="sm">
+            <UploadCloud className="size-4" aria-hidden="true" />
+            Subir/Reintentar
+          </Button>
+        </form>
+
+        {!sheet.isActive && !featured ? (
+          <form action={setActivePaymentHistorySheet}>
+            <input type="hidden" name="patientId" value={patientId} />
+            <input type="hidden" name="sheetId" value={sheet.id} />
+            <Button type="submit" variant="ghost" size="sm">
+              <CheckCircle2 className="size-4" aria-hidden="true" />
+              Usar como activo
+            </Button>
+          </form>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function PaymentHistoryStatusBadge({
+  status
+}: {
+  status: SerializedPatientDetail["paymentHistorySheets"][number]["uploadStatus"];
+}) {
+  if (status === "UPLOADED") {
+    return (
+      <Badge tone="brand">
+        <CheckCircle2 className="mr-1 size-3" aria-hidden="true" />
+        Google Sheets
+      </Badge>
+    );
+  }
+
+  if (status === "FAILED") {
+    return <Badge tone="coral">Falló subida</Badge>;
+  }
+
+  return (
+    <Badge tone="neutral">
+      <LoaderCircle className="mr-1 size-3" aria-hidden="true" />
+      Local solamente
+    </Badge>
   );
 }
 

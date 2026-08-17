@@ -8,6 +8,7 @@ const categoryFolders: Record<AttachmentCategoryValue, string> = {
   RADIOGRAPH: "radiographs",
   CLINICAL_HISTORY: "clinical-history",
   PAYMENT_RECEIPT: "payment-receipts",
+  PAYMENT_HISTORY: "payment-history",
   OTHER: "other"
 };
 
