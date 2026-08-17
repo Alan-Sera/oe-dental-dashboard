@@ -5,6 +5,7 @@ import { logout } from "@/lib/actions/auth.actions";
 import type { ClinicSettings } from "@/lib/actions/settings.actions";
 import { navigationItems } from "@/constants";
 import { BrandMark } from "@/components/brand-mark";
+import { MobileNavDrawer } from "@/components/mobile-nav-drawer";
 import { Button } from "@/components/ui/button";
 
 export function AppShell({
@@ -54,15 +55,22 @@ export function AppShell({
       <div className="lg:pl-72">
         <header className="sticky top-0 z-30 border-b border-lavender-600/55 bg-lavender-950/55 px-4 py-3 backdrop-blur sm:px-6 lg:px-8">
           <div className="mx-auto flex max-w-[1480px] items-center justify-between gap-3">
-            <Link href="/dashboard" className="flex items-center gap-2 font-semibold lg:hidden">
-              <BrandMark size="sm" />
-              {settings.clinicName}
-            </Link>
+            <div className="flex min-w-0 items-center gap-3 lg:hidden">
+              <MobileNavDrawer
+                clinicName={settings.clinicName}
+                currency={settings.currency}
+                networkMode={settings.networkMode}
+              />
+              <Link href="/dashboard" className="flex min-w-0 items-center gap-2 font-semibold">
+                <BrandMark size="sm" />
+                <span className="truncate">{settings.clinicName}</span>
+              </Link>
+            </div>
             <div className="hidden text-sm text-lavender-200/60 lg:block">Bóveda local activa</div>
             <form action={logout}>
-              <Button variant="secondary" size="sm" type="submit">
+              <Button variant="secondary" size="sm" type="submit" aria-label="Salir">
                 <LogOut className="size-4" aria-hidden="true" />
-                Salir
+                <span className="hidden sm:inline">Salir</span>
               </Button>
             </form>
           </div>
