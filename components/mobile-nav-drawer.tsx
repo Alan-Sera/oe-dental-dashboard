@@ -32,6 +32,24 @@ export function MobileNavDrawer({
   useEffect(() => {
     if (!open) return;
 
+    const desktopMediaQuery = window.matchMedia("(min-width: 1024px)");
+    if (desktopMediaQuery.matches) {
+      setOpen(false);
+      return;
+    }
+
+    function handleDesktopChange(event: MediaQueryListEvent) {
+      if (event.matches) setOpen(false);
+    }
+
+    desktopMediaQuery.addEventListener("change", handleDesktopChange);
+
+    return () => desktopMediaQuery.removeEventListener("change", handleDesktopChange);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     closeButtonRef.current?.focus();
