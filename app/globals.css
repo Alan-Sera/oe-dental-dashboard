@@ -11,16 +11,16 @@
 }
 
 html {
-  background: #080a0d;
+  background: #070916;
 }
 
 body {
   min-height: 100vh;
   margin: 0;
   background:
-    linear-gradient(180deg, rgba(13, 17, 23, 0.96), rgba(8, 10, 13, 1)),
-    #080a0d;
-  color: #e5eaf0;
+    linear-gradient(180deg, rgba(30, 20, 44, 0.98), rgba(12, 10, 28, 0.98) 42%, rgba(7, 9, 22, 1)),
+    #070916;
+  color: #e8eaf2;
 }
 
 button,
@@ -39,15 +39,15 @@ select {
 
 @layer components {
   .panel {
-    @apply rounded-lg border border-ink-700 bg-ink-850 shadow-panel;
+    @apply rounded-lg border border-lavender-500/45 bg-lavender-900/40 shadow-panel;
   }
 
   .surface {
-    @apply rounded-lg border border-ink-700 bg-ink-800;
+    @apply rounded-lg border border-lavender-600/45 bg-lavender-900/30;
   }
 
   .muted {
-    @apply text-sm text-ink-400;
+    @apply text-sm text-lavender-200/65;
   }
 
   .page-shell {
@@ -55,10 +55,10 @@ select {
   }
 
   .section-title {
-    @apply text-lg font-semibold text-ink-200;
+    @apply text-lg font-semibold text-lavender-100;
   }
 
   .table-row {
-    @apply grid gap-3 border-b border-ink-700 px-4 py-3 last:border-0;
+    @apply grid gap-3 border-b border-lavender-600/45 px-4 py-3 last:border-0;
   }
 }

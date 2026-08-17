@@ -29,7 +29,7 @@ export default async function PatientsPage() {
 
       <Card>
         <div className="mb-4 flex items-center gap-2">
-          <Plus className="size-5 text-mint-500" aria-hidden="true" />
+          <Plus className="size-5 text-lavender-200" aria-hidden="true" />
           <h2 className="section-title">Nuevo paciente</h2>
         </div>
         <PatientForm />
@@ -44,18 +44,18 @@ export default async function PatientsPage() {
               <Link
                 key={patient.id}
                 href={`/patients/${patient.id}`}
-                className="grid gap-4 border-b border-ink-700 px-4 py-4 transition last:border-0 hover:bg-ink-800 md:grid-cols-[auto_1fr_auto_auto]"
+                className="grid gap-4 border-b border-lavender-600/45 px-4 py-4 transition last:border-0 hover:bg-lavender-800/30 md:grid-cols-[auto_1fr_auto_auto]"
               >
-                <div className="flex size-11 items-center justify-center rounded-md bg-ink-700 text-sm font-semibold text-ink-200">
+                <div className="flex size-11 items-center justify-center rounded-md bg-lavender-800/70 text-sm font-semibold text-lavender-100 ring-1 ring-lavender-300/30">
                   {initials(patient.fullName)}
                 </div>
                 <div>
                   <p className="font-medium text-white">{patient.fullName}</p>
-                  <p className="text-sm text-ink-500">
+                  <p className="text-sm text-lavender-200/55">
                     {patient.phone ?? "Sin teléfono"} · {patient.email ?? "Sin correo"}
                   </p>
                 </div>
-                <div className="text-sm text-ink-400">
+                <div className="text-sm text-lavender-200/65">
                   <p>{patient.attachments.length} archivo(s)</p>
                   <p>{formatDate(patient.updatedAt)}</p>
                 </div>
@@ -65,7 +65,7 @@ export default async function PatientsPage() {
               </Link>
             );
           })}
-          {patients.length === 0 ? <p className="px-4 py-8 text-sm text-ink-500">Sin pacientes registrados</p> : null}
+          {patients.length === 0 ? <p className="px-4 py-8 text-sm text-lavender-200/55">Sin pacientes registrados</p> : null}
         </div>
       </Card>
     </main>

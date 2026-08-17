@@ -32,17 +32,17 @@ export function BackupControls({ backups }: { backups: Array<{ name: string; cre
         Crear backup
       </Button>
 
-      {message ? <p className="text-sm text-mint-500">{message}</p> : null}
+      {message ? <p className="text-sm text-lavender-200">{message}</p> : null}
 
       <div className="surface overflow-hidden">
         {backups.map((backup) => (
           <div
             key={backup.name}
-            className="flex flex-wrap items-center justify-between gap-3 border-b border-ink-700 px-4 py-3 last:border-0"
+            className="flex flex-wrap items-center justify-between gap-3 border-b border-lavender-600/45 px-4 py-3 transition last:border-0 hover:bg-lavender-800/25"
           >
             <div>
               <p className="font-medium text-ink-100">{backup.name}</p>
-              <p className="text-sm text-ink-500">{new Date(backup.createdAt).toLocaleString("es")}</p>
+              <p className="text-sm text-lavender-200/55">{new Date(backup.createdAt).toLocaleString("es")}</p>
             </div>
             <Button
               type="button"
@@ -62,7 +62,7 @@ export function BackupControls({ backups }: { backups: Array<{ name: string; cre
             </Button>
           </div>
         ))}
-        {backups.length === 0 ? <p className="px-4 py-8 text-sm text-ink-500">Sin backups</p> : null}
+        {backups.length === 0 ? <p className="px-4 py-8 text-sm text-lavender-200/55">Sin backups</p> : null}
       </div>
     </div>
   );

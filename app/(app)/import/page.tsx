@@ -24,21 +24,21 @@ export default async function ImportPage() {
           {batches.map((batch) => (
             <div
               key={batch.id}
-              className="grid gap-3 border-b border-ink-700 px-4 py-3 last:border-0 md:grid-cols-[1fr_auto_auto]"
+              className="grid gap-3 border-b border-lavender-600/45 px-4 py-3 transition last:border-0 hover:bg-lavender-800/30 md:grid-cols-[1fr_auto_auto]"
             >
               <div>
                 <p className="font-medium text-white">{batch.sourceRootName}</p>
-                <p className="text-sm text-ink-500">
+                <p className="text-sm text-lavender-200/55">
                   {batch.importedCount} importado(s) · {batch.duplicateCount} duplicado(s) · {batch.errorCount} error(es)
                 </p>
               </div>
-              <p className="text-sm text-ink-500">{formatDate(batch.createdAt)}</p>
+              <p className="text-sm text-lavender-200/55">{formatDate(batch.createdAt)}</p>
               <Badge tone={batch.status === "COMMITTED" ? "mint" : batch.status === "FAILED" ? "coral" : "amber"}>
                 {batch.status}
               </Badge>
             </div>
           ))}
-          {batches.length === 0 ? <p className="px-4 py-8 text-sm text-ink-500">Sin lotes importados</p> : null}
+          {batches.length === 0 ? <p className="px-4 py-8 text-sm text-lavender-200/55">Sin lotes importados</p> : null}
         </div>
       </Card>
     </main>

@@ -6,6 +6,7 @@ import { useForm } from "react-hook-form";
 
 import { setupClinic } from "@/lib/actions/auth.actions";
 import { setupSchema, type SetupInput } from "@/lib/validation";
+import { BrandMark } from "@/components/brand-mark";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -29,8 +30,9 @@ export function SetupForm() {
         startTransition(() => setupClinic(values));
       })}
     >
-      <div className="space-y-2">
-        <p className="text-sm font-medium text-mint-500">Primer acceso</p>
+      <div className="space-y-3">
+        <BrandMark size="lg" priority />
+        <p className="text-sm font-medium text-lavender-200">Primer acceso</p>
         <h1 className="text-2xl font-semibold text-white">Configura la clínica</h1>
       </div>
 

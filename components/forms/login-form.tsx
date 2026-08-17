@@ -6,6 +6,7 @@ import { useForm } from "react-hook-form";
 
 import { login } from "@/lib/actions/auth.actions";
 import { loginSchema, type LoginInput } from "@/lib/validation";
+import { BrandMark } from "@/components/brand-mark";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -31,8 +32,9 @@ export function LoginForm() {
         });
       })}
     >
-      <div className="space-y-2">
-        <p className="text-sm font-medium text-mint-500">OE Dental</p>
+      <div className="space-y-3">
+        <BrandMark size="lg" priority />
+        <p className="text-sm font-medium text-lavender-200">Odontología Especializada Chetumal</p>
         <h1 className="text-2xl font-semibold text-white">Acceso local</h1>
       </div>
 

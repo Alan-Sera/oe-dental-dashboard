@@ -12,7 +12,7 @@ export function Field({
   className?: string;
 }) {
   return (
-    <label className={cn("flex flex-col gap-2 text-sm text-ink-300", className)}>
+    <label className={cn("flex flex-col gap-2 text-sm text-lavender-100/85", className)}>
       <span>{label}</span>
       {children}
       {error ? <span className="text-xs text-coral-400">{error}</span> : null}

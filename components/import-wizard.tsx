@@ -177,7 +177,7 @@ export function ImportWizard() {
     <div className="space-y-5">
       <div className="panel flex flex-wrap items-center justify-between gap-4 p-5">
         <div className="flex items-center gap-3">
-          <div className="flex size-11 items-center justify-center rounded-md bg-mint-900 text-mint-500">
+          <div className="flex size-11 items-center justify-center rounded-md bg-lavender-800/80 text-lavender-100 ring-1 ring-lavender-300/35">
             <FolderDown className="size-5" aria-hidden="true" />
           </div>
           <div>
@@ -209,10 +209,10 @@ export function ImportWizard() {
         <div className="surface p-4">
           <div className="flex items-center justify-between gap-3">
             <p className={error ? "text-sm text-coral-400" : "text-sm text-ink-300"}>{error || status}</p>
-            <p className="text-sm text-ink-500">{progress}%</p>
+            <p className="text-sm text-lavender-200/55">{progress}%</p>
           </div>
-          <div className="mt-3 h-2 rounded-full bg-ink-900">
-            <div className="h-2 rounded-full bg-mint-500 transition-all" style={{ width: `${progress}%` }} />
+          <div className="mt-3 h-2 rounded-full bg-lavender-900/75">
+            <div className="h-2 rounded-full bg-gradient-to-r from-brand-500 to-lavender-300 transition-all" style={{ width: `${progress}%` }} />
           </div>
         </div>
       ) : null}
@@ -220,7 +220,7 @@ export function ImportWizard() {
       {files.length ? (
         <div className="panel overflow-x-auto">
           <div className="min-w-[980px]">
-            <div className="grid grid-cols-[1.2fr_1fr_180px_260px] gap-3 border-b border-ink-700 px-4 py-3 text-xs font-medium uppercase text-ink-500">
+            <div className="grid grid-cols-[1.2fr_1fr_180px_260px] gap-3 border-b border-lavender-600/45 bg-lavender-950/25 px-4 py-3 text-xs font-medium uppercase text-lavender-200/65">
               <span>Archivo</span>
               <span>Paciente</span>
               <span>Tipo</span>
@@ -230,11 +230,11 @@ export function ImportWizard() {
               {files.map((file) => (
                 <div
                   key={file.id}
-                  className="grid grid-cols-[1.2fr_1fr_180px_260px] gap-3 border-b border-ink-700 px-4 py-3 last:border-0"
+                  className="grid grid-cols-[1.2fr_1fr_180px_260px] gap-3 border-b border-lavender-600/45 px-4 py-3 transition last:border-0 hover:bg-lavender-800/25"
                 >
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium text-ink-100">{file.file.name}</p>
-                  <p className="truncate text-xs text-ink-500">{file.relativePath}</p>
+                  <p className="truncate text-xs text-lavender-200/50">{file.relativePath}</p>
                   {file.duplicateInBatch ? <Badge tone="amber" className="mt-2">Duplicado en lote</Badge> : null}
                 </div>
                 <Input
@@ -278,7 +278,7 @@ export function ImportWizard() {
                     />
                   </div>
                 ) : (
-                  <p className="text-sm text-ink-500">Sin captura</p>
+                  <p className="text-sm text-lavender-200/55">Sin captura</p>
                 )}
                 </div>
               ))}

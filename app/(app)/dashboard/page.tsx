@@ -39,7 +39,7 @@ export default async function DashboardPage() {
       </div>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard title="Pacientes" value={String(patients.length)} detail="Expedientes locales" icon={UsersRound} tone="mint" />
+        <StatCard title="Pacientes" value={String(patients.length)} detail="Expedientes locales" icon={UsersRound} tone="brand" />
         <StatCard title="Saldo pendiente" value={formatCurrency(totals.balanceCents, settings.currency)} detail="Cargos menos pagos" icon={BadgeDollarSign} tone="amber" />
         <StatCard title="Archivos" value={String(attachmentCount)} detail="En bóveda local" icon={FileStack} tone="sky" />
         <StatCard title="Importaciones" value={String(pendingBatches)} detail="Lotes por revisar" icon={FolderClock} tone="coral" />
@@ -49,7 +49,7 @@ export default async function DashboardPage() {
         <Card>
           <div className="mb-4 flex items-center justify-between">
             <h2 className="section-title">Pacientes recientes</h2>
-            <Link href="/patients" className="text-sm text-mint-500 hover:text-mint-400">
+            <Link href="/patients" className="text-sm text-lavender-200 hover:text-white">
               Ver todos
             </Link>
           </div>
@@ -60,21 +60,21 @@ export default async function DashboardPage() {
                 <Link
                   key={patient.id}
                   href={`/patients/${patient.id}`}
-                  className="grid grid-cols-[1fr_auto] gap-3 border-b border-ink-700 px-4 py-3 transition last:border-0 hover:bg-ink-800"
+                  className="grid grid-cols-[1fr_auto] gap-3 border-b border-lavender-600/45 px-4 py-3 transition last:border-0 hover:bg-lavender-800/30"
                 >
                   <div>
                     <p className="font-medium text-white">{patient.fullName}</p>
-                    <p className="text-sm text-ink-500">
+                    <p className="text-sm text-lavender-200/55">
                       {patient.attachments.length} archivo(s) · {patient.clinicalEntries?.length ?? 0} nota(s)
                     </p>
                   </div>
-                  <p className="text-sm font-semibold text-ink-200">
+                  <p className="text-sm font-semibold text-lavender-100">
                     {formatCurrency(patientTotals.balanceCents, settings.currency)}
                   </p>
                 </Link>
               );
             })}
-            {patients.length === 0 ? <p className="px-4 py-8 text-sm text-ink-500">Sin pacientes</p> : null}
+            {patients.length === 0 ? <p className="px-4 py-8 text-sm text-lavender-200/55">Sin pacientes</p> : null}
           </div>
         </Card>
 
@@ -89,12 +89,12 @@ export default async function DashboardPage() {
                     {batch.status}
                   </Badge>
                 </div>
-                <p className="mt-2 text-sm text-ink-500">
+                <p className="mt-2 text-sm text-lavender-200/55">
                   {batch.fileCount} archivo(s) · {formatDate(batch.createdAt)}
                 </p>
               </div>
             ))}
-            {batches.length === 0 ? <p className="text-sm text-ink-500">Sin importaciones</p> : null}
+            {batches.length === 0 ? <p className="text-sm text-lavender-200/55">Sin importaciones</p> : null}
           </div>
         </Card>
       </section>

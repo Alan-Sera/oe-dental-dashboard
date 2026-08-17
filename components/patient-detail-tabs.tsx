@@ -24,7 +24,7 @@ export function PatientDetailTabs({ patient }: { patient: SerializedPatientDetai
 
   return (
     <Tabs.Root defaultValue="summary" className="space-y-5">
-      <Tabs.List className="flex gap-2 overflow-x-auto rounded-lg border border-ink-700 bg-ink-900 p-1">
+      <Tabs.List className="flex gap-2 overflow-x-auto rounded-lg border border-lavender-600/55 bg-lavender-900/35 p-1">
         <Tab value="summary" icon={FileText} label="Resumen" />
         <Tab value="media" icon={ImageIcon} label="Fotos" />
         <Tab value="clinical" icon={NotebookPen} label="Historia" />
@@ -76,13 +76,13 @@ export function PatientDetailTabs({ patient }: { patient: SerializedPatientDetai
             patient.clinicalEntries.map((entry) => (
               <Card key={entry.id} className="space-y-3">
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge tone="mint">{formatDate(entry.entryDate)}</Badge>
+                  <Badge tone="brand">{formatDate(entry.entryDate)}</Badge>
                   {entry.tooth ? <Badge>Pieza {entry.tooth}</Badge> : null}
                   {entry.attachments.length ? <Badge tone="sky">{entry.attachments.length} archivo(s)</Badge> : null}
                 </div>
                 {entry.diagnosis ? <p className="text-sm text-ink-300">Diagnóstico: {entry.diagnosis}</p> : null}
                 {entry.treatment ? <p className="text-sm text-ink-300">Tratamiento: {entry.treatment}</p> : null}
-                <p className="whitespace-pre-wrap text-sm text-ink-400">{entry.notes}</p>
+                <p className="whitespace-pre-wrap text-sm text-lavender-200/65">{entry.notes}</p>
               </Card>
             ))
           ) : (
@@ -133,11 +133,11 @@ export function PatientDetailTabs({ patient }: { patient: SerializedPatientDetai
             <Card key={attachment.id} className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="font-medium text-ink-100">{attachment.originalName}</p>
-                <p className="text-sm text-ink-500">{attachment.sourceRelativePath}</p>
+                <p className="text-sm text-lavender-200/55">{attachment.sourceRelativePath}</p>
               </div>
               <div className="flex items-center gap-2">
                 <Badge>{categoryLabels[attachment.category]}</Badge>
-                <Link href={`/api/files/${attachment.id}`} target="_blank" className="text-sm text-mint-500 hover:text-mint-400">
+                <Link href={`/api/files/${attachment.id}`} target="_blank" className="text-sm text-lavender-200 hover:text-white">
                   Abrir
                 </Link>
               </div>
@@ -163,7 +163,7 @@ function Tab({
   return (
     <Tabs.Trigger
       value={value}
-      className="flex h-10 items-center gap-2 rounded-md px-3 text-sm text-ink-400 transition data-[state=active]:bg-ink-700 data-[state=active]:text-white"
+      className="flex h-10 items-center gap-2 rounded-md px-3 text-sm text-lavender-200/70 transition hover:bg-lavender-800/35 hover:text-lavender-50 data-[state=active]:bg-lavender-800/80 data-[state=active]:text-lavender-50"
     >
       <Icon className="size-4" />
       {label}
@@ -173,8 +173,8 @@ function Tab({
 
 function Metric({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
   return (
-    <div className="flex items-center justify-between border-b border-ink-700 pb-3 last:border-0">
-      <span className="text-sm text-ink-400">{label}</span>
+    <div className="flex items-center justify-between border-b border-lavender-600/45 pb-3 last:border-0">
+      <span className="text-sm text-lavender-200/70">{label}</span>
       <span className={strong ? "text-xl font-semibold text-white" : "font-medium text-ink-200"}>{value}</span>
     </div>
   );
@@ -185,7 +185,7 @@ function AttachmentTile({ attachment }: { attachment: SerializedAttachment }) {
 
   return (
     <Card className="overflow-hidden p-0">
-      <div className="flex aspect-[4/3] items-center justify-center bg-ink-900">
+      <div className="flex aspect-[4/3] items-center justify-center bg-lavender-950/45">
         {isImage ? (
           <Image
             src={`/api/files/${attachment.id}`}
@@ -196,7 +196,7 @@ function AttachmentTile({ attachment }: { attachment: SerializedAttachment }) {
             unoptimized
           />
         ) : (
-          <FileText className="size-12 text-ink-600" aria-hidden="true" />
+          <FileText className="size-12 text-lavender-500/55" aria-hidden="true" />
         )}
       </div>
       <div className="space-y-2 p-4">
@@ -204,7 +204,7 @@ function AttachmentTile({ attachment }: { attachment: SerializedAttachment }) {
           {categoryLabels[attachment.category]}
         </Badge>
         <p className="truncate text-sm font-medium text-ink-100">{attachment.originalName}</p>
-        <p className="text-xs text-ink-500">{formatDate(attachment.importedAt)}</p>
+        <p className="text-xs text-lavender-200/55">{formatDate(attachment.importedAt)}</p>
       </div>
     </Card>
   );
@@ -219,24 +219,24 @@ function LedgerList({
 }) {
   return (
     <div className="surface overflow-hidden">
-      <div className="border-b border-ink-700 px-4 py-3 text-sm font-medium text-ink-300">{title}</div>
+      <div className="border-b border-lavender-600/45 bg-lavender-950/25 px-4 py-3 text-sm font-medium text-lavender-100">{title}</div>
       {rows.length > 0 ? (
         rows.map((row) => (
-          <div key={row.id} className="flex items-center justify-between gap-3 border-b border-ink-700 px-4 py-3 last:border-0">
+          <div key={row.id} className="flex items-center justify-between gap-3 border-b border-lavender-600/45 px-4 py-3 transition last:border-0 hover:bg-lavender-800/25">
             <div>
               <p className="text-sm font-medium text-ink-100">{row.primary}</p>
-              <p className="text-xs text-ink-500">{row.secondary}</p>
+              <p className="text-xs text-lavender-200/55">{row.secondary}</p>
             </div>
             <p className="text-sm font-semibold text-white">{row.amount}</p>
           </div>
         ))
       ) : (
-        <p className="px-4 py-6 text-sm text-ink-500">Sin movimientos</p>
+        <p className="px-4 py-6 text-sm text-lavender-200/55">Sin movimientos</p>
       )}
     </div>
   );
 }
 
 function EmptyState({ text }: { text: string }) {
-  return <div className="surface p-6 text-sm text-ink-500">{text}</div>;
+  return <div className="surface p-6 text-sm text-lavender-200/60">{text}</div>;
 }
