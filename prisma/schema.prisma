@@ -41,6 +41,11 @@ enum PaymentStatus {
   VOID
 }
 
+enum PatientGender {
+  MASCULINO
+  FEMENINO
+}
+
 enum PaymentHistoryUploadStatus {
   LOCAL_ONLY
   UPLOADED
@@ -66,6 +71,8 @@ model Patient {
   email                String?
   phone                String?
   birthDate            DateTime?
+  gender               PatientGender?
+  nextAppointmentDate  DateTime?
   notes                String?
   folderAliases        String?
   localFolderRelativePath String?             @unique

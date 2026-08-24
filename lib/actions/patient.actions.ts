@@ -14,7 +14,9 @@ export async function createPatient(input: PatientInput) {
       fullName: parsed.fullName,
       email: parsed.email || null,
       phone: parsed.phone || null,
-      birthDate: parsed.birthDate ? new Date(parsed.birthDate) : null,
+      birthDate: inputDateToUtcNoon(parsed.birthDate),
+      gender: parsed.gender || null,
+      nextAppointmentDate: inputDateToUtcNoon(parsed.nextAppointmentDate),
       notes: parsed.notes || null,
       folderAliases: JSON.stringify([parsed.fullName])
     }
@@ -36,7 +38,9 @@ export async function updatePatient(patientId: string, input: PatientInput) {
       fullName: parsed.fullName,
       email: parsed.email || null,
       phone: parsed.phone || null,
-      birthDate: parsed.birthDate ? new Date(parsed.birthDate) : null,
+      birthDate: inputDateToUtcNoon(parsed.birthDate),
+      gender: parsed.gender || null,
+      nextAppointmentDate: inputDateToUtcNoon(parsed.nextAppointmentDate),
       notes: parsed.notes || null
     }
   });
@@ -113,4 +117,8 @@ export async function findOrCreatePatientByName(patientName: string) {
 
   await recordAudit("patient.created_from_import", "Patient", patient.id, { patientName });
   return patient;
+}
+
+function inputDateToUtcNoon(value: string | undefined) {
+  return value ? new Date(`${value}T12:00:00.000Z`) : null;
 }

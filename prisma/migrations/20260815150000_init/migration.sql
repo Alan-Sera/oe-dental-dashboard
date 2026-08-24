@@ -19,6 +19,8 @@ CREATE TABLE IF NOT EXISTS "Patient" (
     "email" TEXT,
     "phone" TEXT,
     "birthDate" DATETIME,
+    "gender" TEXT,
+    "nextAppointmentDate" DATETIME,
     "notes" TEXT,
     "folderAliases" TEXT,
     "localFolderRelativePath" TEXT,

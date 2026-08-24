@@ -12,6 +12,25 @@ describe("validation", () => {
     expect(patientSchema.safeParse({ fullName: "María López" }).success).toBe(true);
   });
 
+  it("accepts patient directory fields", () => {
+    expect(
+      patientSchema.safeParse({
+        fullName: "Ana Ruiz",
+        gender: "FEMENINO",
+        nextAppointmentDate: "2026-08-24"
+      }).success
+    ).toBe(true);
+  });
+
+  it("rejects unsupported patient gender values", () => {
+    expect(
+      patientSchema.safeParse({
+        fullName: "Carlos Núñez",
+        gender: "OTRO"
+      }).success
+    ).toBe(false);
+  });
+
   it("requires payment amount and method", () => {
     expect(
       paymentSchema.safeParse({

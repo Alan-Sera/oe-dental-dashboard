@@ -1,18 +1,26 @@
 import { PatientsSearchFilterOnly } from "@/components/patients-search-filter-only";
 import { getPatients } from "@/lib/actions/patient.actions";
+import { calculateLedgerTotals } from "@/lib/ledger";
 
 export const dynamic = "force-dynamic";
 
 export default async function PatientsPage() {
   const patients = await getPatients();
-  const patientItems = patients.map((patient) => ({
-    id: patient.id,
-    fullName: patient.fullName,
-    phone: patient.phone,
-    email: patient.email,
-    updatedAt: patient.updatedAt.toISOString(),
-    attachmentCount: patient.attachments.length
-  }));
+  const patientItems = patients.map((patient) => {
+    const totals = calculateLedgerTotals(patient.charges, patient.payments);
+
+    return {
+      id: patient.id,
+      fullName: patient.fullName,
+      phone: patient.phone,
+      email: patient.email,
+      gender: patient.gender,
+      nextAppointmentDate: patient.nextAppointmentDate?.toISOString() ?? null,
+      balanceCents: totals.balanceCents,
+      updatedAt: patient.updatedAt.toISOString(),
+      attachmentCount: patient.attachments.length
+    };
+  });
 
   return (
     <main className="page-shell">

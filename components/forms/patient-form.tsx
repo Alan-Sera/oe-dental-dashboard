@@ -10,6 +10,7 @@ import { patientSchema, type PatientInput } from "@/lib/validation";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 
 export function PatientForm({
@@ -28,6 +29,8 @@ export function PatientForm({
       email: defaultValues?.email ?? "",
       phone: defaultValues?.phone ?? "",
       birthDate: defaultValues?.birthDate ?? "",
+      gender: defaultValues?.gender ?? "",
+      nextAppointmentDate: defaultValues?.nextAppointmentDate ?? "",
       notes: defaultValues?.notes ?? ""
     }
   });
@@ -55,6 +58,16 @@ export function PatientForm({
       </Field>
       <Field label="Fecha de nacimiento" error={form.formState.errors.birthDate?.message}>
         <Input type="date" {...form.register("birthDate")} />
+      </Field>
+      <Field label="Género" error={form.formState.errors.gender?.message}>
+        <Select {...form.register("gender")}>
+          <option value="">Sin especificar</option>
+          <option value="FEMENINO">Femenino</option>
+          <option value="MASCULINO">Masculino</option>
+        </Select>
+      </Field>
+      <Field label="Próxima cita" error={form.formState.errors.nextAppointmentDate?.message}>
+        <Input type="date" {...form.register("nextAppointmentDate")} />
       </Field>
       <Field label="Notas" error={form.formState.errors.notes?.message} className="md:col-span-2">
         <Textarea {...form.register("notes")} />

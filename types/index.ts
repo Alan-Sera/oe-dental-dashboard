@@ -1,6 +1,7 @@
 import type {
   AttachmentCategory,
   ChargeStatus,
+  PatientGender,
   PaymentHistoryUploadStatus,
   PaymentStatus
 } from "@prisma/client";
@@ -36,6 +37,8 @@ export type SerializedPatientDetail = {
   email: string | null;
   phone: string | null;
   birthDate: string | null;
+  gender: PatientGender | null;
+  nextAppointmentDate: string | null;
   notes: string | null;
   attachments: SerializedAttachment[];
   clinicalEntries: Array<{

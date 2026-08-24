@@ -78,6 +78,8 @@ export function PatientDetailTabs({
                 email: patient.email ?? "",
                 phone: patient.phone ?? "",
                 birthDate: patient.birthDate?.slice(0, 10) ?? "",
+                gender: patient.gender ?? "",
+                nextAppointmentDate: patient.nextAppointmentDate?.slice(0, 10) ?? "",
                 notes: patient.notes ?? ""
               }}
             />

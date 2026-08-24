@@ -46,6 +46,9 @@ await new Promise((resolve, reject) => {
   child.stdin.end(sql);
 });
 
+await ensureColumn(dbPath, "Patient", "gender", "TEXT");
+await ensureColumn(dbPath, "Patient", "nextAppointmentDate", "DATETIME");
+
 console.log(`SQLite database ready at ${dbPath}`);
 
 async function databaseNeedsReset(databasePath) {
@@ -76,6 +79,19 @@ async function runSqlite(databasePath, sql) {
 
     child.stdin.end(sql);
   });
+}
+
+async function ensureColumn(databasePath, tableName, columnName, definition) {
+  const escapedTableName = tableName.replace(/'/g, "''");
+  const escapedColumnName = columnName.replace(/'/g, "''");
+  const existingColumn = await runSqlite(
+    databasePath,
+    `SELECT name FROM pragma_table_info('${escapedTableName}') WHERE name = '${escapedColumnName}';`
+  );
+
+  if (!existingColumn.split(/\s+/).includes(columnName)) {
+    await runSqlite(databasePath, `ALTER TABLE "${tableName}" ADD COLUMN "${columnName}" ${definition};`);
+  }
 }
 
 async function pathExists(filePath) {

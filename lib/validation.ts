@@ -21,6 +21,8 @@ export const patientSchema = z.object({
   email: z.string().email("Correo inválido").optional().or(z.literal("")),
   phone: z.string().max(30).optional().or(z.literal("")),
   birthDate: z.string().optional().or(z.literal("")),
+  gender: z.enum(["MASCULINO", "FEMENINO"]).optional().or(z.literal("")),
+  nextAppointmentDate: z.string().optional().or(z.literal("")),
   notes: z.string().max(2000).optional().or(z.literal(""))
 });
 
