@@ -1,23 +1,8 @@
-import path from "node:path";
 import { mkdir } from "node:fs/promises";
-
-import type { AttachmentCategoryValue } from "@/lib/import-classifier";
-
-const categoryFolders: Record<AttachmentCategoryValue, string> = {
-  PHOTO: "photos",
-  RADIOGRAPH: "radiographs",
-  CLINICAL_HISTORY: "clinical-history",
-  PAYMENT_RECEIPT: "payment-receipts",
-  PAYMENT_HISTORY: "payment-history",
-  OTHER: "other"
-};
+import path from "node:path";
 
 export function getAppDataDir() {
   return path.resolve(process.cwd(), process.env.APP_DATA_DIR ?? "data");
-}
-
-export function getVaultDir() {
-  return path.join(getAppDataDir(), "vault");
 }
 
 export function getBackupDir() {
@@ -31,45 +16,83 @@ export function getImportDir() {
 export async function ensureDataDirectories() {
   await Promise.all([
     mkdir(getAppDataDir(), { recursive: true }),
-    mkdir(getVaultDir(), { recursive: true }),
     mkdir(getBackupDir(), { recursive: true }),
     mkdir(getImportDir(), { recursive: true })
   ]);
 }
 
-export function safeFileName(fileName: string) {
-  const extension = path.extname(fileName);
-  const base = path.basename(fileName, extension);
-  const safeBase = base
-    .normalize("NFKD")
-    .replace(/[^\w\s.-]/g, "")
-    .trim()
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .slice(0, 80);
+export function normalizePatientsRootPath(rootPath: string) {
+  const trimmed = rootPath.trim();
 
-  return `${safeBase || "archivo"}${extension.toLowerCase()}`;
+  if (!trimmed) {
+    throw new Error("Configura la carpeta maestra de pacientes");
+  }
+
+  if (!isAbsolutePath(trimmed)) {
+    throw new Error("La carpeta maestra debe ser una ruta absoluta");
+  }
+
+  return path.resolve(trimmed);
 }
 
-export function buildVaultRelativePath(params: {
-  patientId: string;
-  category: AttachmentCategoryValue;
-  sha256: string;
-  originalName: string;
+export function normalizeStoredRelativePath(relativePath: string) {
+  const trimmed = relativePath.trim();
+
+  if (!trimmed || isAbsolutePath(trimmed)) {
+    throw new Error("La ruta local debe ser relativa");
+  }
+
+  const normalized = trimmed.replace(/\\/g, "/").replace(/^\/+/, "");
+  const segments = normalized.split("/").filter(Boolean);
+
+  if (!segments.length || segments.some((segment) => segment === "." || segment === "..")) {
+    throw new Error("La ruta local contiene segmentos inválidos");
+  }
+
+  return segments.join("/");
+}
+
+export function joinStoredRelativePath(...parts: string[]) {
+  return parts
+    .map((part) => part.replace(/\\/g, "/").replace(/^\/+|\/+$/g, ""))
+    .filter(Boolean)
+    .join("/");
+}
+
+export function resolveLinkedAttachmentPath(params: {
+  patientsRootPath: string;
+  patientFolderRelativePath: string | null;
+  localRelativePath: string;
 }) {
-  const prefix = params.sha256.slice(0, 12);
-  const fileName = `${prefix}-${safeFileName(params.originalName)}`;
+  if (!params.patientFolderRelativePath) {
+    throw new Error("El paciente no tiene carpeta local vinculada");
+  }
 
-  return path.join(params.patientId, categoryFolders[params.category], fileName);
-}
+  const rootPath = normalizePatientsRootPath(params.patientsRootPath);
+  const patientFolderRelativePath = normalizeStoredRelativePath(params.patientFolderRelativePath);
+  const localRelativePath = normalizeStoredRelativePath(params.localRelativePath);
+  const absolutePath = path.resolve(
+    rootPath,
+    toNativePath(patientFolderRelativePath),
+    toNativePath(localRelativePath)
+  );
 
-export function resolveVaultPath(relativePath: string) {
-  const vaultDir = getVaultDir();
-  const absolutePath = path.resolve(vaultDir, relativePath);
-
-  if (!absolutePath.startsWith(path.resolve(vaultDir))) {
-    throw new Error("Invalid vault path");
+  if (!isPathInside(rootPath, absolutePath)) {
+    throw new Error("La ruta local intenta salir de la carpeta maestra");
   }
 
   return absolutePath;
+}
+
+export function isPathInside(parentPath: string, childPath: string) {
+  const relative = path.relative(path.resolve(parentPath), path.resolve(childPath));
+  return relative === "" || (!!relative && !relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
+function isAbsolutePath(value: string) {
+  return path.isAbsolute(value) || path.win32.isAbsolute(value) || path.posix.isAbsolute(value);
+}
+
+function toNativePath(storedRelativePath: string) {
+  return storedRelativePath.split("/").join(path.sep);
 }

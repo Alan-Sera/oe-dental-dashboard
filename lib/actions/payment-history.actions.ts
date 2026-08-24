@@ -5,8 +5,9 @@ import { readFile } from "node:fs/promises";
 import { revalidatePath } from "next/cache";
 
 import { recordAudit } from "@/lib/actions/audit.actions";
+import { getClinicSettings } from "@/lib/actions/settings.actions";
 import { prisma } from "@/lib/prisma";
-import { resolveVaultPath } from "@/lib/local-paths";
+import { resolveLinkedAttachmentPath } from "@/lib/local-paths";
 import {
   extractGoogleDriveFolderId,
   getGoogleOAuthConfig,
@@ -18,14 +19,10 @@ import { getGoogleRefreshToken } from "@/lib/google-settings";
 export async function createPaymentHistorySheetForAttachment({
   patientId,
   attachmentId,
-  originalName,
-  vaultPath,
   googleFolderInput
 }: {
   patientId: string;
   attachmentId: string;
-  originalName: string;
-  vaultPath: string;
   googleFolderInput?: string;
 }) {
   const hasActive = await prisma.paymentHistorySheet.findFirst({
@@ -56,10 +53,6 @@ export async function createPaymentHistorySheetForAttachment({
 
   return uploadPaymentHistorySheet({
     sheetId: sheet.id,
-    patientId,
-    attachmentId,
-    originalName,
-    vaultPath,
     googleFolderId,
     failAsLocalOnly: true
   });
@@ -93,8 +86,7 @@ export async function retryPaymentHistorySheetUpload(formData: FormData) {
   if (!sheetId) throw new Error("Historial inválido");
 
   const sheet = await prisma.paymentHistorySheet.findUnique({
-    where: { id: sheetId },
-    include: { attachment: true }
+    where: { id: sheetId }
   });
 
   if (!sheet) throw new Error("Historial no encontrado");
@@ -114,10 +106,6 @@ export async function retryPaymentHistorySheetUpload(formData: FormData) {
 
   await uploadPaymentHistorySheet({
     sheetId,
-    patientId: sheet.patientId,
-    attachmentId: sheet.attachmentId,
-    originalName: sheet.attachment.originalName,
-    vaultPath: sheet.attachment.vaultPath,
     googleFolderId,
     failAsLocalOnly: false
   });
@@ -125,21 +113,24 @@ export async function retryPaymentHistorySheetUpload(formData: FormData) {
 
 async function uploadPaymentHistorySheet({
   sheetId,
-  patientId,
-  attachmentId,
-  originalName,
-  vaultPath,
   googleFolderId,
   failAsLocalOnly
 }: {
   sheetId: string;
-  patientId: string;
-  attachmentId: string;
-  originalName: string;
-  vaultPath: string;
   googleFolderId: string;
   failAsLocalOnly: boolean;
 }) {
+  const sheetWithFile = await prisma.paymentHistorySheet.findUnique({
+    where: { id: sheetId },
+    include: {
+      attachment: {
+        include: { patient: true }
+      }
+    }
+  });
+
+  if (!sheetWithFile) throw new Error("Historial no encontrado");
+
   const config = getGoogleOAuthConfig();
   const refreshToken = await getGoogleRefreshToken();
 
@@ -152,16 +143,22 @@ async function uploadPaymentHistorySheet({
         errorMessage: failAsLocalOnly ? null : "Conecta Google antes de subir este historial"
       }
     });
-    revalidatePath(`/patients/${patientId}`);
+    revalidatePath(`/patients/${sheet.patientId}`);
     return sheet;
   }
 
   try {
+    const settings = await getClinicSettings();
+    const absolutePath = resolveLinkedAttachmentPath({
+      patientsRootPath: settings.patientsRootPath,
+      patientFolderRelativePath: sheetWithFile.attachment.patient.localFolderRelativePath,
+      localRelativePath: sheetWithFile.attachment.localRelativePath
+    });
     const accessToken = await refreshGoogleAccessToken(config, refreshToken);
     const upload = await uploadXlsxAsGoogleSheet({
       accessToken,
-      fileName: originalName,
-      fileBuffer: await readFile(resolveVaultPath(vaultPath)),
+      fileName: sheetWithFile.attachment.originalName,
+      fileBuffer: await readFile(absolutePath),
       folderId: googleFolderId
     });
 
@@ -178,11 +175,11 @@ async function uploadPaymentHistorySheet({
     });
 
     await recordAudit("payment_history.uploaded", "PaymentHistorySheet", sheetId, {
-      patientId,
-      attachmentId,
+      patientId: sheetWithFile.patientId,
+      attachmentId: sheetWithFile.attachmentId,
       googleFileId: upload.id
     });
-    revalidatePath(`/patients/${patientId}`);
+    revalidatePath(`/patients/${sheetWithFile.patientId}`);
     return sheet;
   } catch (error) {
     const sheet = await prisma.paymentHistorySheet.update({
@@ -195,11 +192,11 @@ async function uploadPaymentHistorySheet({
     });
 
     await recordAudit("payment_history.upload_failed", "PaymentHistorySheet", sheetId, {
-      patientId,
-      attachmentId,
+      patientId: sheetWithFile.patientId,
+      attachmentId: sheetWithFile.attachmentId,
       message: sheet.errorMessage
     });
-    revalidatePath(`/patients/${patientId}`);
+    revalidatePath(`/patients/${sheetWithFile.patientId}`);
     return sheet;
   }
 }

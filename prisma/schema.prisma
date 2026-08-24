@@ -68,6 +68,7 @@ model Patient {
   birthDate            DateTime?
   notes                String?
   folderAliases        String?
+  localFolderRelativePath String?             @unique
   createdAt            DateTime              @default(now())
   updatedAt            DateTime              @updatedAt
   attachments          Attachment[]
@@ -84,10 +85,9 @@ model Attachment {
   patientId           String
   category            AttachmentCategory
   originalName        String
-  vaultPath           String
+  localRelativePath   String
   mimeType            String?
   sizeBytes           Int
-  sha256              String               @unique
   sourceRelativePath  String
   importedAt          DateTime             @default(now())
   serviceDate         DateTime?
@@ -106,6 +106,7 @@ model Attachment {
 
   @@index([patientId, category])
   @@index([importBatchId])
+  @@unique([patientId, localRelativePath])
 }
 
 model ClinicalEntry {
@@ -199,8 +200,8 @@ model ImportItem {
   patientName        String
   category           AttachmentCategory
   originalName       String
+  localRelativePath  String
   sourceRelativePath String
-  sha256             String
   sizeBytes          Int
   status             ImportItemStatus   @default(READY)
   message            String?

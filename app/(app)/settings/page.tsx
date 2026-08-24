@@ -1,12 +1,21 @@
 import { BackupControls } from "@/components/backup-controls";
+import { LinkedFilesControls } from "@/components/linked-files-controls";
 import { SettingsForm } from "@/components/forms/settings-form";
 import { Card } from "@/components/ui/card";
-import { getClinicSettings, listLocalBackups } from "@/lib/actions/settings.actions";
+import {
+  getClinicSettings,
+  getLinkedFilesReport,
+  listLocalBackups
+} from "@/lib/actions/settings.actions";
 
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
-  const [settings, backups] = await Promise.all([getClinicSettings(), listLocalBackups()]);
+  const [settings, backups, linkedFilesReport] = await Promise.all([
+    getClinicSettings(),
+    listLocalBackups(),
+    getLinkedFilesReport()
+  ]);
   const serializedBackups = backups.map((backup) => ({
     ...backup,
     createdAt: backup.createdAt.toISOString()
@@ -22,6 +31,11 @@ export default async function SettingsPage() {
       <Card>
         <h2 className="section-title mb-4">Clínica</h2>
         <SettingsForm settings={settings} />
+      </Card>
+
+      <Card>
+        <h2 className="section-title mb-4">Archivos vinculados</h2>
+        <LinkedFilesControls report={linkedFilesReport} />
       </Card>
 
       <Card>

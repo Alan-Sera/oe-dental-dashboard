@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS "Patient" (
     "birthDate" DATETIME,
     "notes" TEXT,
     "folderAliases" TEXT,
+    "localFolderRelativePath" TEXT,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL
 );
@@ -30,10 +31,9 @@ CREATE TABLE IF NOT EXISTS "Attachment" (
     "patientId" TEXT NOT NULL,
     "category" TEXT NOT NULL,
     "originalName" TEXT NOT NULL,
-    "vaultPath" TEXT NOT NULL,
+    "localRelativePath" TEXT NOT NULL,
     "mimeType" TEXT,
     "sizeBytes" INTEGER NOT NULL,
-    "sha256" TEXT NOT NULL,
     "sourceRelativePath" TEXT NOT NULL,
     "importedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "serviceDate" DATETIME,
@@ -109,8 +109,8 @@ CREATE TABLE IF NOT EXISTS "ImportItem" (
     "patientName" TEXT NOT NULL,
     "category" TEXT NOT NULL,
     "originalName" TEXT NOT NULL,
+    "localRelativePath" TEXT NOT NULL,
     "sourceRelativePath" TEXT NOT NULL,
-    "sha256" TEXT NOT NULL,
     "sizeBytes" INTEGER NOT NULL,
     "status" TEXT NOT NULL DEFAULT 'READY',
     "message" TEXT,
@@ -131,9 +131,10 @@ CREATE TABLE IF NOT EXISTS "AuditLog" (
 
 CREATE UNIQUE INDEX IF NOT EXISTS "Session_tokenHash_key" ON "Session"("tokenHash");
 CREATE INDEX IF NOT EXISTS "Patient_fullName_idx" ON "Patient"("fullName");
-CREATE UNIQUE INDEX IF NOT EXISTS "Attachment_sha256_key" ON "Attachment"("sha256");
+CREATE UNIQUE INDEX IF NOT EXISTS "Patient_localFolderRelativePath_key" ON "Patient"("localFolderRelativePath");
 CREATE INDEX IF NOT EXISTS "Attachment_patientId_category_idx" ON "Attachment"("patientId", "category");
 CREATE INDEX IF NOT EXISTS "Attachment_importBatchId_idx" ON "Attachment"("importBatchId");
+CREATE UNIQUE INDEX IF NOT EXISTS "Attachment_patientId_localRelativePath_key" ON "Attachment"("patientId", "localRelativePath");
 CREATE INDEX IF NOT EXISTS "ClinicalEntry_patientId_entryDate_idx" ON "ClinicalEntry"("patientId", "entryDate");
 CREATE INDEX IF NOT EXISTS "TreatmentCharge_patientId_serviceDate_idx" ON "TreatmentCharge"("patientId", "serviceDate");
 CREATE INDEX IF NOT EXISTS "Payment_patientId_paidAt_idx" ON "Payment"("patientId", "paidAt");

@@ -42,6 +42,13 @@ export function SettingsForm({ settings }: { settings: ClinicSettings }) {
           <option value="lan-ready">Preparado para red interna</option>
         </Select>
       </Field>
+      <Field
+        label="Carpeta maestra de pacientes"
+        error={form.formState.errors.patientsRootPath?.message}
+        className="md:col-span-3"
+      >
+        <Input placeholder="D:\Pacientes" {...form.register("patientsRootPath")} />
+      </Field>
       <div className="md:col-span-3">
         <Button type="submit" disabled={isPending}>
           {isPending ? "Guardando..." : "Guardar ajustes"}

@@ -43,8 +43,8 @@ describe("validation", () => {
         patientName: "Ana Ruiz",
         category: "PAYMENT_HISTORY",
         originalName: "estado-cuenta.xlsx",
+        localRelativePath: "historial pagos/estado-cuenta.xlsx",
         sourceRelativePath: "Ana Ruiz/historial pagos/estado-cuenta.xlsx",
-        sha256: "a".repeat(64),
         sizeBytes: 1024,
         mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
       }).success

@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import * as Tabs from "@radix-ui/react-tabs";
 import {
+  AlertTriangle,
   BadgeDollarSign,
   CheckCircle2,
   ExternalLink,
@@ -32,13 +33,21 @@ import { ClinicalEntryForm } from "@/components/forms/clinical-entry-form";
 import { PaymentForm, TreatmentChargeForm } from "@/components/forms/ledger-forms";
 import { PatientForm } from "@/components/forms/patient-form";
 
-export function PatientDetailTabs({ patient }: { patient: SerializedPatientDetail }) {
+export function PatientDetailTabs({
+  patient,
+  missingAttachmentIds = []
+}: {
+  patient: SerializedPatientDetail;
+  missingAttachmentIds?: string[];
+}) {
   const totals = calculateLedgerTotals(patient.charges, patient.payments);
   const currency = patient.charges[0]?.currency ?? patient.payments[0]?.currency ?? "MXN";
   const photos = patient.attachments.filter((attachment) =>
     ["PHOTO", "RADIOGRAPH"].includes(attachment.category)
   );
   const activePaymentHistory = patient.paymentHistorySheets.find((sheet) => sheet.isActive);
+  const missingAttachmentIdSet = new Set(missingAttachmentIds);
+  const missingCount = missingAttachmentIds.length;
 
   return (
     <Tabs.Root defaultValue="summary" className="space-y-5">
@@ -50,6 +59,13 @@ export function PatientDetailTabs({ patient }: { patient: SerializedPatientDetai
         <Tab value="payment-history" icon={Table2} label="Historial pagos" />
         <Tab value="files" icon={FolderOpen} label="Archivos" />
       </Tabs.List>
+
+      {missingCount > 0 ? (
+        <div className="surface flex gap-3 p-4 text-sm text-coral-300">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          <p>{missingCount} archivo(s) vinculado(s) no existen en la ruta configurada.</p>
+        </div>
+      ) : null}
 
       <Tabs.Content value="summary" className="space-y-5">
         <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
@@ -79,7 +95,13 @@ export function PatientDetailTabs({ patient }: { patient: SerializedPatientDetai
 
       <Tabs.Content value="media" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {photos.length > 0 ? (
-          photos.map((attachment) => <AttachmentTile key={attachment.id} attachment={attachment} />)
+          photos.map((attachment) => (
+            <AttachmentTile
+              key={attachment.id}
+              attachment={attachment}
+              missing={missingAttachmentIdSet.has(attachment.id)}
+            />
+          ))
         ) : (
           <EmptyState text="Sin fotos o radiografías importadas" />
         )}
@@ -159,7 +181,12 @@ export function PatientDetailTabs({ patient }: { patient: SerializedPatientDetai
           </div>
 
           {activePaymentHistory ? (
-            <PaymentHistoryPanel patientId={patient.id} sheet={activePaymentHistory} featured />
+            <PaymentHistoryPanel
+              patientId={patient.id}
+              sheet={activePaymentHistory}
+              missing={missingAttachmentIdSet.has(activePaymentHistory.attachment.id)}
+              featured
+            />
           ) : (
             <EmptyState text="Sin historial activo. Importa un .xlsx o elige uno de la lista como historial activo." />
           )}
@@ -174,7 +201,12 @@ export function PatientDetailTabs({ patient }: { patient: SerializedPatientDetai
           {patient.paymentHistorySheets.length > 0 ? (
             <div className="space-y-3">
               {patient.paymentHistorySheets.map((sheet) => (
-                <PaymentHistoryPanel key={sheet.id} patientId={patient.id} sheet={sheet} />
+                <PaymentHistoryPanel
+                  key={sheet.id}
+                  patientId={patient.id}
+                  sheet={sheet}
+                  missing={missingAttachmentIdSet.has(sheet.attachment.id)}
+                />
               ))}
             </div>
           ) : (
@@ -185,20 +217,29 @@ export function PatientDetailTabs({ patient }: { patient: SerializedPatientDetai
 
       <Tabs.Content value="files" className="space-y-3">
         {patient.attachments.length > 0 ? (
-          patient.attachments.map((attachment) => (
-            <Card key={attachment.id} className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="font-medium text-ink-100">{attachment.originalName}</p>
-                <p className="text-sm text-lavender-200/55">{attachment.sourceRelativePath}</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <Badge>{categoryLabels[attachment.category]}</Badge>
-                <Link href={`/api/files/${attachment.id}`} target="_blank" className="text-sm text-lavender-200 hover:text-white">
-                  Abrir
-                </Link>
-              </div>
-            </Card>
-          ))
+          patient.attachments.map((attachment) => {
+            const missing = missingAttachmentIdSet.has(attachment.id);
+
+            return (
+              <Card key={attachment.id} className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="font-medium text-ink-100">{attachment.originalName}</p>
+                  <p className="text-sm text-lavender-200/55">{attachment.sourceRelativePath}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge>{categoryLabels[attachment.category]}</Badge>
+                  {missing ? <Badge tone="coral">Faltante</Badge> : null}
+                  {missing ? (
+                    <span className="text-sm text-lavender-200/35">No disponible</span>
+                  ) : (
+                    <Link href={`/api/files/${attachment.id}`} target="_blank" className="text-sm text-lavender-200 hover:text-white">
+                      Abrir
+                    </Link>
+                  )}
+                </div>
+              </Card>
+            );
+          })
         ) : (
           <EmptyState text="Sin archivos importados" />
         )}
@@ -210,10 +251,12 @@ export function PatientDetailTabs({ patient }: { patient: SerializedPatientDetai
 function PaymentHistoryPanel({
   patientId,
   sheet,
+  missing = false,
   featured = false
 }: {
   patientId: string;
   sheet: SerializedPatientDetail["paymentHistorySheets"][number];
+  missing?: boolean;
   featured?: boolean;
 }) {
   return (
@@ -223,6 +266,7 @@ function PaymentHistoryPanel({
           <div className="flex flex-wrap items-center gap-2">
             {sheet.isActive ? <Badge tone="brand">Activo</Badge> : null}
             <PaymentHistoryStatusBadge status={sheet.uploadStatus} />
+            {missing ? <Badge tone="coral">Faltante</Badge> : null}
           </div>
           <p className="truncate font-medium text-ink-100">{sheet.attachment.originalName}</p>
           <p className="truncate text-sm text-lavender-200/55">{sheet.attachment.sourceRelativePath}</p>
@@ -242,12 +286,19 @@ function PaymentHistoryPanel({
               </Link>
             </Button>
           ) : null}
-          <Button asChild variant="secondary" size="sm">
-            <Link href={`/api/files/${sheet.attachment.id}`} target="_blank">
+          {missing ? (
+            <Button type="button" variant="secondary" size="sm" disabled>
               <FileText className="size-4" aria-hidden="true" />
               Abrir local
-            </Link>
-          </Button>
+            </Button>
+          ) : (
+            <Button asChild variant="secondary" size="sm">
+              <Link href={`/api/files/${sheet.attachment.id}`} target="_blank">
+                <FileText className="size-4" aria-hidden="true" />
+                Abrir local
+              </Link>
+            </Button>
+          )}
         </div>
       </div>
 
@@ -335,8 +386,14 @@ function Metric({ label, value, strong }: { label: string; value: string; strong
   );
 }
 
-function AttachmentTile({ attachment }: { attachment: SerializedAttachment }) {
-  const isImage = attachment.mimeType?.startsWith("image/");
+function AttachmentTile({
+  attachment,
+  missing = false
+}: {
+  attachment: SerializedAttachment;
+  missing?: boolean;
+}) {
+  const isImage = attachment.mimeType?.startsWith("image/") && !missing;
 
   return (
     <Card className="overflow-hidden p-0">
@@ -358,6 +415,7 @@ function AttachmentTile({ attachment }: { attachment: SerializedAttachment }) {
         <Badge tone={attachment.category === "RADIOGRAPH" ? "sky" : "neutral"}>
           {categoryLabels[attachment.category]}
         </Badge>
+        {missing ? <Badge tone="coral">Faltante</Badge> : null}
         <p className="truncate text-sm font-medium text-ink-100">{attachment.originalName}</p>
         <p className="text-xs text-lavender-200/55">{formatDate(attachment.importedAt)}</p>
       </div>

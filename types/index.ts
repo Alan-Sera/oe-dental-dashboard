@@ -7,11 +7,10 @@ import type {
 
 export type ImportPreviewFile = {
   id: string;
-  file: File;
   relativePath: string;
+  localRelativePath: string;
   patientName: string;
   category: AttachmentCategory;
-  sha256: string;
   sizeBytes: number;
   mimeType: string;
   duplicateInBatch: boolean;
@@ -24,6 +23,7 @@ export type SerializedAttachment = {
   id: string;
   category: AttachmentCategory;
   originalName: string;
+  localRelativePath: string;
   mimeType: string | null;
   sizeBytes: number;
   sourceRelativePath: string;

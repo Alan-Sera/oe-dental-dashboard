@@ -5,6 +5,7 @@ import { ChevronLeft } from "lucide-react";
 import { PatientDetailTabs } from "@/components/patient-detail-tabs";
 import { Button } from "@/components/ui/button";
 import { getPatientById } from "@/lib/actions/patient.actions";
+import { getPatientMissingAttachmentIds } from "@/lib/actions/settings.actions";
 import type { SerializedPatientDetail } from "@/types";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +16,10 @@ export default async function PatientDetailPage({
   params: Promise<{ patientId: string }>;
 }) {
   const { patientId } = await params;
-  const patient = await getPatientById(patientId);
+  const [patient, missingAttachmentIds] = await Promise.all([
+    getPatientById(patientId),
+    getPatientMissingAttachmentIds(patientId)
+  ]);
 
   if (!patient) {
     notFound();
@@ -38,7 +42,7 @@ export default async function PatientDetailPage({
         </div>
       </div>
 
-      <PatientDetailTabs patient={serializedPatient} />
+      <PatientDetailTabs patient={serializedPatient} missingAttachmentIds={missingAttachmentIds} />
     </main>
   );
 }

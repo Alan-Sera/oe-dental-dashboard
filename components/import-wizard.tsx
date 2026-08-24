@@ -1,25 +1,23 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, FolderDown, Loader2, Table2, UploadCloud } from "lucide-react";
+import { CheckCircle2, FolderDown, Loader2, Table2 } from "lucide-react";
 
-import { categoryLabels, paymentMethods } from "@/constants";
-import {
-  attachmentCategoryValues,
-  classifyImportCandidate,
-  type AttachmentCategoryValue
-} from "@/lib/import-classifier";
-import type { ImportPreviewFile } from "@/types";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
 
 type BatchResponse = {
   batch: {
     id: string;
+    sourceRootName: string;
+    fileCount: number;
+    importedCount: number;
+    duplicateCount: number;
+    errorCount: number;
   };
 };
 
@@ -28,21 +26,20 @@ type GoogleStatus = {
   connected: boolean;
 };
 
-export function ImportWizard() {
+export function ImportWizard({
+  defaultPatientsRootPath = ""
+}: {
+  defaultPatientsRootPath?: string;
+}) {
   const router = useRouter();
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [files, setFiles] = useState<ImportPreviewFile[]>([]);
+  const [patientsRootPath, setPatientsRootPath] = useState(defaultPatientsRootPath);
+  const [googleFolderId, setGoogleFolderId] = useState("");
+  const [resetExistingData, setResetExistingData] = useState(false);
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
-  const [progress, setProgress] = useState(0);
-  const [googleFolderId, setGoogleFolderId] = useState("");
+  const [result, setResult] = useState<BatchResponse["batch"] | null>(null);
   const [googleStatus, setGoogleStatus] = useState<GoogleStatus | null>(null);
   const [isPending, startTransition] = useTransition();
-
-  useEffect(() => {
-    fileInputRef.current?.setAttribute("webkitdirectory", "");
-    fileInputRef.current?.setAttribute("directory", "");
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -61,137 +58,35 @@ export function ImportWizard() {
     };
   }, []);
 
-  const sourceRootName = useMemo(() => {
-    const firstPath = files[0]?.relativePath;
-    return firstPath?.split("/").filter(Boolean)[0] ?? "Importación local";
-  }, [files]);
-  const hasPaymentHistoryFiles = files.some((file) => file.category === "PAYMENT_HISTORY");
-
-  async function handleSelection(fileList: FileList | null) {
-    if (!fileList?.length) return;
-
-    setError("");
-    setStatus("Analizando archivos...");
-    setProgress(0);
-
-    const selectedFiles = Array.from(fileList);
-    const previewFiles: ImportPreviewFile[] = [];
-
-    for (let index = 0; index < selectedFiles.length; index += 1) {
-      const file = selectedFiles[index];
-      const relativePath = normalizeBrowserPath(file);
-      const sha256 = await hashFile(file);
-      const classified = classifyImportCandidate({
-        relativePath,
-        fileName: file.name,
-        mimeType: file.type
-      });
-
-      previewFiles.push({
-        id: `${index}-${sha256.slice(0, 12)}`,
-        file,
-        relativePath: classified.relativePath,
-        patientName: classified.patientName,
-        category: classified.category,
-        sha256,
-        sizeBytes: file.size,
-        mimeType: file.type,
-        duplicateInBatch: false,
-        paymentMethod: "Efectivo",
-        paymentDate: new Date().toISOString().slice(0, 10)
-      });
-
-      setProgress(Math.round(((index + 1) / selectedFiles.length) * 100));
-    }
-
-    const counts = previewFiles.reduce<Record<string, number>>((acc, item) => {
-      acc[item.sha256] = (acc[item.sha256] ?? 0) + 1;
-      return acc;
-    }, {});
-
-    setFiles(
-      previewFiles.map((item) => ({
-        ...item,
-        duplicateInBatch: counts[item.sha256] > 1
-      }))
-    );
-    setStatus("Listo para revisar");
-  }
-
-  function updateFile(id: string, patch: Partial<ImportPreviewFile>) {
-    setFiles((current) => current.map((file) => (file.id === id ? { ...file, ...patch } : file)));
-  }
-
   function runImport() {
-    if (!files.length) return;
+    if (!patientsRootPath.trim()) return;
 
     startTransition(async () => {
       try {
         setError("");
-        setStatus("Creando lote...");
-        setProgress(0);
+        setResult(null);
+        setStatus("Escaneando carpeta maestra...");
 
-        const batchResponse = await fetch("/api/import/batches", {
+        const response = await fetch("/api/import/batches", {
           method: "POST",
           headers: {
             "content-type": "application/json"
           },
           body: JSON.stringify({
-            sourceRootName,
-            items: files.map((file) => ({
-              candidateId: file.id,
-              patientName: file.patientName,
-              category: file.category,
-              originalName: file.file.name,
-              sourceRelativePath: file.relativePath,
-              sha256: file.sha256,
-              sizeBytes: file.sizeBytes,
-              mimeType: file.mimeType,
-              paymentAmount: file.paymentAmount ?? "",
-              paymentMethod: file.paymentMethod ?? "",
-              paymentDate: file.paymentDate ?? ""
-            }))
+            patientsRootPath,
+            googleFolderId,
+            resetExistingData
           })
         });
 
-        if (!batchResponse.ok) throw new Error("No se pudo crear el lote");
-        const { batch } = (await batchResponse.json()) as BatchResponse;
+        const body = (await response.json().catch(() => null)) as BatchResponse | { error?: string } | null;
 
-        for (let index = 0; index < files.length; index += 1) {
-          const file = files[index];
-          const formData = new FormData();
-          formData.append("file", file.file);
-          formData.append("candidateId", file.id);
-          formData.append("patientName", file.patientName);
-          formData.append("category", file.category);
-          formData.append("originalName", file.file.name);
-          formData.append("sourceRelativePath", file.relativePath);
-          formData.append("sha256", file.sha256);
-          formData.append("sizeBytes", String(file.sizeBytes));
-          formData.append("mimeType", file.mimeType);
-          formData.append("paymentAmount", file.paymentAmount ?? "");
-          formData.append("paymentMethod", file.paymentMethod ?? "");
-          formData.append("paymentDate", file.paymentDate ?? "");
-          formData.append("googleFolderId", googleFolderId);
-
-          setStatus(`Copiando ${index + 1} de ${files.length}`);
-
-          const uploadResponse = await fetch(`/api/import/batches/${batch.id}/files`, {
-            method: "POST",
-            body: formData
-          });
-
-          if (!uploadResponse.ok) throw new Error(`Falló ${file.file.name}`);
-          setProgress(Math.round(((index + 1) / files.length) * 100));
+        if (!response.ok || !body || !("batch" in body)) {
+          throw new Error(body && "error" in body && body.error ? body.error : "No se pudo vincular la carpeta");
         }
 
-        const commitResponse = await fetch(`/api/import/batches/${batch.id}/commit`, {
-          method: "POST"
-        });
-
-        if (!commitResponse.ok) throw new Error("No se pudo confirmar el lote");
-
-        setStatus("Importación confirmada");
+        setResult(body.batch);
+        setStatus("Carpeta vinculada");
         router.refresh();
       } catch (caughtError) {
         setError(caughtError instanceof Error ? caughtError.message : "Error de importación");
@@ -202,170 +97,106 @@ export function ImportWizard() {
 
   return (
     <div className="space-y-5">
-      <div className="panel flex flex-wrap items-center justify-between gap-4 p-5">
-        <div className="flex items-center gap-3">
-          <div className="flex size-11 items-center justify-center rounded-md bg-lavender-800/80 text-lavender-100 ring-1 ring-lavender-300/35">
-            <FolderDown className="size-5" aria-hidden="true" />
+      <div className="panel space-y-5 p-5">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="flex size-11 items-center justify-center rounded-md bg-lavender-800/80 text-lavender-100 ring-1 ring-lavender-300/35">
+              <FolderDown className="size-5" aria-hidden="true" />
+            </div>
+            <div>
+              <h2 className="section-title">Vincular carpeta maestra</h2>
+              <p className="muted">Una subcarpeta directa por paciente</p>
+            </div>
           </div>
-          <div>
-            <h2 className="section-title">Importar carpetas por paciente</h2>
-            <p className="muted">{files.length ? `${files.length} archivo(s) en revisión` : "Sin lote cargado"}</p>
-          </div>
+          <Button type="button" onClick={runImport} disabled={!patientsRootPath.trim() || isPending}>
+            {isPending ? (
+              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <CheckCircle2 className="size-4" aria-hidden="true" />
+            )}
+            Escanear y vincular
+          </Button>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
+          <Field label="Carpeta maestra de pacientes">
+            <Input
+              value={patientsRootPath}
+              onChange={(event) => setPatientsRootPath(event.target.value)}
+              placeholder="D:\Pacientes"
+            />
+          </Field>
+          <Field label="Google Drive para .xlsx">
+            <Input
+              value={googleFolderId}
+              onChange={(event) => setGoogleFolderId(event.target.value)}
+              placeholder="Link o ID de carpeta"
+            />
+          </Field>
+        </div>
+
+        <label className="flex items-start gap-3 rounded-md border border-lavender-600/55 bg-lavender-950/25 p-3 text-sm text-lavender-100/85">
           <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            className="hidden"
-            onChange={(event) => void handleSelection(event.target.files)}
+            type="checkbox"
+            checked={resetExistingData}
+            onChange={(event) => setResetExistingData(event.target.checked)}
+            className="mt-1"
           />
-          <Button type="button" variant="secondary" onClick={() => fileInputRef.current?.click()}>
-            <UploadCloud className="size-4" aria-hidden="true" />
-            Seleccionar carpeta
-          </Button>
-          <Button type="button" onClick={runImport} disabled={!files.length || isPending}>
-            {isPending ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <CheckCircle2 className="size-4" aria-hidden="true" />}
-            Confirmar importación
-          </Button>
+          <span>Limpiar datos de prueba antes de importar</span>
+        </label>
+      </div>
+
+      <div className="surface grid gap-4 p-4 md:grid-cols-[1fr_auto]">
+        <div className="flex items-start gap-3">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-lavender-800/80 text-lavender-100 ring-1 ring-lavender-300/35">
+            <Table2 className="size-5" aria-hidden="true" />
+          </div>
+          <div className="min-w-0 space-y-1">
+            <p className="text-sm font-medium text-lavender-50">Historiales de pago .xlsx</p>
+            <p className="text-sm text-lavender-200/60">
+              Si Google está conectado y agregas una carpeta, se convertirán a Sheets.
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-col justify-center gap-2">
+          <Badge tone={googleStatus?.connected ? "brand" : "neutral"}>
+            {googleStatus?.connected
+              ? "Google conectado"
+              : googleStatus?.configured
+                ? "Google sin conectar"
+                : "Google no configurado"}
+          </Badge>
+          {googleStatus?.configured && !googleStatus.connected ? (
+            <Button asChild variant="secondary" size="sm">
+              <Link href="/api/google/oauth/start?returnTo=/import">Conectar Google</Link>
+            </Button>
+          ) : null}
         </div>
       </div>
 
       {status || error ? (
         <div className="surface p-4">
-          <div className="flex items-center justify-between gap-3">
-            <p className={error ? "text-sm text-coral-400" : "text-sm text-ink-300"}>{error || status}</p>
-            <p className="text-sm text-lavender-200/55">{progress}%</p>
-          </div>
-          <div className="mt-3 h-2 rounded-full bg-lavender-900/75">
-            <div className="h-2 rounded-full bg-gradient-to-r from-brand-500 to-lavender-300 transition-all" style={{ width: `${progress}%` }} />
-          </div>
+          <p className={error ? "text-sm text-coral-400" : "text-sm text-ink-300"}>{error || status}</p>
         </div>
       ) : null}
 
-      {hasPaymentHistoryFiles ? (
-        <div className="surface grid gap-4 p-4 md:grid-cols-[1fr_280px]">
-          <div className="flex items-start gap-3">
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-lavender-800/80 text-lavender-100 ring-1 ring-lavender-300/35">
-              <Table2 className="size-5" aria-hidden="true" />
-            </div>
-            <div className="min-w-0 space-y-2">
-              <div>
-                <p className="text-sm font-medium text-lavender-50">Historiales de pago .xlsx</p>
-                <p className="text-sm text-lavender-200/60">
-                  Se guardarán localmente. Si Google está conectado y agregas una carpeta, también se convertirán a Sheets.
-                </p>
-              </div>
-              <Input
-                value={googleFolderId}
-                onChange={(event) => setGoogleFolderId(event.target.value)}
-                placeholder="Link o ID de carpeta compartida de Google Drive"
-              />
-            </div>
-          </div>
-          <div className="flex flex-col justify-center gap-2">
-            <Badge tone={googleStatus?.connected ? "brand" : "neutral"}>
-              {googleStatus?.connected
-                ? "Google conectado"
-                : googleStatus?.configured
-                  ? "Google sin conectar"
-                  : "Google no configurado"}
-            </Badge>
-            {googleStatus?.configured && !googleStatus.connected ? (
-              <Button asChild variant="secondary" size="sm">
-                <Link href="/api/google/oauth/start?returnTo=/import">Conectar Google</Link>
-              </Button>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
-
-      {files.length ? (
-        <div className="panel overflow-x-auto">
-          <div className="min-w-[980px]">
-            <div className="grid grid-cols-[1.2fr_1fr_180px_260px] gap-3 border-b border-lavender-600/45 bg-lavender-950/25 px-4 py-3 text-xs font-medium uppercase text-lavender-200/65">
-              <span>Archivo</span>
-              <span>Paciente</span>
-              <span>Tipo</span>
-              <span>Pago</span>
-            </div>
-            <div className="max-h-[62vh] overflow-auto">
-              {files.map((file) => (
-                <div
-                  key={file.id}
-                  className="grid grid-cols-[1.2fr_1fr_180px_260px] gap-3 border-b border-lavender-600/45 px-4 py-3 transition last:border-0 hover:bg-lavender-800/25"
-                >
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-ink-100">{file.file.name}</p>
-                  <p className="truncate text-xs text-lavender-200/50">{file.relativePath}</p>
-                  {file.duplicateInBatch ? <Badge tone="amber" className="mt-2">Duplicado en lote</Badge> : null}
-                </div>
-                <Input
-                  value={file.patientName}
-                  onChange={(event) => updateFile(file.id, { patientName: event.target.value })}
-                />
-                <Select
-                  value={file.category}
-                  onChange={(event) =>
-                    updateFile(file.id, { category: event.target.value as AttachmentCategoryValue })
-                  }
-                >
-                  {attachmentCategoryValues.map((category) => (
-                    <option key={category} value={category}>
-                      {categoryLabels[category]}
-                    </option>
-                  ))}
-                </Select>
-                {file.category === "PAYMENT_HISTORY" ? (
-                  <p className="text-sm text-lavender-200/55">Google Sheets</p>
-                ) : file.category === "PAYMENT_RECEIPT" ? (
-                  <div className="grid grid-cols-3 gap-2">
-                    <Input
-                      placeholder="Monto"
-                      inputMode="decimal"
-                      value={file.paymentAmount ?? ""}
-                      onChange={(event) => updateFile(file.id, { paymentAmount: event.target.value })}
-                    />
-                    <Select
-                      value={file.paymentMethod ?? "Efectivo"}
-                      onChange={(event) => updateFile(file.id, { paymentMethod: event.target.value })}
-                    >
-                      {paymentMethods.map((method) => (
-                        <option key={method} value={method}>
-                          {method}
-                        </option>
-                      ))}
-                    </Select>
-                    <Input
-                      type="date"
-                      value={file.paymentDate ?? ""}
-                      onChange={(event) => updateFile(file.id, { paymentDate: event.target.value })}
-                    />
-                  </div>
-                ) : (
-                  <p className="text-sm text-lavender-200/55">Sin captura</p>
-                )}
-                </div>
-              ))}
-            </div>
-          </div>
+      {result ? (
+        <div className="panel grid gap-3 p-5 sm:grid-cols-4">
+          <ImportMetric label="Archivos" value={result.fileCount} />
+          <ImportMetric label="Nuevos" value={result.importedCount} />
+          <ImportMetric label="Ya vinculados" value={result.duplicateCount} />
+          <ImportMetric label="Errores" value={result.errorCount} />
         </div>
       ) : null}
     </div>
   );
 }
 
-async function hashFile(file: File) {
-  const buffer = await file.arrayBuffer();
-  const hash = await crypto.subtle.digest("SHA-256", buffer);
-
-  return Array.from(new Uint8Array(hash))
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
-}
-
-function normalizeBrowserPath(file: File) {
-  const path = (file as File & { webkitRelativePath?: string }).webkitRelativePath;
-  return (path || file.name).replace(/\\/g, "/");
+function ImportMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="surface p-4">
+      <p className="text-sm text-lavender-200/55">{label}</p>
+      <p className="mt-1 text-2xl font-semibold text-white">{value}</p>
+    </div>
+  );
 }

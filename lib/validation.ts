@@ -54,7 +54,8 @@ export const paymentSchema = z.object({
 export const settingsSchema = z.object({
   clinicName: z.string().min(2, "Escribe el nombre de la clínica").max(80),
   currency: z.string().length(3, "Usa una moneda ISO de 3 letras").toUpperCase(),
-  networkMode: z.enum(["single", "lan-ready"])
+  networkMode: z.enum(["single", "lan-ready"]),
+  patientsRootPath: z.string().max(500, "La ruta es demasiado larga").optional().or(z.literal(""))
 });
 
 export const importCandidateSchema = z.object({
@@ -62,8 +63,8 @@ export const importCandidateSchema = z.object({
   patientName: z.string().min(1),
   category: z.enum(["PHOTO", "RADIOGRAPH", "CLINICAL_HISTORY", "PAYMENT_RECEIPT", "PAYMENT_HISTORY", "OTHER"]),
   originalName: z.string().min(1),
+  localRelativePath: z.string().min(1),
   sourceRelativePath: z.string().min(1),
-  sha256: z.string().min(32),
   sizeBytes: z.coerce.number().int().nonnegative(),
   mimeType: z.string().optional().or(z.literal("")),
   paymentAmount: z.string().optional().or(z.literal("")),
@@ -74,6 +75,12 @@ export const importCandidateSchema = z.object({
 export const createImportBatchSchema = z.object({
   sourceRootName: z.string().min(1),
   items: z.array(importCandidateSchema).min(1)
+});
+
+export const importPatientsRootSchema = z.object({
+  patientsRootPath: z.string().min(1, "Escribe la carpeta maestra de pacientes"),
+  googleFolderId: z.string().optional().or(z.literal("")),
+  resetExistingData: z.boolean().optional().default(false)
 });
 
 export type SetupInput = z.infer<typeof setupSchema>;

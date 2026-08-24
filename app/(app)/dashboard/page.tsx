@@ -41,8 +41,8 @@ export default async function DashboardPage() {
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <StatCard title="Pacientes" value={String(patients.length)} detail="Expedientes locales" icon={UsersRound} tone="brand" />
         <StatCard title="Saldo pendiente" value={formatCurrency(totals.balanceCents, settings.currency)} detail="Cargos menos pagos" icon={BadgeDollarSign} tone="amber" />
-        <StatCard title="Archivos" value={String(attachmentCount)} detail="En bóveda local" icon={FileStack} tone="sky" />
-        <StatCard title="Importaciones" value={String(pendingBatches)} detail="Lotes por revisar" icon={FolderClock} tone="coral" />
+        <StatCard title="Archivos" value={String(attachmentCount)} detail="Vinculados localmente" icon={FileStack} tone="sky" />
+        <StatCard title="Importaciones" value={String(pendingBatches)} detail="Lotes pendientes" icon={FolderClock} tone="coral" />
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[1fr_420px]">

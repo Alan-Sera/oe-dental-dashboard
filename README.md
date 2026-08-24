@@ -12,7 +12,7 @@ pnpm dev
 
 Open `http://127.0.0.1:3000`, create the first local admin account, and start importing patient folders.
 
-After pulling schema changes into an existing local install, run `pnpm db:init` again to create any new local SQLite tables without touching imported files.
+After pulling schema changes into an existing local install, run `pnpm db:init` again. Legacy test databases that still use the old vault schema are reset so the app can use linked patient folders.
 
 ## Tech Stack
 
@@ -28,14 +28,14 @@ After pulling schema changes into an existing local install, run `pnpm db:init` 
 ## Local Data
 
 - SQLite database: `data/app.db`
-- Managed file vault: `data/vault/`
+- Linked patient folder root: configured in Ajustes or `PATIENTS_ROOT_PATH`
 - Backups: `data/backups/`
 
-The import wizard copies selected files into the managed vault and leaves the original folders untouched.
+The import wizard links files from the configured patient folder root. It stores database references only and does not copy photos, radiographs, or documents into the app directory.
 
 ## Optional Google Sheets Uploads
 
-Payment-history `.xlsx` files are always copied to `data/vault/` first. If Google OAuth is configured, the import wizard can also upload those files to a shared Google Drive folder and convert them to Google Sheets.
+Payment-history `.xlsx` files are read from the linked patient folders. If Google OAuth is configured, the import wizard can also upload those files to a shared Google Drive folder and convert them to Google Sheets.
 
 Add local values to `.env.local`:
 

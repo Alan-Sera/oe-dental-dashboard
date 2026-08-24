@@ -1,5 +1,6 @@
 import { ImportWizard } from "@/components/import-wizard";
 import { getRecentImportBatches } from "@/lib/actions/import.actions";
+import { getClinicSettings } from "@/lib/actions/settings.actions";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { formatDate } from "@/lib/utils";
@@ -7,16 +8,16 @@ import { formatDate } from "@/lib/utils";
 export const dynamic = "force-dynamic";
 
 export default async function ImportPage() {
-  const batches = await getRecentImportBatches();
+  const [batches, settings] = await Promise.all([getRecentImportBatches(), getClinicSettings()]);
 
   return (
     <main className="page-shell">
       <div>
         <h1 className="text-2xl font-semibold text-white">Importar</h1>
-        <p className="muted">Carpetas locales copiadas a la bóveda</p>
+        <p className="muted">Carpetas locales vinculadas sin duplicar archivos</p>
       </div>
 
-      <ImportWizard />
+      <ImportWizard defaultPatientsRootPath={settings.patientsRootPath} />
 
       <Card>
         <h2 className="section-title mb-4">Lotes</h2>
