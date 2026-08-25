@@ -35,6 +35,12 @@ export const clinicalEntrySchema = z.object({
   notes: z.string().min(2, "Agrega una nota clínica").max(4000)
 });
 
+export const linkedTextClinicalHistorySchema = z.object({
+  patientId: z.string().min(1),
+  clinicalEntryId: z.string().min(1),
+  notes: z.string().max(250_000, "La historia es demasiado larga")
+});
+
 export const treatmentChargeSchema = z.object({
   patientId: z.string().min(1),
   description: z.string().min(2, "Describe el tratamiento").max(200),
@@ -89,6 +95,7 @@ export type SetupInput = z.infer<typeof setupSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type PatientInput = z.infer<typeof patientSchema>;
 export type ClinicalEntryInput = z.infer<typeof clinicalEntrySchema>;
+export type LinkedTextClinicalHistoryInput = z.infer<typeof linkedTextClinicalHistorySchema>;
 export type TreatmentChargeInput = z.infer<typeof treatmentChargeSchema>;
 export type PaymentInput = z.infer<typeof paymentSchema>;
 export type SettingsInput = z.infer<typeof settingsSchema>;

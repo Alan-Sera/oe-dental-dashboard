@@ -1,10 +1,26 @@
 "use server";
 
+import { copyFile, mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import path from "node:path";
 import { revalidatePath } from "next/cache";
 
 import { recordAudit } from "@/lib/actions/audit.actions";
+import { getClinicSettings } from "@/lib/actions/settings.actions";
+import { getTextHistoryBackupDir, resolveLinkedAttachmentPath } from "@/lib/local-paths";
 import { prisma } from "@/lib/prisma";
-import { clinicalEntrySchema, type ClinicalEntryInput } from "@/lib/validation";
+import {
+  createTextHistoryBackupFileName,
+  detectPreferredLineEnding,
+  isPlainTextAttachment,
+  normalizeLineEndings,
+  stripByteOrderMark
+} from "@/lib/text-attachments";
+import {
+  clinicalEntrySchema,
+  linkedTextClinicalHistorySchema,
+  type ClinicalEntryInput,
+  type LinkedTextClinicalHistoryInput
+} from "@/lib/validation";
 
 export async function createClinicalEntry(input: ClinicalEntryInput) {
   const parsed = clinicalEntrySchema.parse(input);
@@ -41,4 +57,177 @@ export async function attachClinicalFile(clinicalEntryId: string, attachmentId: 
   revalidatePath(`/patients/${attachment.patientId}`);
 
   return attachment;
+}
+
+export async function linkTextAttachmentAsClinicalHistory(input: {
+  patientId: string;
+  attachmentId: string;
+}) {
+  if (!input.patientId || !input.attachmentId) {
+    throw new Error("Archivo clínico inválido");
+  }
+
+  const attachment = await prisma.attachment.findFirst({
+    where: {
+      id: input.attachmentId,
+      patientId: input.patientId
+    },
+    include: {
+      patient: {
+        select: {
+          localFolderRelativePath: true
+        }
+      }
+    }
+  });
+
+  if (!attachment) {
+    throw new Error("Archivo no encontrado");
+  }
+
+  if (!isPlainTextAttachment(attachment.originalName, attachment.mimeType)) {
+    throw new Error("Solo se pueden vincular archivos .txt como historia");
+  }
+
+  if (attachment.clinicalEntryId) {
+    return prisma.clinicalEntry.findUnique({
+      where: { id: attachment.clinicalEntryId }
+    });
+  }
+
+  const settings = await getClinicSettings();
+  if (!settings.patientsRootPath) {
+    throw new Error("Configura la carpeta maestra de pacientes");
+  }
+
+  const absolutePath = resolveLinkedAttachmentPath({
+    patientsRootPath: settings.patientsRootPath,
+    patientFolderRelativePath: attachment.patient.localFolderRelativePath,
+    localRelativePath: attachment.localRelativePath
+  });
+  const fileStats = await stat(absolutePath);
+
+  if (!fileStats.isFile()) {
+    throw new Error("El archivo de historia ya no existe en la ruta vinculada");
+  }
+
+  const notes = stripByteOrderMark(await readFile(absolutePath, "utf8"));
+  const entry = await prisma.$transaction(async (tx) => {
+    const clinicalEntry = await tx.clinicalEntry.create({
+      data: {
+        patientId: attachment.patientId,
+        entryDate: new Date(),
+        notes: notes.length ? notes : `Archivo .txt vacío: ${attachment.originalName}`
+      }
+    });
+
+    await tx.attachment.update({
+      where: { id: attachment.id },
+      data: {
+        category: "CLINICAL_HISTORY",
+        clinicalEntryId: clinicalEntry.id
+      }
+    });
+
+    return clinicalEntry;
+  });
+
+  await recordAudit("clinical_entry.text_file_linked", "ClinicalEntry", entry.id, {
+    patientId: attachment.patientId,
+    attachmentId: attachment.id,
+    originalName: attachment.originalName
+  });
+  revalidatePath(`/patients/${attachment.patientId}`);
+  revalidatePath("/dashboard");
+
+  return entry;
+}
+
+export async function updateLinkedTextClinicalHistory(input: LinkedTextClinicalHistoryInput) {
+  const parsed = linkedTextClinicalHistorySchema.parse(input);
+  const entry = await prisma.clinicalEntry.findFirst({
+    where: {
+      id: parsed.clinicalEntryId,
+      patientId: parsed.patientId
+    },
+    include: {
+      patient: {
+        select: {
+          localFolderRelativePath: true
+        }
+      },
+      attachments: {
+        orderBy: { importedAt: "desc" }
+      }
+    }
+  });
+
+  if (!entry) {
+    throw new Error("Historia no encontrada");
+  }
+
+  const textAttachment = entry.attachments.find((attachment) =>
+    isPlainTextAttachment(attachment.originalName, attachment.mimeType)
+  );
+
+  if (!textAttachment) {
+    throw new Error("Esta historia no tiene un archivo .txt vinculado");
+  }
+
+  const settings = await getClinicSettings();
+  if (!settings.patientsRootPath) {
+    throw new Error("Configura la carpeta maestra de pacientes");
+  }
+
+  const absolutePath = resolveLinkedAttachmentPath({
+    patientsRootPath: settings.patientsRootPath,
+    patientFolderRelativePath: entry.patient.localFolderRelativePath,
+    localRelativePath: textAttachment.localRelativePath
+  });
+  const fileStats = await stat(absolutePath);
+
+  if (!fileStats.isFile()) {
+    throw new Error("El archivo de historia ya no existe en la ruta vinculada");
+  }
+
+  const currentFileContent = stripByteOrderMark(await readFile(absolutePath, "utf8"));
+
+  if (currentFileContent !== entry.notes) {
+    throw new Error(
+      "El archivo .txt cambió fuera de la app. Vuelve a vincular o revisa el archivo antes de guardar."
+    );
+  }
+
+  const backupDir = getTextHistoryBackupDir();
+  await mkdir(backupDir, { recursive: true });
+
+  const backupFileName = createTextHistoryBackupFileName({
+    timestamp: new Date(),
+    patientId: entry.patientId,
+    attachmentId: textAttachment.id,
+    originalName: textAttachment.originalName
+  });
+  const backupPath = path.join(backupDir, backupFileName);
+  await copyFile(absolutePath, backupPath);
+
+  const nextFileContent = normalizeLineEndings(
+    parsed.notes,
+    detectPreferredLineEnding(currentFileContent)
+  );
+  await writeFile(absolutePath, nextFileContent, "utf8");
+
+  const updatedEntry = await prisma.clinicalEntry.update({
+    where: { id: entry.id },
+    data: { notes: nextFileContent }
+  });
+
+  await recordAudit("clinical_entry.text_file_updated", "ClinicalEntry", entry.id, {
+    patientId: entry.patientId,
+    attachmentId: textAttachment.id,
+    backupFileName
+  });
+  revalidatePath(`/patients/${entry.patientId}`);
+  revalidatePath("/dashboard");
+
+  return updatedEntry;
 }

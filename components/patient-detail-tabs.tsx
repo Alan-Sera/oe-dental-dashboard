@@ -7,10 +7,12 @@ import {
   useMemo,
   useRef,
   useState,
+  useTransition,
   type PointerEvent
 } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import * as Tabs from "@radix-ui/react-tabs";
 import {
   AlertTriangle,
@@ -34,10 +36,12 @@ import {
 
 import { categoryLabels } from "@/constants";
 import type { SerializedAttachment, SerializedPatientDetail } from "@/types";
+import { linkTextAttachmentAsClinicalHistory } from "@/lib/actions/clinical.actions";
 import {
   retryPaymentHistorySheetUpload,
   setActivePaymentHistorySheet
 } from "@/lib/actions/payment-history.actions";
+import { isPlainTextAttachment } from "@/lib/text-attachments";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
 import { useGlobalLoading } from "@/components/loading-provider";
 import { Badge } from "@/components/ui/badge";
@@ -55,11 +59,15 @@ export function PatientDetailTabs({
   patient: SerializedPatientDetail;
   missingAttachmentIds?: string[];
 }) {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState("summary");
   const [selectedPhotoId, setSelectedPhotoId] = useState<string | null>(null);
   const [pendingInitialImageIds, setPendingInitialImageIds] = useState<Set<string>>(
     () => new Set()
   );
+  const [textHistoryLinkError, setTextHistoryLinkError] = useState<string | null>(null);
+  const [pendingTextHistoryAttachmentId, setPendingTextHistoryAttachmentId] = useState<string | null>(null);
+  const [isLinkingTextHistory, startLinkingTextHistoryTransition] = useTransition();
   const { show: showLoading, hide: hideLoading } = useGlobalLoading();
   const mediaLoadTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mediaOverlayVisibleRef = useRef(false);
@@ -150,6 +158,32 @@ export function PatientDetailTabs({
       setActiveTab(value);
     },
     [startMediaLoading, stopMediaLoading]
+  );
+
+  const handleLinkTextHistory = useCallback(
+    (attachmentId: string) => {
+      setTextHistoryLinkError(null);
+      setPendingTextHistoryAttachmentId(attachmentId);
+      showLoading("Vinculando historia...");
+
+      startLinkingTextHistoryTransition(async () => {
+        try {
+          await linkTextAttachmentAsClinicalHistory({
+            patientId: patient.id,
+            attachmentId
+          });
+          router.refresh();
+        } catch (error) {
+          setTextHistoryLinkError(
+            error instanceof Error ? error.message : "No se pudo vincular la historia"
+          );
+        } finally {
+          hideLoading();
+          setPendingTextHistoryAttachmentId(null);
+        }
+      });
+    },
+    [hideLoading, patient.id, router, showLoading, startLinkingTextHistoryTransition]
   );
 
   useEffect(() => {
@@ -359,9 +393,19 @@ export function PatientDetailTabs({
       </Tabs.Content>
 
       <Tabs.Content value="files" className="space-y-3">
+        {textHistoryLinkError ? (
+          <div className="surface flex gap-3 p-4 text-sm text-coral-300">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+            <p>{textHistoryLinkError}</p>
+          </div>
+        ) : null}
+
         {patient.attachments.length > 0 ? (
           patient.attachments.map((attachment) => {
             const missing = missingAttachmentIdSet.has(attachment.id);
+            const isTextFile = isPlainTextAttachment(attachment.originalName, attachment.mimeType);
+            const linkedToHistory = Boolean(attachment.clinicalEntryId);
+            const linkingThisHistory = pendingTextHistoryAttachmentId === attachment.id;
 
             return (
               <Card key={attachment.id} className="flex flex-wrap items-center justify-between gap-3">
@@ -370,6 +414,33 @@ export function PatientDetailTabs({
                   <p className="text-sm text-lavender-200/55">{attachment.sourceRelativePath}</p>
                 </div>
                 <div className="flex items-center gap-2">
+                  {isTextFile ? (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      className={cn(
+                        !linkedToHistory
+                          ? "border-brand-300/45 bg-brand-700/60 text-white hover:border-brand-200/60 hover:bg-brand-600"
+                          : undefined
+                      )}
+                      disabled={missing || linkedToHistory || isLinkingTextHistory}
+                      onClick={() => handleLinkTextHistory(attachment.id)}
+                    >
+                      {linkedToHistory ? (
+                        <CheckCircle2 className="size-4" aria-hidden="true" />
+                      ) : linkingThisHistory ? (
+                        <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
+                      ) : (
+                        <NotebookPen className="size-4" aria-hidden="true" />
+                      )}
+                      {linkedToHistory
+                        ? "Vinculado"
+                        : linkingThisHistory
+                          ? "Vinculando..."
+                          : "Vincular historia"}
+                    </Button>
+                  ) : null}
                   <Badge>{categoryLabels[attachment.category]}</Badge>
                   {missing ? <Badge tone="coral">Faltante</Badge> : null}
                   {missing ? (

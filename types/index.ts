@@ -30,6 +30,7 @@ export type SerializedAttachment = {
   sourceRelativePath: string;
   importedAt: string;
   capturedAt: string | null;
+  clinicalEntryId: string | null;
 };
 
 export type SerializedPatientDetail = {

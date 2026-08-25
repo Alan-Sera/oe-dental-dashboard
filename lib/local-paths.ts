@@ -9,6 +9,10 @@ export function getBackupDir() {
   return path.join(getAppDataDir(), "backups");
 }
 
+export function getTextHistoryBackupDir() {
+  return path.join(getBackupDir(), "text-history");
+}
+
 export function getCacheDir() {
   return path.join(getAppDataDir(), "cache");
 }
