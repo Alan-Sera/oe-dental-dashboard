@@ -108,7 +108,7 @@ export function LoadingProvider({
             <div
               className={cn(
                 "z-40 bg-ink-950/55 backdrop-blur-sm",
-                mode === "content" ? "absolute inset-x-0 bottom-0 top-16" : "fixed inset-0"
+                mode === "content" ? "absolute inset-0" : "fixed inset-0"
               )}
               aria-hidden="true"
             />

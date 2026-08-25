@@ -2,11 +2,11 @@ import Link from "next/link";
 import { Database } from "lucide-react";
 
 import type { ClinicSettings } from "@/lib/actions/settings.actions";
-import { navigationItems } from "@/constants";
 import { BrandMark } from "@/components/brand-mark";
 import { LoadingProvider } from "@/components/loading-provider";
 import { LogoutButton } from "@/components/logout-button";
 import { MobileNavDrawer } from "@/components/mobile-nav-drawer";
+import { SidebarNav } from "@/components/sidebar-nav";
 
 export function AppShell({
   settings,
@@ -27,51 +27,37 @@ export function AppShell({
             </div>
           </Link>
 
-          <nav className="mt-8 space-y-1">
-            {navigationItems.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="flex h-11 items-center gap-3 rounded-md px-3 text-sm text-lavender-200/75 transition hover:bg-lavender-800/45 hover:text-lavender-50"
-              >
-                <item.icon className="size-4" aria-hidden="true" />
-                {item.label}
-              </Link>
-            ))}
-          </nav>
+          <SidebarNav className="mt-8" />
 
-          <div className="mt-auto rounded-lg border border-lavender-500/45 bg-lavender-800/30 p-4">
-            <div className="flex items-center gap-3">
-              <Database className="size-5 text-lavender-200" aria-hidden="true" />
-              <div>
-                <p className="text-sm font-medium text-ink-200">Datos locales</p>
-                <p className="text-xs text-lavender-200/60">{settings.currency} · {settings.networkMode}</p>
+          <div className="mt-auto flex items-stretch gap-3">
+            <div className="min-w-0 flex-1 rounded-lg border border-lavender-500/45 bg-lavender-800/30 p-4">
+              <div className="flex items-center gap-3">
+                <Database className="size-5 text-lavender-200" aria-hidden="true" />
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-ink-200">Datos locales</p>
+                  <p className="text-xs text-lavender-200/60">{settings.currency} · {settings.networkMode}</p>
+                </div>
               </div>
             </div>
+
+            <LogoutButton
+              formClassName="flex self-stretch"
+              className="h-auto min-w-[4.75rem] px-3"
+            />
           </div>
         </div>
       </aside>
 
       <div className="lg:pl-72">
         <LoadingProvider mode="content">
-          <header className="sticky top-0 z-30 border-b border-lavender-600/55 bg-lavender-950/55 px-4 py-3 backdrop-blur sm:px-6 lg:px-8">
-            <div className="mx-auto flex max-w-[1480px] items-center justify-between gap-3">
-              <div className="flex min-w-0 items-center gap-3 lg:hidden">
-                <MobileNavDrawer
-                  clinicName={settings.clinicName}
-                  currency={settings.currency}
-                  networkMode={settings.networkMode}
-                />
-                <Link href="/dashboard" className="flex min-w-0 items-center gap-2 font-semibold">
-                  <BrandMark size="sm" />
-                  <span className="truncate">{settings.clinicName}</span>
-                </Link>
-              </div>
-              <div className="hidden text-sm text-lavender-200/60 lg:block">Bóveda local activa</div>
-              <LogoutButton />
-            </div>
-          </header>
-          {children}
+          <div className="fixed left-4 top-4 z-30 lg:hidden">
+            <MobileNavDrawer
+              clinicName={settings.clinicName}
+              currency={settings.currency}
+              networkMode={settings.networkMode}
+            />
+          </div>
+          <main className="pt-16 lg:pt-0">{children}</main>
         </LoadingProvider>
       </div>
     </div>
