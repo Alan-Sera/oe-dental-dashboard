@@ -13,6 +13,7 @@ import {
   extractPatientName,
   type AttachmentCategoryValue
 } from "@/lib/import-classifier";
+import { extractImageCapturedAt } from "@/lib/image-capture-date";
 import {
   joinStoredRelativePath,
   normalizePatientsRootPath,
@@ -26,6 +27,7 @@ type ScannedFile = {
   localRelativePath: string;
   sizeBytes: number;
   mimeType: string;
+  capturedAt: Date | null;
 };
 
 export async function importPatientsRoot(input: unknown) {
@@ -102,6 +104,7 @@ export async function importPatientsRoot(input: unknown) {
               originalName: file.fileName,
               mimeType: file.mimeType || null,
               sizeBytes: file.sizeBytes,
+              capturedAt: file.capturedAt ?? existingAttachment.capturedAt,
               sourceRelativePath,
               importBatchId: batch.id
             }
@@ -138,6 +141,7 @@ export async function importPatientsRoot(input: unknown) {
             localRelativePath: file.localRelativePath,
             mimeType: file.mimeType || null,
             sizeBytes: file.sizeBytes,
+            capturedAt: file.capturedAt,
             sourceRelativePath,
             importBatchId: batch.id
           }
@@ -354,12 +358,15 @@ async function scanDirectory(rootPath: string, relativeDirectory: string, files:
     );
     const absolutePath = path.join(rootPath, ...localRelativePath.split("/"));
     const fileStats = await stat(absolutePath);
+    const mimeType = guessMimeType(entry.name);
+    const capturedAt = await extractImageCapturedAt(absolutePath, entry.name, mimeType);
 
     files.push({
       fileName: entry.name,
       localRelativePath,
       sizeBytes: fileStats.size,
-      mimeType: guessMimeType(entry.name)
+      mimeType,
+      capturedAt
     });
   }
 }

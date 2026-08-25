@@ -6,6 +6,7 @@ import * as Tabs from "@radix-ui/react-tabs";
 import {
   AlertTriangle,
   BadgeDollarSign,
+  CalendarDays,
   CheckCircle2,
   ExternalLink,
   FileText,
@@ -13,6 +14,7 @@ import {
   ImageIcon,
   LoaderCircle,
   NotebookPen,
+  Plus,
   Table2,
   UploadCloud
 } from "lucide-react";
@@ -23,7 +25,6 @@ import {
   retryPaymentHistorySheetUpload,
   setActivePaymentHistorySheet
 } from "@/lib/actions/payment-history.actions";
-import { calculateLedgerTotals } from "@/lib/ledger";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -40,8 +41,6 @@ export function PatientDetailTabs({
   patient: SerializedPatientDetail;
   missingAttachmentIds?: string[];
 }) {
-  const totals = calculateLedgerTotals(patient.charges, patient.payments);
-  const currency = patient.charges[0]?.currency ?? patient.payments[0]?.currency ?? "MXN";
   const photos = patient.attachments.filter((attachment) =>
     ["PHOTO", "RADIOGRAPH"].includes(attachment.category)
   );
@@ -68,7 +67,7 @@ export function PatientDetailTabs({
       ) : null}
 
       <Tabs.Content value="summary" className="space-y-5">
-        <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
           <Card>
             <h2 className="section-title mb-4">Datos del paciente</h2>
             <PatientForm
@@ -84,12 +83,28 @@ export function PatientDetailTabs({
               }}
             />
           </Card>
+
           <Card className="space-y-4">
-            <h2 className="section-title">Estado de cuenta</h2>
             <div className="space-y-3">
-              <Metric label="Cargos" value={formatCurrency(totals.chargeTotalCents, currency)} />
-              <Metric label="Pagos" value={formatCurrency(totals.paymentTotalCents, currency)} />
-              <Metric label="Saldo" value={formatCurrency(totals.balanceCents, currency)} strong />
+              <div className="flex items-center gap-3">
+                <div className="flex size-10 items-center justify-center rounded-md bg-lavender-800/55 text-lavender-100 ring-1 ring-lavender-300/25">
+                  <CalendarDays className="size-5" aria-hidden="true" />
+                </div>
+                <div>
+                  <h2 className="section-title">Historial de asistencias</h2>
+                  <p className="text-sm text-lavender-200/55">Citas del paciente</p>
+                </div>
+              </div>
+              <Button type="button" variant="secondary" size="sm" className="w-full" disabled>
+                <Plus className="size-4" aria-hidden="true" />
+                Nueva Cita
+              </Button>
+            </div>
+            <div className="rounded-md border border-dashed border-lavender-500/45 px-4 py-8 text-center">
+              <p className="text-sm font-medium text-lavender-100">Sin asistencias registradas</p>
+              <p className="mt-1 text-sm text-lavender-200/50">
+                Aquí aparecerán las citas cuando se agregue el módulo de agenda.
+              </p>
             </div>
           </Card>
         </div>
@@ -379,15 +394,6 @@ function Tab({
   );
 }
 
-function Metric({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
-  return (
-    <div className="flex items-center justify-between border-b border-lavender-600/45 pb-3 last:border-0">
-      <span className="text-sm text-lavender-200/70">{label}</span>
-      <span className={strong ? "text-xl font-semibold text-white" : "font-medium text-ink-200"}>{value}</span>
-    </div>
-  );
-}
-
 function AttachmentTile({
   attachment,
   missing = false
@@ -414,12 +420,11 @@ function AttachmentTile({
         )}
       </div>
       <div className="space-y-2 p-4">
-        <Badge tone={attachment.category === "RADIOGRAPH" ? "sky" : "neutral"}>
-          {categoryLabels[attachment.category]}
-        </Badge>
         {missing ? <Badge tone="coral">Faltante</Badge> : null}
         <p className="truncate text-sm font-medium text-ink-100">{attachment.originalName}</p>
-        <p className="text-xs text-lavender-200/55">{formatDate(attachment.importedAt)}</p>
+        <p className="text-xs text-lavender-200/55">
+          {attachment.capturedAt ? `Capturada ${formatDateOnly(attachment.capturedAt)}` : "Sin fecha de captura"}
+        </p>
       </div>
     </Card>
   );
@@ -454,4 +459,8 @@ function LedgerList({
 
 function EmptyState({ text }: { text: string }) {
   return <div className="surface p-6 text-sm text-lavender-200/60">{text}</div>;
+}
+
+function formatDateOnly(value: string) {
+  return formatDate(`${value.slice(0, 10)}T12:00:00.000Z`);
 }

@@ -29,6 +29,7 @@ export type SerializedAttachment = {
   sizeBytes: number;
   sourceRelativePath: string;
   importedAt: string;
+  capturedAt: string | null;
 };
 
 export type SerializedPatientDetail = {

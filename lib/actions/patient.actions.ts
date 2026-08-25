@@ -1,10 +1,28 @@
 "use server";
 
+import { stat } from "node:fs/promises";
 import { revalidatePath } from "next/cache";
 
 import { recordAudit } from "@/lib/actions/audit.actions";
+import { getClinicSettings } from "@/lib/actions/settings.actions";
+import {
+  canReadImageCaptureMetadata,
+  extractImageCapturedAt
+} from "@/lib/image-capture-date";
+import { resolveLinkedAttachmentPath } from "@/lib/local-paths";
 import { prisma } from "@/lib/prisma";
 import { patientSchema, type PatientInput } from "@/lib/validation";
+
+type PatientWithTopLevelAttachments = {
+  localFolderRelativePath: string | null;
+  attachments: Array<{
+    id: string;
+    originalName: string;
+    localRelativePath: string;
+    mimeType: string | null;
+    capturedAt: Date | null;
+  }>;
+};
 
 export async function createPatient(input: PatientInput) {
   const parsed = patientSchema.parse(input);
@@ -69,7 +87,7 @@ export async function getPatients() {
 }
 
 export async function getPatientById(patientId: string) {
-  return prisma.patient.findUnique({
+  const patient = await prisma.patient.findUnique({
     where: { id: patientId },
     include: {
       attachments: {
@@ -93,6 +111,12 @@ export async function getPatientById(patientId: string) {
       }
     }
   });
+
+  if (patient) {
+    await populateMissingAttachmentCaptureDates(patient);
+  }
+
+  return patient;
 }
 
 export async function findOrCreatePatientByName(patientName: string) {
@@ -121,4 +145,44 @@ export async function findOrCreatePatientByName(patientName: string) {
 
 function inputDateToUtcNoon(value: string | undefined) {
   return value ? new Date(`${value}T12:00:00.000Z`) : null;
+}
+
+async function populateMissingAttachmentCaptureDates(patient: PatientWithTopLevelAttachments) {
+  const pendingAttachments = patient.attachments.filter(
+    (attachment) =>
+      !attachment.capturedAt &&
+      canReadImageCaptureMetadata(attachment.originalName, attachment.mimeType)
+  );
+
+  if (!pendingAttachments.length) return;
+
+  const settings = await getClinicSettings();
+  if (!settings.patientsRootPath) return;
+
+  for (const attachment of pendingAttachments) {
+    try {
+      const absolutePath = resolveLinkedAttachmentPath({
+        patientsRootPath: settings.patientsRootPath,
+        patientFolderRelativePath: patient.localFolderRelativePath,
+        localRelativePath: attachment.localRelativePath
+      });
+      const fileStats = await stat(absolutePath);
+      if (!fileStats.isFile()) continue;
+
+      const capturedAt = await extractImageCapturedAt(
+        absolutePath,
+        attachment.originalName,
+        attachment.mimeType
+      );
+      if (!capturedAt) continue;
+
+      await prisma.attachment.update({
+        where: { id: attachment.id },
+        data: { capturedAt }
+      });
+      attachment.capturedAt = capturedAt;
+    } catch {
+      // Missing or unreadable linked files are handled elsewhere in the patient view.
+    }
+  }
 }
