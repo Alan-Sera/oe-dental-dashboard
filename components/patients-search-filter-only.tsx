@@ -21,7 +21,6 @@ export type PatientListItem = PatientDirectoryRecord & {
   id: string;
   email: string | null;
   updatedAt: string;
-  attachmentCount: number;
 };
 
 export function PatientsSearchFilterOnly({ patients }: { patients: PatientListItem[] }) {
@@ -176,7 +175,6 @@ export function PatientsSearchFilterOnly({ patients }: { patients: PatientListIt
                 </p>
               </div>
               <div className="text-sm text-lavender-200/65">
-                <p>{patient.attachmentCount} archivo(s)</p>
                 {patient.nextAppointmentDate ? <p>Cita {formatDateOnly(patient.nextAppointmentDate)}</p> : null}
                 {patient.balanceCents > 0 ? <p className="text-coral-300">Saldo pendiente</p> : null}
                 <p>{formatDate(patient.updatedAt)}</p>

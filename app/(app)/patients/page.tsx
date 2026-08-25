@@ -17,8 +17,7 @@ export default async function PatientsPage() {
       gender: patient.gender,
       nextAppointmentDate: patient.nextAppointmentDate?.toISOString() ?? null,
       balanceCents: totals.balanceCents,
-      updatedAt: patient.updatedAt.toISOString(),
-      attachmentCount: patient.attachments.length
+      updatedAt: patient.updatedAt.toISOString()
     };
   });
 
