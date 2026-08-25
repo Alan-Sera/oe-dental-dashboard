@@ -54,7 +54,6 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { ClinicalEntryForm } from "@/components/forms/clinical-entry-form";
 import { PaymentForm, TreatmentChargeForm } from "@/components/forms/ledger-forms";
 import { PatientForm } from "@/components/forms/patient-form";
 
@@ -291,10 +290,6 @@ export function PatientDetailTabs({
       </Tabs.Content>
 
       <Tabs.Content value="clinical" className="space-y-5">
-        <Card>
-          <h2 className="section-title mb-4">Nueva nota clínica</h2>
-          <ClinicalEntryForm patientId={patient.id} />
-        </Card>
         <div className="space-y-3">
           {patient.clinicalEntries.length > 0 ? (
             patient.clinicalEntries.map((entry) => (
