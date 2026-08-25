@@ -1,6 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent
+} from "react";
 import Image from "next/image";
 import Link from "next/link";
 import * as Tabs from "@radix-ui/react-tabs";
@@ -8,16 +16,20 @@ import {
   AlertTriangle,
   BadgeDollarSign,
   CalendarDays,
+  ChevronLeft,
+  ChevronRight,
   CheckCircle2,
   ExternalLink,
   FileText,
   FolderOpen,
   ImageIcon,
   LoaderCircle,
+  Maximize2,
   NotebookPen,
   Plus,
   Table2,
-  UploadCloud
+  UploadCloud,
+  X
 } from "lucide-react";
 
 import { categoryLabels } from "@/constants";
@@ -44,6 +56,7 @@ export function PatientDetailTabs({
   missingAttachmentIds?: string[];
 }) {
   const [activeTab, setActiveTab] = useState("summary");
+  const [selectedPhotoId, setSelectedPhotoId] = useState<string | null>(null);
   const [pendingInitialImageIds, setPendingInitialImageIds] = useState<Set<string>>(
     () => new Set()
   );
@@ -70,6 +83,13 @@ export function PatientDetailTabs({
         .map((attachment) => attachment.id),
     [missingAttachmentIdSet, photos]
   );
+  const viewablePhotos = useMemo(
+    () => photos.filter((attachment) => isPreviewableAttachment(attachment, missingAttachmentIdSet)),
+    [missingAttachmentIdSet, photos]
+  );
+  const selectedPhotoIndex = selectedPhotoId
+    ? viewablePhotos.findIndex((photo) => photo.id === selectedPhotoId)
+    : -1;
   const missingCount = missingAttachmentIds.length;
 
   const stopMediaLoading = useCallback(() => {
@@ -147,15 +167,16 @@ export function PatientDetailTabs({
   useEffect(() => stopMediaLoading, [stopMediaLoading]);
 
   return (
-    <Tabs.Root value={activeTab} onValueChange={handleTabChange} className="space-y-5">
-      <Tabs.List className="flex gap-2 overflow-x-auto rounded-lg border border-lavender-600/55 bg-lavender-900/35 p-1">
-        <Tab value="summary" icon={FileText} label="Resumen" />
-        <Tab value="media" icon={ImageIcon} label="Fotos" />
-        <Tab value="clinical" icon={NotebookPen} label="Historia" />
-        <Tab value="ledger" icon={BadgeDollarSign} label="Cuenta" />
-        <Tab value="payment-history" icon={Table2} label="Historial pagos" />
-        <Tab value="files" icon={FolderOpen} label="Archivos" />
-      </Tabs.List>
+    <>
+      <Tabs.Root value={activeTab} onValueChange={handleTabChange} className="space-y-5">
+        <Tabs.List className="flex gap-2 overflow-x-auto rounded-lg border border-lavender-600/55 bg-lavender-900/35 p-1">
+          <Tab value="summary" icon={FileText} label="Resumen" />
+          <Tab value="media" icon={ImageIcon} label="Fotos" />
+          <Tab value="clinical" icon={NotebookPen} label="Historia" />
+          <Tab value="ledger" icon={BadgeDollarSign} label="Cuenta" />
+          <Tab value="payment-history" icon={Table2} label="Historial pagos" />
+          <Tab value="files" icon={FolderOpen} label="Archivos" />
+        </Tabs.List>
 
       {missingCount > 0 ? (
         <div className="surface flex gap-3 p-4 text-sm text-coral-300">
@@ -217,6 +238,11 @@ export function PatientDetailTabs({
               missing={missingAttachmentIdSet.has(attachment.id)}
               priority={index < 6}
               onPreviewSettled={handlePreviewSettled}
+              onOpen={
+                isPreviewableAttachment(attachment, missingAttachmentIdSet)
+                  ? () => setSelectedPhotoId(attachment.id)
+                  : undefined
+              }
             />
           ))
         ) : (
@@ -361,7 +387,235 @@ export function PatientDetailTabs({
           <EmptyState text="Sin archivos importados" />
         )}
       </Tabs.Content>
-    </Tabs.Root>
+
+      </Tabs.Root>
+
+      {selectedPhotoIndex >= 0 ? (
+        <PatientPhotoViewer
+          patientName={patient.fullName}
+          photos={viewablePhotos}
+          currentIndex={selectedPhotoIndex}
+          onClose={() => setSelectedPhotoId(null)}
+          onNavigate={(nextIndex) => setSelectedPhotoId(viewablePhotos[nextIndex]?.id ?? null)}
+        />
+      ) : null}
+    </>
+  );
+}
+
+function PatientPhotoViewer({
+  patientName,
+  photos,
+  currentIndex,
+  onClose,
+  onNavigate
+}: {
+  patientName: string;
+  photos: SerializedAttachment[];
+  currentIndex: number;
+  onClose: () => void;
+  onNavigate: (nextIndex: number) => void;
+}) {
+  const titleId = useId();
+  const currentPhoto = photos[currentIndex];
+  const [isOriginalLoading, setIsOriginalLoading] = useState(true);
+  const [isZoomed, setIsZoomed] = useState(false);
+  const [zoomPosition, setZoomPosition] = useState({ x: 50, y: 50 });
+  const hasMultiplePhotos = photos.length > 1;
+  const canGoPrevious = currentIndex > 0;
+  const canGoNext = currentIndex < photos.length - 1;
+
+  const goToPrevious = useCallback(() => {
+    if (!canGoPrevious) return;
+    onNavigate(currentIndex - 1);
+  }, [canGoPrevious, currentIndex, onNavigate]);
+
+  const goToNext = useCallback(() => {
+    if (!canGoNext) return;
+    onNavigate(currentIndex + 1);
+  }, [canGoNext, currentIndex, onNavigate]);
+
+  useEffect(() => {
+    setIsOriginalLoading(true);
+    setIsZoomed(false);
+    setZoomPosition({ x: 50, y: 50 });
+  }, [currentPhoto.id]);
+
+  const updateZoomPosition = useCallback((event: PointerEvent<HTMLDivElement>) => {
+    if (event.pointerType !== "mouse") return;
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    const nextX = clamp(((event.clientX - rect.left) / rect.width) * 100, 0, 100);
+    const nextY = clamp(((event.clientY - rect.top) / rect.height) * 100, 0, 100);
+
+    setZoomPosition({ x: nextX, y: nextY });
+  }, []);
+
+  const handleImagePointerMove = useCallback(
+    (event: PointerEvent<HTMLDivElement>) => {
+      if (!isZoomed) return;
+      updateZoomPosition(event);
+    },
+    [isZoomed, updateZoomPosition]
+  );
+
+  const handleImagePointerUp = useCallback(
+    (event: PointerEvent<HTMLDivElement>) => {
+      if (event.pointerType !== "mouse" || event.button !== 0) return;
+
+      updateZoomPosition(event);
+      setIsZoomed((current) => !current);
+    },
+    [updateZoomPosition]
+  );
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        onClose();
+        return;
+      }
+
+      if (event.key === "ArrowLeft") {
+        goToPrevious();
+        return;
+      }
+
+      if (event.key === "ArrowRight") {
+        goToNext();
+      }
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [goToNext, goToPrevious, onClose]);
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+      className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-5"
+    >
+      <button
+        type="button"
+        className="absolute inset-0 bg-ink-950/88 backdrop-blur-md"
+        aria-label="Cerrar imagen"
+        onClick={onClose}
+      />
+
+      <section className="relative z-10 grid h-full w-full max-w-7xl grid-rows-[auto_minmax(0,1fr)] gap-3">
+        <div className="grid gap-3 rounded-lg border border-lavender-500/30 bg-lavender-950/72 px-3 py-2 shadow-panel backdrop-blur-md sm:grid-cols-[minmax(0,1fr)_minmax(0,auto)_minmax(0,1fr)] sm:items-center sm:px-4">
+          <div className="min-w-0 sm:order-1">
+            <p className="truncate text-sm font-semibold text-white">
+              {currentPhoto.originalName}
+            </p>
+          </div>
+          <div className="min-w-0 text-center sm:order-2">
+            <h2 id={titleId} className="truncate text-sm font-semibold text-white sm:text-base">
+              {patientName}
+            </h2>
+            <p className="text-xs text-lavender-200/60">
+              {currentPhoto.capturedAt
+                ? `Capturada ${formatDateOnly(currentPhoto.capturedAt)}`
+                : "Sin fecha de captura"}
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center justify-end gap-2 sm:order-3">
+            <p
+              className="text-sm font-semibold text-white sm:text-base"
+              aria-label={`Imagen ${currentIndex + 1} de ${photos.length}`}
+            >
+              {currentIndex + 1} / {photos.length}
+            </p>
+            <Button
+              type="button"
+              variant="secondary"
+              size="icon"
+              className="size-11 bg-lavender-950/70 backdrop-blur-md"
+              aria-label="Cerrar imagen"
+              onClick={onClose}
+            >
+              <X className="size-5" aria-hidden="true" />
+            </Button>
+          </div>
+        </div>
+
+        <div
+          className={cn(
+            "relative min-h-0 overflow-hidden rounded-lg border border-lavender-500/25 bg-ink-950/76 shadow-2xl shadow-ink-950/60",
+            isZoomed ? "cursor-zoom-out" : "cursor-zoom-in"
+          )}
+          onPointerMove={handleImagePointerMove}
+          onPointerUp={handleImagePointerUp}
+        >
+          {isOriginalLoading ? (
+            <div className="image-preview-skeleton absolute inset-0" aria-hidden="true" />
+          ) : null}
+          <Image
+            key={currentPhoto.id}
+            src={`/api/files/${currentPhoto.id}`}
+            alt={currentPhoto.originalName}
+            fill
+            sizes="100vw"
+            className={cn(
+              "object-contain transition-[opacity,transform] duration-300 ease-out",
+              isZoomed ? "scale-[2.5]" : "scale-100",
+              isOriginalLoading ? "opacity-0" : "opacity-100"
+            )}
+            style={{ transformOrigin: `${zoomPosition.x}% ${zoomPosition.y}%` }}
+            priority
+            unoptimized
+            onLoad={() => setIsOriginalLoading(false)}
+            onError={() => setIsOriginalLoading(false)}
+          />
+
+          {isZoomed ? (
+            <div
+              className="pointer-events-none absolute left-3 top-3 rounded-md border border-lavender-100/25 bg-lavender-950/75 px-2.5 py-1 text-xs font-medium text-lavender-50 shadow-panel backdrop-blur-md"
+              aria-hidden="true"
+            >
+              Zoom 2.5x
+            </div>
+          ) : null}
+
+          {hasMultiplePhotos ? (
+            <>
+              <Button
+                type="button"
+                variant="secondary"
+                size="icon"
+                className="absolute left-3 top-1/2 size-11 -translate-y-1/2 bg-lavender-950/70 backdrop-blur-md sm:left-4"
+                aria-label="Imagen anterior"
+                onClick={goToPrevious}
+                onPointerUp={(event) => event.stopPropagation()}
+                disabled={!canGoPrevious}
+              >
+                <ChevronLeft className="size-5" aria-hidden="true" />
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                size="icon"
+                className="absolute right-3 top-1/2 size-11 -translate-y-1/2 bg-lavender-950/70 backdrop-blur-md sm:right-4"
+                aria-label="Imagen siguiente"
+                onClick={goToNext}
+                onPointerUp={(event) => event.stopPropagation()}
+                disabled={!canGoNext}
+              >
+                <ChevronRight className="size-5" aria-hidden="true" />
+              </Button>
+            </>
+          ) : null}
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -498,12 +752,14 @@ function AttachmentTile({
   attachment,
   missing = false,
   priority = false,
-  onPreviewSettled
+  onPreviewSettled,
+  onOpen
 }: {
   attachment: SerializedAttachment;
   missing?: boolean;
   priority?: boolean;
   onPreviewSettled?: (attachmentId: string) => void;
+  onOpen?: () => void;
 }) {
   const isImage = isPreviewableAttachment(attachment, missing);
   const [isPreviewLoading, setIsPreviewLoading] = useState(isImage);
@@ -522,43 +778,69 @@ function AttachmentTile({
     onPreviewSettled?.(attachment.id);
   }, [attachment.id, onPreviewSettled]);
 
+  const preview = (
+    <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-lavender-950/45">
+      {isImage ? (
+        <>
+          {isPreviewLoading ? (
+            <div className="image-preview-skeleton absolute inset-0" aria-hidden="true" />
+          ) : null}
+          <Image
+            src={`/api/files/${attachment.id}/preview?w=520`}
+            alt={attachment.originalName}
+            width={640}
+            height={480}
+            sizes="(max-width: 640px) calc(100vw - 2rem), (max-width: 1280px) calc((100vw - 5rem) / 2), 420px"
+            className={cn(
+              "h-full w-full object-cover transition duration-500",
+              isPreviewLoading ? "scale-[1.02] opacity-0" : "scale-100 opacity-100"
+            )}
+            decoding="async"
+            priority={priority}
+            loading={priority ? undefined : "lazy"}
+            unoptimized
+            onLoad={markPreviewSettled}
+            onError={markPreviewSettled}
+          />
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-ink-950/0 opacity-0 transition group-hover:bg-ink-950/32 group-hover:opacity-100 group-focus-visible:bg-ink-950/32 group-focus-visible:opacity-100">
+            <span className="inline-flex size-11 items-center justify-center rounded-full border border-lavender-100/40 bg-lavender-950/70 text-lavender-50 shadow-panel backdrop-blur-sm">
+              <Maximize2 className="size-5" aria-hidden="true" />
+            </span>
+          </div>
+        </>
+      ) : (
+        <FileText className="size-12 text-lavender-500/55" aria-hidden="true" />
+      )}
+    </div>
+  );
+  const details = (
+    <div className="space-y-2 p-4">
+      {missing ? <Badge tone="coral">Faltante</Badge> : null}
+      <p className="truncate text-sm font-medium text-ink-100">{attachment.originalName}</p>
+      <p className="text-xs text-lavender-200/55">
+        {attachment.capturedAt ? `Capturada ${formatDateOnly(attachment.capturedAt)}` : "Sin fecha de captura"}
+      </p>
+    </div>
+  );
+
   return (
     <Card className="overflow-hidden p-0">
-      <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-lavender-950/45">
-        {isImage ? (
-          <>
-            {isPreviewLoading ? (
-              <div className="image-preview-skeleton absolute inset-0" aria-hidden="true" />
-            ) : null}
-            <Image
-              src={`/api/files/${attachment.id}/preview?w=520`}
-              alt={attachment.originalName}
-              width={640}
-              height={480}
-              sizes="(max-width: 640px) calc(100vw - 2rem), (max-width: 1280px) calc((100vw - 5rem) / 2), 420px"
-              className={cn(
-                "h-full w-full object-cover transition duration-500",
-                isPreviewLoading ? "scale-[1.02] opacity-0" : "scale-100 opacity-100"
-              )}
-              decoding="async"
-              priority={priority}
-              loading={priority ? undefined : "lazy"}
-              unoptimized
-              onLoad={markPreviewSettled}
-              onError={markPreviewSettled}
-            />
-          </>
-        ) : (
-          <FileText className="size-12 text-lavender-500/55" aria-hidden="true" />
-        )}
-      </div>
-      <div className="space-y-2 p-4">
-        {missing ? <Badge tone="coral">Faltante</Badge> : null}
-        <p className="truncate text-sm font-medium text-ink-100">{attachment.originalName}</p>
-        <p className="text-xs text-lavender-200/55">
-          {attachment.capturedAt ? `Capturada ${formatDateOnly(attachment.capturedAt)}` : "Sin fecha de captura"}
-        </p>
-      </div>
+      {isImage && onOpen ? (
+        <button
+          type="button"
+          className="group block w-full text-left outline-none transition focus-visible:ring-2 focus-visible:ring-lavender-200/65"
+          aria-label={`Abrir ${attachment.originalName} en tamaño completo`}
+          onClick={onOpen}
+        >
+          {preview}
+          {details}
+        </button>
+      ) : (
+        <>
+          {preview}
+          {details}
+        </>
+      )}
     </Card>
   );
 }
@@ -602,4 +884,8 @@ function isPreviewableAttachment(attachment: SerializedAttachment, missing: bool
 
 function formatDateOnly(value: string) {
   return formatDate(`${value.slice(0, 10)}T12:00:00.000Z`);
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
 }
