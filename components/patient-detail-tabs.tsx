@@ -28,7 +28,9 @@ import {
   LoaderCircle,
   Maximize2,
   NotebookPen,
+  Pencil,
   Plus,
+  Save,
   Table2,
   UploadCloud,
   X
@@ -36,7 +38,10 @@ import {
 
 import { categoryLabels } from "@/constants";
 import type { SerializedAttachment, SerializedPatientDetail } from "@/types";
-import { linkTextAttachmentAsClinicalHistory } from "@/lib/actions/clinical.actions";
+import {
+  linkTextAttachmentAsClinicalHistory,
+  updateLinkedTextClinicalHistory
+} from "@/lib/actions/clinical.actions";
 import {
   retryPaymentHistorySheetUpload,
   setActivePaymentHistorySheet
@@ -48,6 +53,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { ClinicalEntryForm } from "@/components/forms/clinical-entry-form";
 import { PaymentForm, TreatmentChargeForm } from "@/components/forms/ledger-forms";
 import { PatientForm } from "@/components/forms/patient-form";
@@ -292,16 +298,7 @@ export function PatientDetailTabs({
         <div className="space-y-3">
           {patient.clinicalEntries.length > 0 ? (
             patient.clinicalEntries.map((entry) => (
-              <Card key={entry.id} className="space-y-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge tone="brand">{formatDate(entry.entryDate)}</Badge>
-                  {entry.tooth ? <Badge>Pieza {entry.tooth}</Badge> : null}
-                  {entry.attachments.length ? <Badge tone="sky">{entry.attachments.length} archivo(s)</Badge> : null}
-                </div>
-                {entry.diagnosis ? <p className="text-sm text-ink-300">Diagnóstico: {entry.diagnosis}</p> : null}
-                {entry.treatment ? <p className="text-sm text-ink-300">Tratamiento: {entry.treatment}</p> : null}
-                <p className="whitespace-pre-wrap text-sm text-lavender-200/65">{entry.notes}</p>
-              </Card>
+              <ClinicalEntryCard key={entry.id} patientId={patient.id} entry={entry} />
             ))
           ) : (
             <EmptyState text="Sin notas clínicas registradas" />
@@ -471,6 +468,148 @@ export function PatientDetailTabs({
         />
       ) : null}
     </>
+  );
+}
+
+function ClinicalEntryCard({
+  patientId,
+  entry
+}: {
+  patientId: string;
+  entry: SerializedPatientDetail["clinicalEntries"][number];
+}) {
+  const router = useRouter();
+  const loading = useGlobalLoading();
+  const linkedTextAttachment = getLinkedTextAttachment(entry);
+  const [isEditing, setIsEditing] = useState(false);
+  const [notes, setNotes] = useState(entry.notes);
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  useEffect(() => {
+    if (isEditing) return;
+    setNotes(entry.notes);
+  }, [entry.notes, isEditing]);
+
+  const handleSave = useCallback(() => {
+    if (!linkedTextAttachment) return;
+
+    setError(null);
+    loading.show("Guardando historia...");
+
+    startTransition(async () => {
+      try {
+        await updateLinkedTextClinicalHistory({
+          patientId,
+          clinicalEntryId: entry.id,
+          notes
+        });
+        setIsEditing(false);
+        router.refresh();
+      } catch (saveError) {
+        setError(
+          saveError instanceof Error
+            ? saveError.message
+            : "No se pudo guardar la historia"
+        );
+      } finally {
+        loading.hide();
+      }
+    });
+  }, [entry.id, linkedTextAttachment, loading, notes, patientId, router, startTransition]);
+
+  return (
+    <Card className="space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone="brand">{formatDate(entry.entryDate)}</Badge>
+            {entry.tooth ? <Badge>Pieza {entry.tooth}</Badge> : null}
+            {entry.attachments.length ? <Badge tone="sky">{entry.attachments.length} archivo(s)</Badge> : null}
+            {linkedTextAttachment ? <Badge tone="neutral">TXT vinculado</Badge> : null}
+          </div>
+
+          {linkedTextAttachment ? (
+            <div className="min-w-0 rounded-md border border-lavender-500/30 bg-lavender-950/28 px-3 py-2">
+              <p className="truncate text-xs font-medium text-lavender-100">
+                {linkedTextAttachment.originalName}
+              </p>
+              <p className="truncate text-xs text-lavender-200/45">
+                {linkedTextAttachment.sourceRelativePath}
+              </p>
+            </div>
+          ) : null}
+        </div>
+
+        {linkedTextAttachment ? (
+          <Button
+            type="button"
+            variant={isEditing ? "ghost" : "secondary"}
+            size="sm"
+            onClick={() => {
+              setError(null);
+              if (isEditing) {
+                setNotes(entry.notes);
+                setIsEditing(false);
+                return;
+              }
+              setIsEditing(true);
+            }}
+            disabled={isPending}
+          >
+            {isEditing ? <X className="size-4" aria-hidden="true" /> : <Pencil className="size-4" aria-hidden="true" />}
+            {isEditing ? "Cancelar" : "Editar"}
+          </Button>
+        ) : null}
+      </div>
+
+      {entry.diagnosis ? <p className="text-sm text-ink-300">Diagnóstico: {entry.diagnosis}</p> : null}
+      {entry.treatment ? <p className="text-sm text-ink-300">Tratamiento: {entry.treatment}</p> : null}
+
+      {error ? (
+        <div className="surface flex gap-3 p-3 text-sm text-coral-300">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          <p>{error}</p>
+        </div>
+      ) : null}
+
+      {isEditing ? (
+        <div className="space-y-3">
+          <Textarea
+            value={notes}
+            onChange={(event) => setNotes(event.target.value)}
+            className="min-h-[22rem] font-mono text-sm leading-6"
+            aria-label="Contenido de la historia vinculada"
+            disabled={isPending}
+          />
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setError(null);
+                setNotes(entry.notes);
+                setIsEditing(false);
+              }}
+              disabled={isPending}
+            >
+              Cancelar
+            </Button>
+            <Button type="button" size="sm" onClick={handleSave} disabled={isPending}>
+              {isPending ? (
+                <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <Save className="size-4" aria-hidden="true" />
+              )}
+              {isPending ? "Guardando..." : "Guardar"}
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <p className="whitespace-pre-wrap text-sm text-lavender-200/65">{entry.notes}</p>
+      )}
+    </Card>
   );
 }
 
@@ -951,6 +1090,12 @@ function isPreviewableAttachment(attachment: SerializedAttachment, missing: bool
   const isMissing = missing instanceof Set ? missing.has(attachment.id) : missing;
 
   return Boolean(attachment.mimeType?.startsWith("image/") && !isMissing);
+}
+
+function getLinkedTextAttachment(entry: SerializedPatientDetail["clinicalEntries"][number]) {
+  return entry.attachments.find((attachment) =>
+    isPlainTextAttachment(attachment.originalName, attachment.mimeType)
+  );
 }
 
 function formatDateOnly(value: string) {
