@@ -9,6 +9,14 @@ export function getBackupDir() {
   return path.join(getAppDataDir(), "backups");
 }
 
+export function getCacheDir() {
+  return path.join(getAppDataDir(), "cache");
+}
+
+export function getImagePreviewCacheDir() {
+  return path.join(getCacheDir(), "image-previews");
+}
+
 export function getImportDir() {
   return path.join(getAppDataDir(), "imports");
 }
@@ -17,6 +25,7 @@ export async function ensureDataDirectories() {
   await Promise.all([
     mkdir(getAppDataDir(), { recursive: true }),
     mkdir(getBackupDir(), { recursive: true }),
+    mkdir(getCacheDir(), { recursive: true }),
     mkdir(getImportDir(), { recursive: true })
   ]);
 }

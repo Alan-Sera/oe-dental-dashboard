@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import * as Tabs from "@radix-ui/react-tabs";
@@ -25,7 +26,8 @@ import {
   retryPaymentHistorySheetUpload,
   setActivePaymentHistorySheet
 } from "@/lib/actions/payment-history.actions";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { cn, formatCurrency, formatDate } from "@/lib/utils";
+import { useGlobalLoading } from "@/components/loading-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -41,15 +43,111 @@ export function PatientDetailTabs({
   patient: SerializedPatientDetail;
   missingAttachmentIds?: string[];
 }) {
-  const photos = patient.attachments.filter((attachment) =>
-    ["PHOTO", "RADIOGRAPH"].includes(attachment.category)
+  const [activeTab, setActiveTab] = useState("summary");
+  const [pendingInitialImageIds, setPendingInitialImageIds] = useState<Set<string>>(
+    () => new Set()
+  );
+  const { show: showLoading, hide: hideLoading } = useGlobalLoading();
+  const mediaLoadTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mediaOverlayVisibleRef = useRef(false);
+  const photos = useMemo(
+    () =>
+      patient.attachments.filter((attachment) =>
+        ["PHOTO", "RADIOGRAPH"].includes(attachment.category)
+      ),
+    [patient.attachments]
   );
   const activePaymentHistory = patient.paymentHistorySheets.find((sheet) => sheet.isActive);
-  const missingAttachmentIdSet = new Set(missingAttachmentIds);
+  const missingAttachmentIdSet = useMemo(
+    () => new Set(missingAttachmentIds),
+    [missingAttachmentIds]
+  );
+  const initialMediaImageIds = useMemo(
+    () =>
+      photos
+        .filter((attachment) => isPreviewableAttachment(attachment, missingAttachmentIdSet))
+        .slice(0, 6)
+        .map((attachment) => attachment.id),
+    [missingAttachmentIdSet, photos]
+  );
   const missingCount = missingAttachmentIds.length;
 
+  const stopMediaLoading = useCallback(() => {
+    if (mediaLoadTimeoutRef.current) {
+      clearTimeout(mediaLoadTimeoutRef.current);
+      mediaLoadTimeoutRef.current = null;
+    }
+
+    if (mediaOverlayVisibleRef.current) {
+      mediaOverlayVisibleRef.current = false;
+      hideLoading();
+    }
+  }, [hideLoading]);
+
+  const startMediaLoading = useCallback(() => {
+    if (!initialMediaImageIds.length) {
+      setPendingInitialImageIds(new Set());
+      stopMediaLoading();
+      return;
+    }
+
+    if (mediaOverlayVisibleRef.current) {
+      hideLoading();
+    }
+
+    mediaOverlayVisibleRef.current = true;
+    setPendingInitialImageIds(new Set(initialMediaImageIds));
+    showLoading("Cargando imágenes...");
+
+    if (mediaLoadTimeoutRef.current) {
+      clearTimeout(mediaLoadTimeoutRef.current);
+    }
+
+    mediaLoadTimeoutRef.current = setTimeout(() => {
+      setPendingInitialImageIds(new Set());
+      stopMediaLoading();
+    }, 4500);
+  }, [hideLoading, initialMediaImageIds, showLoading, stopMediaLoading]);
+
+  const handlePreviewSettled = useCallback((attachmentId: string) => {
+    setPendingInitialImageIds((current) => {
+      if (!current.has(attachmentId)) return current;
+
+      const next = new Set(current);
+      next.delete(attachmentId);
+      return next;
+    });
+  }, []);
+
+  const handleTabChange = useCallback(
+    (value: string) => {
+      if (value === "media") {
+        startMediaLoading();
+      } else {
+        stopMediaLoading();
+      }
+
+      setActiveTab(value);
+    },
+    [startMediaLoading, stopMediaLoading]
+  );
+
+  useEffect(() => {
+    if (activeTab !== "media") {
+      stopMediaLoading();
+    }
+  }, [activeTab, stopMediaLoading]);
+
+  useEffect(() => {
+    if (activeTab === "media" && pendingInitialImageIds.size === 0) {
+      stopMediaLoading();
+    }
+  }, [activeTab, pendingInitialImageIds, stopMediaLoading]);
+
+  useEffect(() => stopMediaLoading, [stopMediaLoading]);
+
   return (
-    <Tabs.Root defaultValue="summary" className="space-y-5">
+    <Tabs.Root value={activeTab} onValueChange={handleTabChange} className="space-y-5">
       <Tabs.List className="flex gap-2 overflow-x-auto rounded-lg border border-lavender-600/55 bg-lavender-900/35 p-1">
         <Tab value="summary" icon={FileText} label="Resumen" />
         <Tab value="media" icon={ImageIcon} label="Fotos" />
@@ -112,11 +210,13 @@ export function PatientDetailTabs({
 
       <Tabs.Content value="media" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {photos.length > 0 ? (
-          photos.map((attachment) => (
+          photos.map((attachment, index) => (
             <AttachmentTile
               key={attachment.id}
               attachment={attachment}
               missing={missingAttachmentIdSet.has(attachment.id)}
+              priority={index < 6}
+              onPreviewSettled={handlePreviewSettled}
             />
           ))
         ) : (
@@ -396,25 +496,58 @@ function Tab({
 
 function AttachmentTile({
   attachment,
-  missing = false
+  missing = false,
+  priority = false,
+  onPreviewSettled
 }: {
   attachment: SerializedAttachment;
   missing?: boolean;
+  priority?: boolean;
+  onPreviewSettled?: (attachmentId: string) => void;
 }) {
-  const isImage = attachment.mimeType?.startsWith("image/") && !missing;
+  const isImage = isPreviewableAttachment(attachment, missing);
+  const [isPreviewLoading, setIsPreviewLoading] = useState(isImage);
+  const previewSettledRef = useRef(false);
+
+  useEffect(() => {
+    previewSettledRef.current = false;
+    setIsPreviewLoading(isImage);
+  }, [attachment.id, isImage]);
+
+  const markPreviewSettled = useCallback(() => {
+    if (previewSettledRef.current) return;
+
+    previewSettledRef.current = true;
+    setIsPreviewLoading(false);
+    onPreviewSettled?.(attachment.id);
+  }, [attachment.id, onPreviewSettled]);
 
   return (
     <Card className="overflow-hidden p-0">
-      <div className="flex aspect-[4/3] items-center justify-center bg-lavender-950/45">
+      <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-lavender-950/45">
         {isImage ? (
-          <Image
-            src={`/api/files/${attachment.id}`}
-            alt={attachment.originalName}
-            width={640}
-            height={480}
-            className="h-full w-full object-cover"
-            unoptimized
-          />
+          <>
+            {isPreviewLoading ? (
+              <div className="image-preview-skeleton absolute inset-0" aria-hidden="true" />
+            ) : null}
+            <Image
+              src={`/api/files/${attachment.id}/preview?w=520`}
+              alt={attachment.originalName}
+              width={640}
+              height={480}
+              sizes="(max-width: 640px) calc(100vw - 2rem), (max-width: 1280px) calc((100vw - 5rem) / 2), 420px"
+              className={cn(
+                "h-full w-full object-cover transition duration-500",
+                isPreviewLoading ? "scale-[1.02] opacity-0" : "scale-100 opacity-100"
+              )}
+              decoding="async"
+              priority={priority}
+              loading={priority ? undefined : "lazy"}
+              unoptimized
+              onLoad={markPreviewSettled}
+              onError={markPreviewSettled}
+            />
+          </>
         ) : (
           <FileText className="size-12 text-lavender-500/55" aria-hidden="true" />
         )}
@@ -459,6 +592,12 @@ function LedgerList({
 
 function EmptyState({ text }: { text: string }) {
   return <div className="surface p-6 text-sm text-lavender-200/60">{text}</div>;
+}
+
+function isPreviewableAttachment(attachment: SerializedAttachment, missing: boolean | Set<string>) {
+  const isMissing = missing instanceof Set ? missing.has(attachment.id) : missing;
+
+  return Boolean(attachment.mimeType?.startsWith("image/") && !isMissing);
 }
 
 function formatDateOnly(value: string) {

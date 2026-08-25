@@ -62,3 +62,106 @@ select {
     @apply grid gap-3 border-b border-lavender-600/45 px-4 py-3 last:border-0;
   }
 }
+
+.muelita-loader-frame {
+  position: relative;
+  display: grid;
+  width: clamp(7.5rem, 24vw, 10.5rem);
+  height: clamp(7.5rem, 24vw, 10.5rem);
+  place-items: center;
+}
+
+.muelita-loader-frame-compact {
+  width: 5.75rem;
+  height: 5.75rem;
+}
+
+.muelita-loader-ring {
+  position: absolute;
+  inset: 0.2rem;
+  border: 1px solid rgba(208, 192, 224, 0.24);
+  border-top-color: rgba(255, 255, 255, 0.82);
+  border-right-color: rgba(119, 183, 238, 0.68);
+  border-radius: 999px;
+  box-shadow:
+    0 0 32px rgba(119, 183, 238, 0.16),
+    inset 0 0 24px rgba(208, 192, 224, 0.08);
+  animation: muelita-loader-ring 1.15s linear infinite;
+}
+
+.muelita-loader-ring::after {
+  position: absolute;
+  inset: 0.8rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: inherit;
+  content: "";
+}
+
+.muelita-loader-mark {
+  width: clamp(7.5rem, 20vw, 9.375rem);
+  height: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 16px 24px rgba(0, 0, 0, 0.42));
+  animation: muelita-loader-float 1.7s ease-in-out infinite;
+}
+
+.muelita-loader-frame-compact .muelita-loader-mark {
+  width: 5.75rem;
+}
+
+@keyframes muelita-loader-ring {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes muelita-loader-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-1deg) scale(1);
+  }
+
+  50% {
+    transform: translateY(-0.65rem) rotate(1deg) scale(1.04);
+  }
+}
+
+@keyframes muelita-loader-soft-pulse {
+  0%,
+  100% {
+    opacity: 0.86;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+.image-preview-skeleton {
+  background:
+    linear-gradient(110deg, transparent 0%, rgba(255, 255, 255, 0.1) 42%, transparent 78%),
+    linear-gradient(135deg, rgba(20, 11, 29, 0.95), rgba(16, 40, 62, 0.5), rgba(36, 23, 47, 0.9));
+  background-size: 220% 100%, 100% 100%;
+  animation: image-preview-skeleton 1.25s ease-in-out infinite;
+}
+
+@keyframes image-preview-skeleton {
+  0% {
+    background-position: 180% 0, 0 0;
+  }
+
+  100% {
+    background-position: -80% 0, 0 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .muelita-loader-ring {
+    animation: none;
+  }
+
+  .muelita-loader-mark,
+  .image-preview-skeleton {
+    animation: muelita-loader-soft-pulse 2.2s ease-in-out infinite;
+  }
+}

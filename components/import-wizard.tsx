@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, FolderDown, Loader2, Table2 } from "lucide-react";
 
+import { useGlobalLoading } from "@/components/loading-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
@@ -32,6 +33,7 @@ export function ImportWizard({
   defaultPatientsRootPath?: string;
 }) {
   const router = useRouter();
+  const loading = useGlobalLoading();
   const [patientsRootPath, setPatientsRootPath] = useState(defaultPatientsRootPath);
   const [googleFolderId, setGoogleFolderId] = useState("");
   const [resetExistingData, setResetExistingData] = useState(false);
@@ -61,6 +63,7 @@ export function ImportWizard({
   function runImport() {
     if (!patientsRootPath.trim()) return;
 
+    loading.show("Escaneando carpeta maestra...");
     startTransition(async () => {
       try {
         setError("");
@@ -91,6 +94,8 @@ export function ImportWizard({
       } catch (caughtError) {
         setError(caughtError instanceof Error ? caughtError.message : "Error de importación");
         setStatus("");
+      } finally {
+        loading.hide();
       }
     });
   }

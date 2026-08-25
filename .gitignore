@@ -11,7 +11,9 @@ data/app.db-wal
 data/vault/**
 data/backups/**
 data/imports/**
+data/cache/**
 !.gitkeep
+.pnpm-store/
 *.tsbuildinfo
 dev.log
 dev.err

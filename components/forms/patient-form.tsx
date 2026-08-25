@@ -7,6 +7,7 @@ import { useForm } from "react-hook-form";
 
 import { createPatient, updatePatient } from "@/lib/actions/patient.actions";
 import { patientSchema, type PatientInput } from "@/lib/validation";
+import { useGlobalLoading } from "@/components/loading-provider";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -21,6 +22,7 @@ export function PatientForm({
   defaultValues?: Partial<PatientInput>;
 }) {
   const router = useRouter();
+  const loading = useGlobalLoading();
   const [isPending, startTransition] = useTransition();
   const form = useForm<PatientInput>({
     resolver: zodResolver(patientSchema),
@@ -39,11 +41,21 @@ export function PatientForm({
     <form
       className="grid gap-4 md:grid-cols-2"
       onSubmit={form.handleSubmit((values) => {
+        loading.show(patientId ? "Actualizando paciente..." : "Creando paciente...");
         startTransition(async () => {
-          const patient = patientId
-            ? await updatePatient(patientId, values)
-            : await createPatient(values);
-          router.push(`/patients/${patient.id}`);
+          try {
+            const patient = patientId
+              ? await updatePatient(patientId, values)
+              : await createPatient(values);
+            router.push(`/patients/${patient.id}`);
+
+            if (patientId) {
+              loading.hide();
+            }
+          } catch (error) {
+            loading.hide();
+            throw error;
+          }
         });
       })}
     >

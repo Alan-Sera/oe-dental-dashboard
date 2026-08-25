@@ -7,11 +7,13 @@ import { useForm } from "react-hook-form";
 import { setupClinic } from "@/lib/actions/auth.actions";
 import { setupSchema, type SetupInput } from "@/lib/validation";
 import { BrandMark } from "@/components/brand-mark";
+import { useGlobalLoading } from "@/components/loading-provider";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 
 export function SetupForm() {
+  const loading = useGlobalLoading();
   const [isPending, startTransition] = useTransition();
   const form = useForm<SetupInput>({
     resolver: zodResolver(setupSchema),
@@ -27,7 +29,15 @@ export function SetupForm() {
     <form
       className="panel space-y-5 p-6"
       onSubmit={form.handleSubmit((values) => {
-        startTransition(() => setupClinic(values));
+        loading.show("Configurando clínica...");
+        startTransition(async () => {
+          try {
+            await setupClinic(values);
+          } catch (error) {
+            loading.hide();
+            throw error;
+          }
+        });
       })}
     >
       <div className="space-y-3">

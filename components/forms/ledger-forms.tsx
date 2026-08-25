@@ -13,6 +13,7 @@ import {
   type TreatmentChargeInput
 } from "@/lib/validation";
 import { paymentMethods } from "@/constants";
+import { useGlobalLoading } from "@/components/loading-provider";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -21,6 +22,7 @@ import { Textarea } from "@/components/ui/textarea";
 
 export function TreatmentChargeForm({ patientId }: { patientId: string }) {
   const router = useRouter();
+  const loading = useGlobalLoading();
   const [isPending, startTransition] = useTransition();
   const form = useForm<TreatmentChargeInput>({
     resolver: zodResolver(treatmentChargeSchema),
@@ -38,10 +40,15 @@ export function TreatmentChargeForm({ patientId }: { patientId: string }) {
     <form
       className="grid gap-4 md:grid-cols-2"
       onSubmit={form.handleSubmit((values) => {
+        loading.show("Agregando cargo...");
         startTransition(async () => {
-          await createTreatmentCharge(values);
-          form.reset({ ...values, description: "", amount: "", notes: "" });
-          router.refresh();
+          try {
+            await createTreatmentCharge(values);
+            form.reset({ ...values, description: "", amount: "", notes: "" });
+            router.refresh();
+          } finally {
+            loading.hide();
+          }
         });
       })}
     >
@@ -76,6 +83,7 @@ export function TreatmentChargeForm({ patientId }: { patientId: string }) {
 
 export function PaymentForm({ patientId }: { patientId: string }) {
   const router = useRouter();
+  const loading = useGlobalLoading();
   const [isPending, startTransition] = useTransition();
   const form = useForm<PaymentInput>({
     resolver: zodResolver(paymentSchema),
@@ -93,10 +101,15 @@ export function PaymentForm({ patientId }: { patientId: string }) {
     <form
       className="grid gap-4 md:grid-cols-2"
       onSubmit={form.handleSubmit((values) => {
+        loading.show("Registrando pago...");
         startTransition(async () => {
-          await recordPayment(values);
-          form.reset({ ...values, amount: "", notes: "" });
-          router.refresh();
+          try {
+            await recordPayment(values);
+            form.reset({ ...values, amount: "", notes: "" });
+            router.refresh();
+          } finally {
+            loading.hide();
+          }
         });
       })}
     >

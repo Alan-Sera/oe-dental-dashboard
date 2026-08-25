@@ -7,6 +7,7 @@ import { useForm } from "react-hook-form";
 
 import { createClinicalEntry } from "@/lib/actions/clinical.actions";
 import { clinicalEntrySchema, type ClinicalEntryInput } from "@/lib/validation";
+import { useGlobalLoading } from "@/components/loading-provider";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -14,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 
 export function ClinicalEntryForm({ patientId }: { patientId: string }) {
   const router = useRouter();
+  const loading = useGlobalLoading();
   const [isPending, startTransition] = useTransition();
   const form = useForm<ClinicalEntryInput>({
     resolver: zodResolver(clinicalEntrySchema),
@@ -31,10 +33,15 @@ export function ClinicalEntryForm({ patientId }: { patientId: string }) {
     <form
       className="grid gap-4 md:grid-cols-2"
       onSubmit={form.handleSubmit((values) => {
+        loading.show("Guardando nota clínica...");
         startTransition(async () => {
-          await createClinicalEntry(values);
-          form.reset({ ...values, tooth: "", diagnosis: "", treatment: "", notes: "" });
-          router.refresh();
+          try {
+            await createClinicalEntry(values);
+            form.reset({ ...values, tooth: "", diagnosis: "", treatment: "", notes: "" });
+            router.refresh();
+          } finally {
+            loading.hide();
+          }
         });
       })}
     >

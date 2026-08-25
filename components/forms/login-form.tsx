@@ -7,11 +7,13 @@ import { useForm } from "react-hook-form";
 import { login } from "@/lib/actions/auth.actions";
 import { loginSchema, type LoginInput } from "@/lib/validation";
 import { BrandMark } from "@/components/brand-mark";
+import { useGlobalLoading } from "@/components/loading-provider";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 
 export function LoginForm() {
+  const loading = useGlobalLoading();
   const [message, setMessage] = useState("");
   const [isPending, startTransition] = useTransition();
   const form = useForm<LoginInput>({
@@ -26,9 +28,18 @@ export function LoginForm() {
       className="panel space-y-5 p-6"
       onSubmit={form.handleSubmit((values) => {
         setMessage("");
+        loading.show("Entrando...");
         startTransition(async () => {
-          const result = await login(values);
-          if (result?.message) setMessage(result.message);
+          try {
+            const result = await login(values);
+            if (result?.message) {
+              setMessage(result.message);
+              loading.hide();
+            }
+          } catch (error) {
+            loading.hide();
+            throw error;
+          }
         });
       })}
     >
