@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
   useTransition,
-  type PointerEvent
+  type PointerEvent,
 } from "react";
 import Image from "next/image";
 import Link from "next/link";
@@ -32,45 +32,68 @@ import {
   Plus,
   Save,
   Table2,
+  Trash2,
   UploadCloud,
-  X
+  X,
 } from "lucide-react";
 
 import { categoryLabels } from "@/constants";
 import type { SerializedAttachment, SerializedPatientDetail } from "@/types";
 import {
   linkTextAttachmentAsClinicalHistory,
-  updateLinkedTextClinicalHistory
+  updateLinkedTextClinicalHistory,
 } from "@/lib/actions/clinical.actions";
 import {
   retryPaymentHistorySheetUpload,
-  setActivePaymentHistorySheet
+  setActivePaymentHistorySheet,
 } from "@/lib/actions/payment-history.actions";
 import {
   detectPreferredLineEnding,
-  isPlainTextAttachment
+  isPlainTextAttachment,
 } from "@/lib/text-attachments";
 import {
+  appendTextHistoryAppointment,
+  createTextHistoryAppointment,
   hasNoShowText,
-  normalizeClinicalDateText,
+  markTextHistoryAppointmentNoShow,
+  normalizeTextHistoryAppointment,
   parseLinkedTextHistory,
+  removeTextHistoryAppointment,
+  replaceTextHistoryAppointment,
+  serializeDeletedTextHistoryBlockBackup,
   serializeLinkedTextHistory,
+  serializeTextHistoryAppointmentBlock,
+  serializeTextHistoryNextBlock,
+  type DeletedTextHistoryBlockBackup,
   type ParsedTextHistory,
-  type ParsedTextHistoryAppointment
+  type ParsedTextHistoryAppointment,
 } from "@/lib/text-history-parser";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
+import { ConfirmDeleteModal } from "@/components/confirm-delete-modal";
 import { useGlobalLoading } from "@/components/loading-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { PaymentForm, TreatmentChargeForm } from "@/components/forms/ledger-forms";
+import {
+  PaymentForm,
+  TreatmentChargeForm,
+} from "@/components/forms/ledger-forms";
 import { PatientForm } from "@/components/forms/patient-form";
+
+const historyDeleteButtonClass =
+  "border-coral-400/55 bg-coral-900/60 text-coral-400 backdrop-blur-md hover:bg-coral-500 hover:text-white";
+const historyEditButtonClass =
+  "border-brand-400/55 bg-brand-900/60 text-brand-200 backdrop-blur-md hover:bg-brand-500 hover:text-white";
+const historyNoShowButtonClass =
+  "w-fit border-transparent bg-coral-950/30 text-red-400 backdrop-blur-md hover:border-transparent hover:bg-coral-900/55 hover:text-red-200";
+const historyCancelButtonClass =
+  "bg-lavender-700/40 text-lavender-50 hover:bg-lavender-700/55 hover:text-white";
 
 export function PatientDetailTabs({
   patient,
-  missingAttachmentIds = []
+  missingAttachmentIds = [],
 }: {
   patient: SerializedPatientDetail;
   missingAttachmentIds?: string[];
@@ -78,38 +101,51 @@ export function PatientDetailTabs({
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("summary");
   const [selectedPhotoId, setSelectedPhotoId] = useState<string | null>(null);
-  const [pendingInitialImageIds, setPendingInitialImageIds] = useState<Set<string>>(
-    () => new Set()
-  );
-  const [textHistoryLinkError, setTextHistoryLinkError] = useState<string | null>(null);
-  const [pendingTextHistoryAttachmentId, setPendingTextHistoryAttachmentId] = useState<string | null>(null);
-  const [isLinkingTextHistory, startLinkingTextHistoryTransition] = useTransition();
+  const [pendingInitialImageIds, setPendingInitialImageIds] = useState<
+    Set<string>
+  >(() => new Set());
+  const [textHistoryLinkError, setTextHistoryLinkError] = useState<
+    string | null
+  >(null);
+  const [pendingTextHistoryAttachmentId, setPendingTextHistoryAttachmentId] =
+    useState<string | null>(null);
+  const [isLinkingTextHistory, startLinkingTextHistoryTransition] =
+    useTransition();
   const { show: showLoading, hide: hideLoading } = useGlobalLoading();
-  const mediaLoadTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mediaLoadTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const mediaOverlayVisibleRef = useRef(false);
   const photos = useMemo(
     () =>
       patient.attachments.filter((attachment) =>
-        ["PHOTO", "RADIOGRAPH"].includes(attachment.category)
+        ["PHOTO", "RADIOGRAPH"].includes(attachment.category),
       ),
-    [patient.attachments]
+    [patient.attachments],
   );
-  const activePaymentHistory = patient.paymentHistorySheets.find((sheet) => sheet.isActive);
+  const activePaymentHistory = patient.paymentHistorySheets.find(
+    (sheet) => sheet.isActive,
+  );
   const missingAttachmentIdSet = useMemo(
     () => new Set(missingAttachmentIds),
-    [missingAttachmentIds]
+    [missingAttachmentIds],
   );
   const initialMediaImageIds = useMemo(
     () =>
       photos
-        .filter((attachment) => isPreviewableAttachment(attachment, missingAttachmentIdSet))
+        .filter((attachment) =>
+          isPreviewableAttachment(attachment, missingAttachmentIdSet),
+        )
         .slice(0, 6)
         .map((attachment) => attachment.id),
-    [missingAttachmentIdSet, photos]
+    [missingAttachmentIdSet, photos],
   );
   const viewablePhotos = useMemo(
-    () => photos.filter((attachment) => isPreviewableAttachment(attachment, missingAttachmentIdSet)),
-    [missingAttachmentIdSet, photos]
+    () =>
+      photos.filter((attachment) =>
+        isPreviewableAttachment(attachment, missingAttachmentIdSet),
+      ),
+    [missingAttachmentIdSet, photos],
   );
   const selectedPhotoIndex = selectedPhotoId
     ? viewablePhotos.findIndex((photo) => photo.id === selectedPhotoId)
@@ -173,7 +209,7 @@ export function PatientDetailTabs({
 
       setActiveTab(value);
     },
-    [startMediaLoading, stopMediaLoading]
+    [startMediaLoading, stopMediaLoading],
   );
 
   const handleLinkTextHistory = useCallback(
@@ -186,12 +222,14 @@ export function PatientDetailTabs({
         try {
           await linkTextAttachmentAsClinicalHistory({
             patientId: patient.id,
-            attachmentId
+            attachmentId,
           });
           router.refresh();
         } catch (error) {
           setTextHistoryLinkError(
-            error instanceof Error ? error.message : "No se pudo vincular la historia"
+            error instanceof Error
+              ? error.message
+              : "No se pudo vincular la historia",
           );
         } finally {
           hideLoading();
@@ -199,7 +237,13 @@ export function PatientDetailTabs({
         }
       });
     },
-    [hideLoading, patient.id, router, showLoading, startLinkingTextHistoryTransition]
+    [
+      hideLoading,
+      patient.id,
+      router,
+      showLoading,
+      startLinkingTextHistoryTransition,
+    ],
   );
 
   useEffect(() => {
@@ -218,7 +262,11 @@ export function PatientDetailTabs({
 
   return (
     <>
-      <Tabs.Root value={activeTab} onValueChange={handleTabChange} className="space-y-5">
+      <Tabs.Root
+        value={activeTab}
+        onValueChange={handleTabChange}
+        className="space-y-5"
+      >
         <Tabs.List className="flex gap-2 overflow-x-auto rounded-lg border border-lavender-600/55 bg-lavender-900/35 p-1">
           <Tab value="summary" icon={FileText} label="Resumen" />
           <Tab value="media" icon={ImageIcon} label="Fotos" />
@@ -228,240 +276,298 @@ export function PatientDetailTabs({
           <Tab value="files" icon={FolderOpen} label="Archivos" />
         </Tabs.List>
 
-      {missingCount > 0 ? (
-        <div className="surface flex gap-3 p-4 text-sm text-coral-300">
-          <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-          <p>{missingCount} archivo(s) vinculado(s) no existen en la ruta configurada.</p>
-        </div>
-      ) : null}
-
-      <Tabs.Content value="summary" className="space-y-5">
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
-          <Card>
-            <h2 className="section-title mb-4">Datos del paciente</h2>
-            <PatientForm
-              patientId={patient.id}
-              defaultValues={{
-                fullName: patient.fullName,
-                email: patient.email ?? "",
-                phone: patient.phone ?? "",
-                birthDate: patient.birthDate?.slice(0, 10) ?? "",
-                gender: patient.gender ?? "",
-                nextAppointmentDate: patient.nextAppointmentDate?.slice(0, 10) ?? "",
-                notes: patient.notes ?? ""
-              }}
-            />
-          </Card>
-
-          <Card className="space-y-4">
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="flex size-10 items-center justify-center rounded-md bg-lavender-800/55 text-lavender-100 ring-1 ring-lavender-300/25">
-                  <CalendarDays className="size-5" aria-hidden="true" />
-                </div>
-                <div>
-                  <h2 className="section-title">Historial de asistencias</h2>
-                  <p className="text-sm text-lavender-200/55">Citas del paciente</p>
-                </div>
-              </div>
-              <Button type="button" variant="secondary" size="sm" className="w-full" disabled>
-                <Plus className="size-4" aria-hidden="true" />
-                Nueva Cita
-              </Button>
-            </div>
-            <div className="rounded-md border border-dashed border-lavender-500/45 px-4 py-8 text-center">
-              <p className="text-sm font-medium text-lavender-100">Sin asistencias registradas</p>
-              <p className="mt-1 text-sm text-lavender-200/50">
-                Aquí aparecerán las citas cuando se agregue el módulo de agenda.
-              </p>
-            </div>
-          </Card>
-        </div>
-      </Tabs.Content>
-
-      <Tabs.Content value="media" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {photos.length > 0 ? (
-          photos.map((attachment, index) => (
-            <AttachmentTile
-              key={attachment.id}
-              attachment={attachment}
-              missing={missingAttachmentIdSet.has(attachment.id)}
-              priority={index < 6}
-              onPreviewSettled={handlePreviewSettled}
-              onOpen={
-                isPreviewableAttachment(attachment, missingAttachmentIdSet)
-                  ? () => setSelectedPhotoId(attachment.id)
-                  : undefined
-              }
-            />
-          ))
-        ) : (
-          <EmptyState text="Sin fotos o radiografías importadas" />
-        )}
-      </Tabs.Content>
-
-      <Tabs.Content value="clinical" className="space-y-5">
-        <div className="space-y-3">
-          {patient.clinicalEntries.length > 0 ? (
-            patient.clinicalEntries.map((entry) => (
-              <ClinicalEntryCard key={entry.id} patientId={patient.id} entry={entry} />
-            ))
-          ) : (
-            <EmptyState text="Sin notas clínicas registradas" />
-          )}
-        </div>
-      </Tabs.Content>
-
-      <Tabs.Content value="ledger" className="space-y-5">
-        <div className="grid gap-5 xl:grid-cols-2">
-          <Card>
-            <h2 className="section-title mb-4">Agregar cargo</h2>
-            <TreatmentChargeForm patientId={patient.id} />
-          </Card>
-          <Card>
-            <h2 className="section-title mb-4">Registrar pago</h2>
-            <PaymentForm patientId={patient.id} />
-          </Card>
-        </div>
-        <Card>
-          <h2 className="section-title mb-4">Movimientos</h2>
-          <div className="grid gap-3 lg:grid-cols-2">
-            <LedgerList
-              title="Cargos"
-              rows={patient.charges.map((charge) => ({
-                id: charge.id,
-                primary: charge.description,
-                secondary: `${formatDate(charge.serviceDate)} · ${charge.status}`,
-                amount: formatCurrency(charge.amountCents, charge.currency)
-              }))}
-            />
-            <LedgerList
-              title="Pagos"
-              rows={patient.payments.map((payment) => ({
-                id: payment.id,
-                primary: payment.method,
-                secondary: `${formatDate(payment.paidAt)} · ${payment.status}`,
-                amount: formatCurrency(payment.amountCents, payment.currency)
-              }))}
-            />
-          </div>
-        </Card>
-      </Tabs.Content>
-
-      <Tabs.Content value="payment-history" className="space-y-5">
-        <Card className="space-y-4">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h2 className="section-title">Historial de pagos activo</h2>
-              <p className="mt-1 text-sm text-lavender-200/60">
-                Archivo local importado y, cuando esté conectado, convertido a Google Sheets.
-              </p>
-            </div>
-            {activePaymentHistory ? <PaymentHistoryStatusBadge status={activePaymentHistory.uploadStatus} /> : null}
-          </div>
-
-          {activePaymentHistory ? (
-            <PaymentHistoryPanel
-              patientId={patient.id}
-              sheet={activePaymentHistory}
-              missing={missingAttachmentIdSet.has(activePaymentHistory.attachment.id)}
-              featured
-            />
-          ) : (
-            <EmptyState text="Sin historial activo. Importa un .xlsx o elige uno de la lista como historial activo." />
-          )}
-        </Card>
-
-        <Card className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="section-title">Historiales importados</h2>
-            <Badge tone="neutral">{patient.paymentHistorySheets.length} archivo(s)</Badge>
-          </div>
-
-          {patient.paymentHistorySheets.length > 0 ? (
-            <div className="space-y-3">
-              {patient.paymentHistorySheets.map((sheet) => (
-                <PaymentHistoryPanel
-                  key={sheet.id}
-                  patientId={patient.id}
-                  sheet={sheet}
-                  missing={missingAttachmentIdSet.has(sheet.attachment.id)}
-                />
-              ))}
-            </div>
-          ) : (
-            <EmptyState text="Aún no hay archivos .xlsx de historial de pagos para este paciente" />
-          )}
-        </Card>
-      </Tabs.Content>
-
-      <Tabs.Content value="files" className="space-y-3">
-        {textHistoryLinkError ? (
+        {missingCount > 0 ? (
           <div className="surface flex gap-3 p-4 text-sm text-coral-300">
-            <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-            <p>{textHistoryLinkError}</p>
+            <AlertTriangle
+              className="mt-0.5 size-4 shrink-0"
+              aria-hidden="true"
+            />
+            <p>
+              {missingCount} archivo(s) vinculado(s) no existen en la ruta
+              configurada.
+            </p>
           </div>
         ) : null}
 
-        {patient.attachments.length > 0 ? (
-          patient.attachments.map((attachment) => {
-            const missing = missingAttachmentIdSet.has(attachment.id);
-            const isTextFile = isPlainTextAttachment(attachment.originalName, attachment.mimeType);
-            const linkedToHistory = Boolean(attachment.clinicalEntryId);
-            const linkingThisHistory = pendingTextHistoryAttachmentId === attachment.id;
+        <Tabs.Content value="summary" className="space-y-5">
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+            <Card>
+              <h2 className="section-title mb-4">Datos del paciente</h2>
+              <PatientForm
+                patientId={patient.id}
+                defaultValues={{
+                  fullName: patient.fullName,
+                  email: patient.email ?? "",
+                  phone: patient.phone ?? "",
+                  birthDate: patient.birthDate?.slice(0, 10) ?? "",
+                  gender: patient.gender ?? "",
+                  nextAppointmentDate:
+                    patient.nextAppointmentDate?.slice(0, 10) ?? "",
+                  notes: patient.notes ?? "",
+                }}
+              />
+            </Card>
 
-            return (
-              <Card key={attachment.id} className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="font-medium text-ink-100">{attachment.originalName}</p>
-                  <p className="text-sm text-lavender-200/55">{attachment.sourceRelativePath}</p>
+            <Card className="space-y-4">
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex size-10 items-center justify-center rounded-md bg-lavender-800/55 text-lavender-100 ring-1 ring-lavender-300/25">
+                    <CalendarDays className="size-5" aria-hidden="true" />
+                  </div>
+                  <div>
+                    <h2 className="section-title">Historial de asistencias</h2>
+                    <p className="text-sm text-lavender-200/55">
+                      Citas del paciente
+                    </p>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {isTextFile ? (
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      className={cn(
-                        !linkedToHistory
-                          ? "border-brand-300/45 bg-brand-700/60 text-white hover:border-brand-200/60 hover:bg-brand-600"
-                          : undefined
-                      )}
-                      disabled={missing || linkedToHistory || isLinkingTextHistory}
-                      onClick={() => handleLinkTextHistory(attachment.id)}
-                    >
-                      {linkedToHistory ? (
-                        <CheckCircle2 className="size-4" aria-hidden="true" />
-                      ) : linkingThisHistory ? (
-                        <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
-                      ) : (
-                        <NotebookPen className="size-4" aria-hidden="true" />
-                      )}
-                      {linkedToHistory
-                        ? "Vinculado"
-                        : linkingThisHistory
-                          ? "Vinculando..."
-                          : "Vincular historia"}
-                    </Button>
-                  ) : null}
-                  <Badge>{categoryLabels[attachment.category]}</Badge>
-                  {missing ? <Badge tone="coral">Faltante</Badge> : null}
-                  {missing ? (
-                    <span className="text-sm text-lavender-200/35">No disponible</span>
-                  ) : (
-                    <Link href={`/api/files/${attachment.id}`} target="_blank" className="text-sm text-lavender-200 hover:text-white">
-                      Abrir
-                    </Link>
-                  )}
-                </div>
-              </Card>
-            );
-          })
-        ) : (
-          <EmptyState text="Sin archivos importados" />
-        )}
-      </Tabs.Content>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="w-full"
+                  disabled
+                >
+                  <Plus className="size-4" aria-hidden="true" />
+                  Nueva Cita
+                </Button>
+              </div>
+              <div className="rounded-md border border-dashed border-lavender-500/45 px-4 py-8 text-center">
+                <p className="text-sm font-medium text-lavender-100">
+                  Sin asistencias registradas
+                </p>
+                <p className="mt-1 text-sm text-lavender-200/50">
+                  Aquí aparecerán las citas cuando se agregue el módulo de
+                  agenda.
+                </p>
+              </div>
+            </Card>
+          </div>
+        </Tabs.Content>
 
+        <Tabs.Content
+          value="media"
+          className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
+        >
+          {photos.length > 0 ? (
+            photos.map((attachment, index) => (
+              <AttachmentTile
+                key={attachment.id}
+                attachment={attachment}
+                missing={missingAttachmentIdSet.has(attachment.id)}
+                priority={index < 6}
+                onPreviewSettled={handlePreviewSettled}
+                onOpen={
+                  isPreviewableAttachment(attachment, missingAttachmentIdSet)
+                    ? () => setSelectedPhotoId(attachment.id)
+                    : undefined
+                }
+              />
+            ))
+          ) : (
+            <EmptyState text="Sin fotos o radiografías importadas" />
+          )}
+        </Tabs.Content>
+
+        <Tabs.Content value="clinical" className="space-y-5">
+          <div className="space-y-3">
+            {patient.clinicalEntries.length > 0 ? (
+              patient.clinicalEntries.map((entry) => (
+                <ClinicalEntryCard
+                  key={entry.id}
+                  patientId={patient.id}
+                  entry={entry}
+                />
+              ))
+            ) : (
+              <EmptyState text="Sin notas clínicas registradas" />
+            )}
+          </div>
+        </Tabs.Content>
+
+        <Tabs.Content value="ledger" className="space-y-5">
+          <div className="grid gap-5 xl:grid-cols-2">
+            <Card>
+              <h2 className="section-title mb-4">Agregar cargo</h2>
+              <TreatmentChargeForm patientId={patient.id} />
+            </Card>
+            <Card>
+              <h2 className="section-title mb-4">Registrar pago</h2>
+              <PaymentForm patientId={patient.id} />
+            </Card>
+          </div>
+          <Card>
+            <h2 className="section-title mb-4">Movimientos</h2>
+            <div className="grid gap-3 lg:grid-cols-2">
+              <LedgerList
+                title="Cargos"
+                rows={patient.charges.map((charge) => ({
+                  id: charge.id,
+                  primary: charge.description,
+                  secondary: `${formatDate(charge.serviceDate)} · ${charge.status}`,
+                  amount: formatCurrency(charge.amountCents, charge.currency),
+                }))}
+              />
+              <LedgerList
+                title="Pagos"
+                rows={patient.payments.map((payment) => ({
+                  id: payment.id,
+                  primary: payment.method,
+                  secondary: `${formatDate(payment.paidAt)} · ${payment.status}`,
+                  amount: formatCurrency(payment.amountCents, payment.currency),
+                }))}
+              />
+            </div>
+          </Card>
+        </Tabs.Content>
+
+        <Tabs.Content value="payment-history" className="space-y-5">
+          <Card className="space-y-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="section-title">Historial de pagos activo</h2>
+                <p className="mt-1 text-sm text-lavender-200/60">
+                  Archivo local importado y, cuando esté conectado, convertido a
+                  Google Sheets.
+                </p>
+              </div>
+              {activePaymentHistory ? (
+                <PaymentHistoryStatusBadge
+                  status={activePaymentHistory.uploadStatus}
+                />
+              ) : null}
+            </div>
+
+            {activePaymentHistory ? (
+              <PaymentHistoryPanel
+                patientId={patient.id}
+                sheet={activePaymentHistory}
+                missing={missingAttachmentIdSet.has(
+                  activePaymentHistory.attachment.id,
+                )}
+                featured
+              />
+            ) : (
+              <EmptyState text="Sin historial activo. Importa un .xlsx o elige uno de la lista como historial activo." />
+            )}
+          </Card>
+
+          <Card className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="section-title">Historiales importados</h2>
+              <Badge tone="neutral">
+                {patient.paymentHistorySheets.length} archivo(s)
+              </Badge>
+            </div>
+
+            {patient.paymentHistorySheets.length > 0 ? (
+              <div className="space-y-3">
+                {patient.paymentHistorySheets.map((sheet) => (
+                  <PaymentHistoryPanel
+                    key={sheet.id}
+                    patientId={patient.id}
+                    sheet={sheet}
+                    missing={missingAttachmentIdSet.has(sheet.attachment.id)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <EmptyState text="Aún no hay archivos .xlsx de historial de pagos para este paciente" />
+            )}
+          </Card>
+        </Tabs.Content>
+
+        <Tabs.Content value="files" className="space-y-3">
+          {textHistoryLinkError ? (
+            <div className="surface flex gap-3 p-4 text-sm text-coral-300">
+              <AlertTriangle
+                className="mt-0.5 size-4 shrink-0"
+                aria-hidden="true"
+              />
+              <p>{textHistoryLinkError}</p>
+            </div>
+          ) : null}
+
+          {patient.attachments.length > 0 ? (
+            patient.attachments.map((attachment) => {
+              const missing = missingAttachmentIdSet.has(attachment.id);
+              const isTextFile = isPlainTextAttachment(
+                attachment.originalName,
+                attachment.mimeType,
+              );
+              const linkedToHistory = Boolean(attachment.clinicalEntryId);
+              const linkingThisHistory =
+                pendingTextHistoryAttachmentId === attachment.id;
+
+              return (
+                <Card
+                  key={attachment.id}
+                  className="flex flex-wrap items-center justify-between gap-3"
+                >
+                  <div>
+                    <p className="font-medium text-ink-100">
+                      {attachment.originalName}
+                    </p>
+                    <p className="text-sm text-lavender-200/55">
+                      {attachment.sourceRelativePath}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {isTextFile ? (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        className={cn(
+                          !linkedToHistory
+                            ? "border-brand-300/45 bg-brand-700/60 text-white hover:border-brand-200/60 hover:bg-brand-600"
+                            : undefined,
+                        )}
+                        disabled={
+                          missing || linkedToHistory || isLinkingTextHistory
+                        }
+                        onClick={() => handleLinkTextHistory(attachment.id)}
+                      >
+                        {linkedToHistory ? (
+                          <CheckCircle2 className="size-4" aria-hidden="true" />
+                        ) : linkingThisHistory ? (
+                          <LoaderCircle
+                            className="size-4 animate-spin"
+                            aria-hidden="true"
+                          />
+                        ) : (
+                          <NotebookPen className="size-4" aria-hidden="true" />
+                        )}
+                        {linkedToHistory
+                          ? "Vinculado"
+                          : linkingThisHistory
+                            ? "Vinculando..."
+                            : "Vincular historia"}
+                      </Button>
+                    ) : null}
+                    <Badge>{categoryLabels[attachment.category]}</Badge>
+                    {missing ? <Badge tone="coral">Faltante</Badge> : null}
+                    {missing ? (
+                      <span className="text-sm text-lavender-200/35">
+                        No disponible
+                      </span>
+                    ) : (
+                      <Link
+                        href={`/api/files/${attachment.id}`}
+                        target="_blank"
+                        className="text-sm text-lavender-200 hover:text-white"
+                      >
+                        Abrir
+                      </Link>
+                    )}
+                  </div>
+                </Card>
+              );
+            })
+          ) : (
+            <EmptyState text="Sin archivos importados" />
+          )}
+        </Tabs.Content>
       </Tabs.Root>
 
       {selectedPhotoIndex >= 0 ? (
@@ -470,7 +576,9 @@ export function PatientDetailTabs({
           photos={viewablePhotos}
           currentIndex={selectedPhotoIndex}
           onClose={() => setSelectedPhotoId(null)}
-          onNavigate={(nextIndex) => setSelectedPhotoId(viewablePhotos[nextIndex]?.id ?? null)}
+          onNavigate={(nextIndex) =>
+            setSelectedPhotoId(viewablePhotos[nextIndex]?.id ?? null)
+          }
         />
       ) : null}
     </>
@@ -479,7 +587,7 @@ export function PatientDetailTabs({
 
 function ClinicalEntryCard({
   patientId,
-  entry
+  entry,
 }: {
   patientId: string;
   entry: SerializedPatientDetail["clinicalEntries"][number];
@@ -487,309 +595,309 @@ function ClinicalEntryCard({
   const router = useRouter();
   const loading = useGlobalLoading();
   const linkedTextAttachment = getLinkedTextAttachment(entry);
-  const [isEditing, setIsEditing] = useState(false);
-  const parsedHistory = useMemo(() => parseLinkedTextHistory(entry.notes), [entry.notes]);
-  const [historyDraft, setHistoryDraft] = useState<ParsedTextHistory>(() => parsedHistory);
+  const linkedTextPath = linkedTextAttachment
+    ? splitAttachmentSourcePath(
+      linkedTextAttachment.sourceRelativePath,
+      linkedTextAttachment.originalName,
+    )
+    : null;
+  const parsedHistory = useMemo(
+    () => parseLinkedTextHistory(entry.notes),
+    [entry.notes],
+  );
+  const [history, setHistory] = useState<ParsedTextHistory>(
+    () => parsedHistory,
+  );
   const [error, setError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    if (isEditing) return;
-    setHistoryDraft(parsedHistory);
-  }, [isEditing, parsedHistory]);
-
-  const cancelEditing = useCallback(() => {
+    setHistory(parsedHistory);
     setError(null);
-    setHistoryDraft(parsedHistory);
-    setIsEditing(false);
   }, [parsedHistory]);
 
-  const handleSave = useCallback(() => {
-    if (!linkedTextAttachment) return;
+  const saveHistory = useCallback(
+    async (
+      nextHistory: ParsedTextHistory,
+      deletedBlockBackup?: DeletedTextHistoryBlockBackup,
+    ) => {
+      if (!linkedTextAttachment || isSaving) return false;
 
-    setError(null);
-    loading.show("Guardando historia...");
+      setError(null);
+      setIsSaving(true);
+      loading.show("Guardando historia...");
 
-    startTransition(async () => {
       try {
         const nextNotes = serializeLinkedTextHistory(
-          historyDraft,
-          detectPreferredLineEnding(entry.notes)
+          nextHistory,
+          detectPreferredLineEnding(entry.notes),
         );
 
         await updateLinkedTextClinicalHistory({
           patientId,
           clinicalEntryId: entry.id,
-          notes: nextNotes
+          notes: nextNotes,
+          deletedBlockBackup,
         });
-        setIsEditing(false);
+        setHistory(nextHistory);
         router.refresh();
+        return true;
       } catch (saveError) {
         setError(
           saveError instanceof Error
             ? saveError.message
-            : "No se pudo guardar la historia"
+            : "No se pudo guardar la historia",
         );
+        return false;
       } finally {
+        setIsSaving(false);
         loading.hide();
       }
-    });
-  }, [entry.id, entry.notes, historyDraft, linkedTextAttachment, loading, patientId, router, startTransition]);
+    },
+    [
+      entry.id,
+      entry.notes,
+      isSaving,
+      linkedTextAttachment,
+      loading,
+      patientId,
+      router,
+    ],
+  );
 
   return (
-    <Card className="space-y-4">
+    <Card
+      className={cn(
+        "space-y-4",
+        linkedTextAttachment
+          ? "border-l-2 border-l-brand-400/35 border-lavender-500/35 bg-lavender-950/18 shadow-none ring-1 ring-white/[0.03]"
+          : undefined,
+      )}
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 space-y-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge tone="brand">{formatDate(entry.entryDate)}</Badge>
-            {entry.tooth ? <Badge>Pieza {entry.tooth}</Badge> : null}
-            {entry.attachments.length ? <Badge tone="sky">{entry.attachments.length} archivo(s)</Badge> : null}
-            {linkedTextAttachment ? <Badge tone="neutral">TXT vinculado</Badge> : null}
-          </div>
-
+        <div className="min-w-0 flex-1 space-y-2">
           {linkedTextAttachment ? (
-            <div className="min-w-0 rounded-md border border-lavender-500/30 bg-lavender-950/28 px-3 py-2">
-              <p className="truncate text-xs font-medium text-lavender-100">
-                {linkedTextAttachment.originalName}
-              </p>
-              <p className="truncate text-xs text-lavender-200/45">
-                {linkedTextAttachment.sourceRelativePath}
+            <div className="min-w-0 rounded-md border border-lavender-500/30 bg-lavender-950/24 px-3 py-2">
+              <p className="truncate text-xs text-lavender-200/60">
+                {linkedTextPath?.folderName ? (
+                  <>
+                    <span>{linkedTextPath.folderName}</span>
+                    <span className="px-1 text-lavender-200/35">/</span>
+                  </>
+                ) : null}
+                <span className="font-medium text-lavender-100">
+                  {linkedTextPath?.fileName ??
+                    linkedTextAttachment.originalName}
+                </span>
               </p>
             </div>
-          ) : null}
+          ) : (
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge tone="brand">{formatDate(entry.entryDate)}</Badge>
+              {entry.tooth ? <Badge>Pieza {entry.tooth}</Badge> : null}
+              {entry.attachments.length ? (
+                <Badge tone="sky">{entry.attachments.length} archivo(s)</Badge>
+              ) : null}
+            </div>
+          )}
         </div>
-
-        {linkedTextAttachment ? (
-          <Button
-            type="button"
-            variant={isEditing ? "ghost" : "secondary"}
-            size="sm"
-            onClick={() => {
-              if (isEditing) {
-                cancelEditing();
-                return;
-              }
-              setError(null);
-              setHistoryDraft(parsedHistory);
-              setIsEditing(true);
-            }}
-            disabled={isPending}
-          >
-            {isEditing ? <X className="size-4" aria-hidden="true" /> : <Pencil className="size-4" aria-hidden="true" />}
-            {isEditing ? "Cancelar" : "Editar"}
-          </Button>
-        ) : null}
       </div>
 
-      {entry.diagnosis ? <p className="text-sm text-ink-300">Diagnóstico: {entry.diagnosis}</p> : null}
-      {entry.treatment ? <p className="text-sm text-ink-300">Tratamiento: {entry.treatment}</p> : null}
+      {entry.diagnosis ? (
+        <p className="text-sm text-ink-300">Diagnóstico: {entry.diagnosis}</p>
+      ) : null}
+      {entry.treatment ? (
+        <p className="text-sm text-ink-300">Tratamiento: {entry.treatment}</p>
+      ) : null}
 
       {error ? (
         <div className="surface flex gap-3 p-3 text-sm text-coral-300">
-          <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          <AlertTriangle
+            className="mt-0.5 size-4 shrink-0"
+            aria-hidden="true"
+          />
           <p>{error}</p>
         </div>
       ) : null}
 
-      {isEditing ? (
-        <div className="space-y-3">
-          <LinkedTextHistoryEditor
-            history={historyDraft}
-            onChange={setHistoryDraft}
-            disabled={isPending}
-          />
-          <div className="flex flex-wrap justify-end gap-2">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={cancelEditing}
-              disabled={isPending}
-            >
-              Cancelar
-            </Button>
-            <Button type="button" size="sm" onClick={handleSave} disabled={isPending}>
-              {isPending ? (
-                <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
-              ) : (
-                <Save className="size-4" aria-hidden="true" />
-              )}
-              {isPending ? "Guardando..." : "Guardar"}
-            </Button>
-          </div>
-        </div>
-      ) : linkedTextAttachment ? (
-        <LinkedTextHistoryView history={parsedHistory} />
+      {linkedTextAttachment ? (
+        <LinkedTextHistoryBlocks
+          history={history}
+          disabled={isSaving}
+          onSave={saveHistory}
+        />
       ) : (
-        <p className="whitespace-pre-wrap text-sm text-lavender-200/65">{entry.notes}</p>
+        <p className="whitespace-pre-wrap text-sm text-lavender-200/65">
+          {entry.notes}
+        </p>
       )}
     </Card>
   );
 }
 
-function LinkedTextHistoryView({ history }: { history: ParsedTextHistory }) {
-  const hasInformation = history.information.trim().length > 0;
+type SaveLinkedTextHistory = (
+  nextHistory: ParsedTextHistory,
+  deletedBlockBackup?: DeletedTextHistoryBlockBackup,
+) => Promise<boolean>;
 
-  return (
-    <div className="space-y-4">
-      <section className="rounded-lg border border-lavender-500/30 bg-lavender-950/24 p-4">
-        <div className="mb-3 flex items-center gap-2">
-          <FileText className="size-4 text-lavender-200/70" aria-hidden="true" />
-          <h3 className="text-sm font-semibold text-lavender-50">Información</h3>
-        </div>
-        {hasInformation ? (
-          <p className="whitespace-pre-wrap text-sm leading-6 text-lavender-100/72">
-            {history.information}
-          </p>
-        ) : (
-          <p className="text-sm text-lavender-200/45">Sin información previa registrada</p>
-        )}
-      </section>
-
-      <section className="space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-sm font-semibold text-lavender-50">Citas</h3>
-          <Badge tone="neutral">{history.appointments.length} cita(s)</Badge>
-        </div>
-        {history.appointments.length > 0 ? (
-          history.appointments.map((appointment, index) => (
-            <LinkedTextAppointmentView
-              key={`${appointment.dateText}-${index}`}
-              appointment={appointment}
-              index={index}
-            />
-          ))
-        ) : (
-          <div className="rounded-lg border border-dashed border-lavender-500/35 p-5 text-sm text-lavender-200/50">
-            Sin citas detectadas
-          </div>
-        )}
-      </section>
-    </div>
-  );
-}
-
-function LinkedTextAppointmentView({
-  appointment,
-  index
-}: {
-  appointment: ParsedTextHistoryAppointment;
-  index: number;
-}) {
-  const hasBody = appointment.body.trim().length > 0;
-  const hasNext = appointment.hasNext || appointment.next.trim().length > 0;
-  const hasNoShow = hasNoShowText(`${appointment.body}\n${appointment.next}`);
-
-  return (
-    <article
-      className={cn(
-        "grid gap-3 rounded-lg border bg-lavender-950/18 p-3 md:grid-cols-[9.5rem_minmax(0,1fr)]",
-        hasNoShow ? "border-coral-400/35" : "border-lavender-500/25"
-      )}
-    >
-      <div className="space-y-2">
-        <p className="text-[0.68rem] font-semibold uppercase tracking-wide text-lavender-200/45">
-          Fecha
-        </p>
-        <p className="rounded-md border border-brand-300/35 bg-brand-900/45 px-3 py-2 text-sm font-semibold text-white">
-          {appointment.dateText}
-        </p>
-        <p className="text-xs text-lavender-200/45">
-          {appointment.normalizedDate ?? "Fecha sin normalizar"}
-        </p>
-      </div>
-
-      <div className="min-w-0 space-y-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="text-sm font-semibold text-lavender-50">Cita {index + 1}</p>
-          {hasNoShow ? <Badge tone="coral">No asistió</Badge> : null}
-        </div>
-
-        {hasBody ? (
-          <p className="whitespace-pre-wrap text-sm leading-6 text-lavender-100/72">
-            {appointment.body}
-          </p>
-        ) : (
-          <p className="rounded-md border border-dashed border-lavender-500/25 px-3 py-2 text-sm text-lavender-200/45">
-            Cita sin notas
-          </p>
-        )}
-
-        {hasNext ? (
-          <div className="rounded-md border border-amber-400/25 bg-amber-950/20 p-3">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-amber-300/80">
-              NEXT
-            </p>
-            <p className="whitespace-pre-wrap text-sm leading-6 text-lavender-100/72">
-              {appointment.next}
-            </p>
-          </div>
-        ) : null}
-      </div>
-    </article>
-  );
-}
-
-function LinkedTextHistoryEditor({
+function LinkedTextHistoryBlocks({
   history,
-  onChange,
-  disabled
+  disabled,
+  onSave,
 }: {
   history: ParsedTextHistory;
-  onChange: (history: ParsedTextHistory) => void;
   disabled: boolean;
+  onSave: SaveLinkedTextHistory;
 }) {
-  const informationId = useId();
+  const [newAppointment, setNewAppointment] =
+    useState<ParsedTextHistoryAppointment | null>(null);
 
-  const updateAppointment = useCallback(
-    (index: number, nextAppointment: ParsedTextHistoryAppointment) => {
-      onChange({
-        ...history,
-        appointments: history.appointments.map((appointment, appointmentIndex) =>
-          appointmentIndex === index ? nextAppointment : appointment
-        )
+  useEffect(() => {
+    setNewAppointment(null);
+  }, [history]);
+
+  const saveInformation = useCallback(
+    (information: string) => onSave({ ...history, information }),
+    [history, onSave],
+  );
+
+  const saveAppointment = useCallback(
+    (index: number, appointment: ParsedTextHistoryAppointment) =>
+      onSave(replaceTextHistoryAppointment(history, index, appointment)),
+    [history, onSave],
+  );
+
+  const addAppointment = useCallback(
+    (appointment: ParsedTextHistoryAppointment) =>
+      onSave(appendTextHistoryAppointment(history, appointment)),
+    [history, onSave],
+  );
+
+  const deleteAppointment = useCallback(
+    (index: number) => {
+      const appointment = history.appointments[index];
+      if (!appointment) return Promise.resolve(false);
+
+      const label = `Cita ${index + 1} - ${appointment.dateText || "Sin fecha"}`;
+
+      return onSave(removeTextHistoryAppointment(history, index), {
+        type: "appointment",
+        label,
+        content: serializeDeletedTextHistoryBlockBackup({
+          type: "appointment",
+          label,
+          content: serializeTextHistoryAppointmentBlock(appointment),
+        }),
       });
     },
-    [history, onChange]
+    [history, onSave],
+  );
+
+  const saveNext = useCallback(
+    (index: number, next: string) => {
+      const appointment = history.appointments[index];
+      if (!appointment) return Promise.resolve(false);
+
+      return onSave(
+        replaceTextHistoryAppointment(history, index, {
+          ...appointment,
+          next,
+          hasNext: true,
+        }),
+      );
+    },
+    [history, onSave],
+  );
+
+  const deleteNext = useCallback(
+    (index: number) => {
+      const appointment = history.appointments[index];
+      if (!appointment) return Promise.resolve(false);
+
+      const label = `NEXT de cita ${index + 1} - ${appointment.dateText || "Sin fecha"}`;
+
+      return onSave(
+        replaceTextHistoryAppointment(history, index, {
+          ...appointment,
+          next: "",
+          hasNext: false,
+        }),
+        {
+          type: "next",
+          label,
+          content: serializeDeletedTextHistoryBlockBackup({
+            type: "next",
+            label,
+            content: serializeTextHistoryNextBlock(appointment.next),
+          }),
+        },
+      );
+    },
+    [history, onSave],
   );
 
   return (
     <div className="space-y-4">
-      <section className="rounded-lg border border-lavender-500/30 bg-lavender-950/24 p-4">
-        <label htmlFor={informationId} className="mb-2 block text-sm font-semibold text-lavender-50">
-          Información
-        </label>
-        <Textarea
-          id={informationId}
-          value={history.information}
-          onChange={(event) =>
-            onChange({
-              ...history,
-              information: event.target.value
-            })
-          }
-          className="min-h-32 font-mono text-sm leading-6"
-          placeholder="Información del paciente"
-          disabled={disabled}
-        />
-      </section>
+      <LinkedTextInformationBlock
+        information={history.information}
+        disabled={disabled}
+        onSave={saveInformation}
+      />
 
       <section className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-sm font-semibold text-lavender-50">Citas</h3>
-          <Badge tone="neutral">{history.appointments.length} cita(s)</Badge>
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-semibold text-lavender-50">Citas</h3>
+            <Badge tone="neutral">{history.appointments.length} cita(s)</Badge>
+          </div>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            className="min-w-36 border-emerald-300/45 bg-emerald-700/70 px-5 text-white shadow-sm shadow-emerald-950/30 hover:border-emerald-200/70 hover:bg-emerald-600"
+            disabled={disabled || Boolean(newAppointment)}
+            onClick={() => setNewAppointment(createTextHistoryAppointment())}
+          >
+            <Plus className="size-4" aria-hidden="true" />
+            Nueva cita
+          </Button>
         </div>
 
-        {history.appointments.length > 0 ? (
-          history.appointments.map((appointment, index) => (
-            <LinkedTextAppointmentEditor
-              key={`${appointment.dateText}-${index}`}
-              appointment={appointment}
-              index={index}
-              disabled={disabled}
-              onChange={(nextAppointment) => updateAppointment(index, nextAppointment)}
-            />
-          ))
+        {history.appointments.length > 0 || newAppointment ? (
+          <>
+            {history.appointments.map((appointment, index) => (
+              <LinkedTextAppointmentBlock
+                key={`${appointment.dateText}-${index}`}
+                appointment={appointment}
+                index={index}
+                disabled={disabled}
+                onSave={(nextAppointment) =>
+                  saveAppointment(index, nextAppointment)
+                }
+                onDelete={() => deleteAppointment(index)}
+                onSaveNext={(next) => saveNext(index, next)}
+                onDeleteNext={() => deleteNext(index)}
+              />
+            ))}
+            {newAppointment ? (
+              <LinkedTextAppointmentBlock
+                key="new-appointment"
+                appointment={newAppointment}
+                index={history.appointments.length}
+                disabled={disabled}
+                isNew
+                onSave={async (appointment) => {
+                  const saved = await addAppointment(appointment);
+                  if (saved) setNewAppointment(null);
+                  return saved;
+                }}
+                onCancelNew={() => setNewAppointment(null)}
+                onDelete={() => Promise.resolve(false)}
+                onSaveNext={() => Promise.resolve(false)}
+                onDeleteNext={() => Promise.resolve(false)}
+              />
+            ) : null}
+          </>
         ) : (
           <div className="rounded-lg border border-dashed border-lavender-500/35 p-5 text-sm text-lavender-200/50">
             Sin citas detectadas
@@ -800,106 +908,520 @@ function LinkedTextHistoryEditor({
   );
 }
 
-function LinkedTextAppointmentEditor({
+function LinkedTextInformationBlock({
+  information,
+  disabled,
+  onSave,
+}: {
+  information: string;
+  disabled: boolean;
+  onSave: (information: string) => Promise<boolean>;
+}) {
+  const informationId = useId();
+  const [isEditing, setIsEditing] = useState(false);
+  const [draft, setDraft] = useState(information);
+  const [isSaving, setIsSaving] = useState(false);
+  const hasInformation = information.trim().length > 0;
+
+  useEffect(() => {
+    if (!isEditing) {
+      setDraft(information);
+    }
+  }, [information, isEditing]);
+
+  const cancelEditing = useCallback(() => {
+    setDraft(information);
+    setIsEditing(false);
+  }, [information]);
+
+  const handleSave = useCallback(async () => {
+    setIsSaving(true);
+    const saved = await onSave(draft);
+    setIsSaving(false);
+
+    if (saved) {
+      setIsEditing(false);
+    }
+  }, [draft, onSave]);
+
+  return (
+    <section className="rounded-lg border border-lavender-500/30 bg-lavender-950/24 p-4">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <FileText
+            className="size-4 text-lavender-200/70"
+            aria-hidden="true"
+          />
+          <h3 className="text-sm font-semibold text-lavender-50">
+            Información
+          </h3>
+        </div>
+        <BlockActions
+          isEditing={isEditing}
+          isSaving={isSaving}
+          disabled={disabled}
+          onEdit={() => setIsEditing(true)}
+          onCancel={cancelEditing}
+          onSave={handleSave}
+        />
+      </div>
+
+      {isEditing ? (
+        <Textarea
+          id={informationId}
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          className="min-h-32 font-mono text-sm leading-6"
+          placeholder="Información del paciente"
+          disabled={disabled || isSaving}
+        />
+      ) : hasInformation ? (
+        <p className="whitespace-pre-wrap text-sm leading-6 text-lavender-100/72">
+          {information}
+        </p>
+      ) : (
+        <p className="text-sm text-lavender-200/45">
+          Sin información previa registrada
+        </p>
+      )}
+    </section>
+  );
+}
+
+function LinkedTextAppointmentBlock({
   appointment,
   index,
   disabled,
-  onChange
+  isNew = false,
+  onSave,
+  onCancelNew,
+  onDelete,
+  onSaveNext,
+  onDeleteNext,
 }: {
   appointment: ParsedTextHistoryAppointment;
   index: number;
   disabled: boolean;
-  onChange: (appointment: ParsedTextHistoryAppointment) => void;
+  isNew?: boolean;
+  onSave: (appointment: ParsedTextHistoryAppointment) => Promise<boolean>;
+  onCancelNew?: () => void;
+  onDelete: () => Promise<boolean>;
+  onSaveNext: (next: string) => Promise<boolean>;
+  onDeleteNext: () => Promise<boolean>;
 }) {
   const dateId = useId();
   const bodyId = useId();
-  const nextId = useId();
+  const [isEditing, setIsEditing] = useState(isNew);
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+  const [draft, setDraft] = useState<ParsedTextHistoryAppointment>(
+    () => appointment,
+  );
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const visibleAppointment = isEditing
+    ? normalizeTextHistoryAppointment(draft)
+    : appointment;
+  const hasBody = visibleAppointment.body.trim().length > 0;
+  const hasNoShow = hasNoShowText(
+    `${visibleAppointment.body}\n${visibleAppointment.next}`,
+  );
   const hasNext = appointment.hasNext || appointment.next.trim().length > 0;
-  const hasNoShow = hasNoShowText(`${appointment.body}\n${appointment.next}`);
+  const noShowButton =
+    !isEditing && !isNew && !hasNoShow ? (
+      <Button
+        type="button"
+        variant="secondary"
+        size="sm"
+        className={historyNoShowButtonClass}
+        disabled={disabled || isDeleting}
+        onClick={() => {
+          setDraft(markTextHistoryAppointmentNoShow(appointment));
+          setIsEditing(true);
+        }}
+      >
+        <X className="size-4" aria-hidden="true" />
+        NO ASISTIÓ
+      </Button>
+    ) : null;
 
-  const updateAppointment = useCallback(
+  useEffect(() => {
+    if (isNew) {
+      setIsEditing(true);
+      setDraft(appointment);
+      return;
+    }
+
+    if (!isEditing) {
+      setDraft(appointment);
+      setIsConfirmingDelete(false);
+    }
+  }, [appointment, isEditing, isNew]);
+
+  const updateDraft = useCallback(
     (patch: Partial<ParsedTextHistoryAppointment>) => {
-      const nextAppointment = {
-        ...appointment,
-        ...patch
-      };
-
-      onChange({
-        ...nextAppointment,
-        normalizedDate: normalizeClinicalDateText(nextAppointment.dateText),
-        hasNoShow: hasNoShowText(`${nextAppointment.body}\n${nextAppointment.next}`)
-      });
+      setDraft((current) =>
+        normalizeTextHistoryAppointment({ ...current, ...patch }),
+      );
     },
-    [appointment, onChange]
+    [],
   );
 
-  return (
-    <article
-      className={cn(
-        "grid gap-3 rounded-lg border bg-lavender-950/18 p-3 md:grid-cols-[9.5rem_minmax(0,1fr)]",
-        hasNoShow ? "border-coral-400/35" : "border-lavender-500/25"
-      )}
-    >
-      <div className="space-y-2">
-        <label
-          htmlFor={dateId}
-          className="block text-[0.68rem] font-semibold uppercase tracking-wide text-lavender-200/45"
-        >
-          Fecha
-        </label>
-        <Input
-          id={dateId}
-          value={appointment.dateText}
-          onChange={(event) => updateAppointment({ dateText: event.target.value })}
-          className="font-mono font-semibold"
-          disabled={disabled}
-        />
-        <p className="text-xs text-lavender-200/45">
-          {normalizeClinicalDateText(appointment.dateText) ?? "Fecha sin normalizar"}
-        </p>
-      </div>
+  const cancelEditing = useCallback(() => {
+    setDraft(appointment);
+    setIsEditing(false);
+    onCancelNew?.();
+  }, [appointment, onCancelNew]);
 
-      <div className="min-w-0 space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <label htmlFor={bodyId} className="text-sm font-semibold text-lavender-50">
+  const handleSave = useCallback(async () => {
+    setIsSaving(true);
+    const saved = await onSave(normalizeTextHistoryAppointment(draft));
+    setIsSaving(false);
+
+    if (saved) {
+      setIsEditing(false);
+    }
+  }, [draft, onSave]);
+
+  const handleDelete = useCallback(async () => {
+    setIsDeleting(true);
+    const deleted = await onDelete();
+    setIsDeleting(false);
+
+    if (deleted) {
+      setIsConfirmingDelete(false);
+    }
+  }, [onDelete]);
+
+  return (
+    <>
+      <article
+        className={cn(
+          "grid gap-3 rounded-lg border bg-lavender-950/18 p-3 md:grid-cols-[9.5rem_minmax(0,1fr)]",
+          hasNoShow ? "border-coral-400/35" : "border-lavender-500/25",
+        )}
+      >
+        <div className="space-y-2">
+          <label
+            htmlFor={dateId}
+            className="block text-[0.68rem] font-semibold uppercase tracking-wide text-lavender-200/45"
+          >
             Cita {index + 1}
           </label>
-          {hasNoShow ? <Badge tone="coral">No asistió</Badge> : null}
-        </div>
-        <Textarea
-          id={bodyId}
-          value={appointment.body}
-          onChange={(event) => updateAppointment({ body: event.target.value })}
-          className="min-h-28 font-mono text-sm leading-6"
-          placeholder="Notas de la cita"
-          disabled={disabled}
-        />
-
-        {hasNext ? (
-          <div className="rounded-md border border-amber-400/25 bg-amber-950/20 p-3">
-            <label
-              htmlFor={nextId}
-              className="mb-2 block text-xs font-semibold uppercase tracking-wide text-amber-300/80"
-            >
-              NEXT
-            </label>
-            <Textarea
-              id={nextId}
-              value={appointment.next}
+          {isEditing ? (
+            <Input
+              id={dateId}
+              aria-label={`Fecha de cita ${index + 1}`}
+              value={draft.dateText}
               onChange={(event) =>
-                updateAppointment({
-                  next: event.target.value,
-                  hasNext: true
-                })
+                updateDraft({ dateText: event.target.value })
               }
-              className="min-h-20 font-mono text-sm leading-6"
-              placeholder="Pendiente de la siguiente cita"
-              disabled={disabled}
+              className="font-mono font-semibold"
+              disabled={disabled || isSaving}
             />
+          ) : (
+            <p className="rounded-md border border-brand-300/35 bg-brand-900/45 px-3 py-2 text-sm font-semibold text-white">
+              {appointment.dateText}
+            </p>
+          )}
+          <p className="text-xs text-lavender-200/45">
+            {visibleAppointment.normalizedDate ?? "Fecha sin normalizar"}
+          </p>
+        </div>
+
+        <div className="min-w-0 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              {hasNoShow ? <Badge tone="coral">No asistió</Badge> : null}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <BlockActions
+                isEditing={isEditing}
+                isSaving={isSaving}
+                disabled={disabled || isDeleting}
+                onEdit={() => setIsEditing(true)}
+                onCancel={cancelEditing}
+                onSave={handleSave}
+              />
+              {!isEditing && !isNew ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className={historyDeleteButtonClass}
+                  disabled={disabled || isDeleting}
+                  onClick={() => setIsConfirmingDelete(true)}
+                >
+                  <Trash2 className="size-4" aria-hidden="true" />
+                  Eliminar
+                </Button>
+              ) : null}
+            </div>
           </div>
-        ) : null}
+
+          {isEditing ? (
+            <Textarea
+              id={bodyId}
+              value={draft.body}
+              onChange={(event) => updateDraft({ body: event.target.value })}
+              className="min-h-28 font-mono text-sm leading-6"
+              placeholder="Notas de la cita"
+              disabled={disabled || isSaving}
+            />
+          ) : hasBody ? (
+            <p className="whitespace-pre-wrap text-sm leading-6 text-lavender-100/72">
+              {appointment.body}
+            </p>
+          ) : (
+            <p className="rounded-md border border-dashed border-lavender-500/25 px-3 py-2 text-sm text-lavender-200/45">
+              Cita sin notas
+            </p>
+          )}
+
+          {!isNew ? (
+            hasNext ? (
+              <>
+                <LinkedTextNextBlock
+                  appointmentIndex={index}
+                  next={appointment.next}
+                  hasNext={hasNext}
+                  disabled={disabled || isEditing}
+                  onSave={onSaveNext}
+                  onDelete={onDeleteNext}
+                />
+                {noShowButton ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    {noShowButton}
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <div className="flex flex-wrap items-center gap-2">
+                <LinkedTextNextBlock
+                  appointmentIndex={index}
+                  next={appointment.next}
+                  hasNext={hasNext}
+                  disabled={disabled || isEditing}
+                  onSave={onSaveNext}
+                  onDelete={onDeleteNext}
+                />
+                {noShowButton}
+              </div>
+            )
+          ) : null}
+        </div>
+      </article>
+
+      <ConfirmDeleteModal
+        open={isConfirmingDelete}
+        title="¿Estás seguro que quieres ELIMINAR?"
+        description="Se eliminará esta cita de la historia vinculada"
+        itemLabel={`Cita ${index + 1} · ${appointment.dateText || "Sin fecha"}`}
+        isDeleting={isDeleting}
+        onCancel={() => setIsConfirmingDelete(false)}
+        onConfirm={handleDelete}
+      />
+    </>
+  );
+}
+
+function LinkedTextNextBlock({
+  appointmentIndex,
+  next,
+  hasNext,
+  disabled,
+  onSave,
+  onDelete,
+}: {
+  appointmentIndex: number;
+  next: string;
+  hasNext: boolean;
+  disabled: boolean;
+  onSave: (next: string) => Promise<boolean>;
+  onDelete: () => Promise<boolean>;
+}) {
+  const nextId = useId();
+  const [isEditing, setIsEditing] = useState(false);
+  const [draft, setDraft] = useState(next);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+
+  useEffect(() => {
+    if (!isEditing) {
+      setDraft(next);
+      setIsConfirmingDelete(false);
+    }
+  }, [isEditing, next]);
+
+  const cancelEditing = useCallback(() => {
+    setDraft(next);
+    setIsEditing(false);
+  }, [next]);
+
+  const handleSave = useCallback(async () => {
+    setIsSaving(true);
+    const saved = await onSave(draft);
+    setIsSaving(false);
+
+    if (saved) {
+      setIsEditing(false);
+    }
+  }, [draft, onSave]);
+
+  const handleDelete = useCallback(async () => {
+    setIsDeleting(true);
+    const deleted = await onDelete();
+    setIsDeleting(false);
+
+    if (deleted) {
+      setIsConfirmingDelete(false);
+    }
+  }, [onDelete]);
+
+  if (!hasNext && !isEditing) {
+    return (
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="w-fit text-amber-200/80 hover:bg-amber-950/25 hover:text-amber-100"
+        disabled={disabled}
+        onClick={() => {
+          setDraft("");
+          setIsEditing(true);
+        }}
+      >
+        <Plus className="size-4" aria-hidden="true" />
+        Agregar NEXT
+      </Button>
+    );
+  }
+
+  return (
+    <>
+      <div className="rounded-md border border-amber-400/25 bg-amber-950/20 p-3">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <label
+            htmlFor={nextId}
+            className="text-xs font-semibold uppercase tracking-wide text-amber-300/80"
+          >
+            NEXT
+          </label>
+          <div className="flex flex-wrap items-center gap-2">
+            <BlockActions
+              isEditing={isEditing}
+              isSaving={isSaving}
+              disabled={disabled || isDeleting}
+              onEdit={() => setIsEditing(true)}
+              onCancel={cancelEditing}
+              onSave={handleSave}
+            />
+            {!isEditing && hasNext ? (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className={historyDeleteButtonClass}
+                disabled={disabled || isDeleting}
+                onClick={() => setIsConfirmingDelete(true)}
+              >
+                <Trash2 className="size-4" aria-hidden="true" />
+                Eliminar
+              </Button>
+            ) : null}
+          </div>
+        </div>
+
+        {isEditing ? (
+          <Textarea
+            id={nextId}
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            className="min-h-20 font-mono text-sm leading-6"
+            placeholder="Pendiente de la siguiente cita"
+            disabled={disabled || isSaving}
+          />
+        ) : next.trim().length > 0 ? (
+          <p className="whitespace-pre-wrap text-sm leading-6 text-lavender-100/72">
+            {next}
+          </p>
+        ) : (
+          <p className="text-sm text-lavender-200/45">
+            NEXT sin notas en cita {appointmentIndex + 1}
+          </p>
+        )}
       </div>
-    </article>
+
+      <ConfirmDeleteModal
+        open={isConfirmingDelete}
+        title="Eliminar NEXT"
+        description="Se eliminará este bloque NEXT y se guardará un respaldo del bloque."
+        itemLabel={`NEXT de cita ${appointmentIndex + 1}`}
+        isDeleting={isDeleting}
+        onCancel={() => setIsConfirmingDelete(false)}
+        onConfirm={handleDelete}
+      />
+    </>
+  );
+}
+
+function BlockActions({
+  isEditing,
+  isSaving,
+  disabled,
+  onEdit,
+  onCancel,
+  onSave,
+}: {
+  isEditing: boolean;
+  isSaving: boolean;
+  disabled: boolean;
+  onEdit: () => void;
+  onCancel: () => void;
+  onSave: () => void | Promise<void>;
+}) {
+  if (!isEditing) {
+    return (
+      <Button
+        type="button"
+        variant="secondary"
+        size="sm"
+        className={historyEditButtonClass}
+        onClick={onEdit}
+        disabled={disabled}
+      >
+        <Pencil className="size-4" aria-hidden="true" />
+        Editar
+      </Button>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className={historyCancelButtonClass}
+        onClick={onCancel}
+        disabled={disabled || isSaving}
+      >
+        Cancelar
+      </Button>
+      <Button
+        type="button"
+        size="sm"
+        onClick={onSave}
+        disabled={disabled || isSaving}
+      >
+        {isSaving ? (
+          <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
+        ) : (
+          <Save className="size-4" aria-hidden="true" />
+        )}
+        {isSaving ? "Guardando..." : "Guardar"}
+      </Button>
+    </div>
   );
 }
 
@@ -908,7 +1430,7 @@ function PatientPhotoViewer({
   photos,
   currentIndex,
   onClose,
-  onNavigate
+  onNavigate,
 }: {
   patientName: string;
   photos: SerializedAttachment[];
@@ -941,22 +1463,33 @@ function PatientPhotoViewer({
     setZoomPosition({ x: 50, y: 50 });
   }, [currentPhoto.id]);
 
-  const updateZoomPosition = useCallback((event: PointerEvent<HTMLDivElement>) => {
-    if (event.pointerType !== "mouse") return;
+  const updateZoomPosition = useCallback(
+    (event: PointerEvent<HTMLDivElement>) => {
+      if (event.pointerType !== "mouse") return;
 
-    const rect = event.currentTarget.getBoundingClientRect();
-    const nextX = clamp(((event.clientX - rect.left) / rect.width) * 100, 0, 100);
-    const nextY = clamp(((event.clientY - rect.top) / rect.height) * 100, 0, 100);
+      const rect = event.currentTarget.getBoundingClientRect();
+      const nextX = clamp(
+        ((event.clientX - rect.left) / rect.width) * 100,
+        0,
+        100,
+      );
+      const nextY = clamp(
+        ((event.clientY - rect.top) / rect.height) * 100,
+        0,
+        100,
+      );
 
-    setZoomPosition({ x: nextX, y: nextY });
-  }, []);
+      setZoomPosition({ x: nextX, y: nextY });
+    },
+    [],
+  );
 
   const handleImagePointerMove = useCallback(
     (event: PointerEvent<HTMLDivElement>) => {
       if (!isZoomed) return;
       updateZoomPosition(event);
     },
-    [isZoomed, updateZoomPosition]
+    [isZoomed, updateZoomPosition],
   );
 
   const handleImagePointerUp = useCallback(
@@ -966,7 +1499,7 @@ function PatientPhotoViewer({
       updateZoomPosition(event);
       setIsZoomed((current) => !current);
     },
-    [updateZoomPosition]
+    [updateZoomPosition],
   );
 
   useEffect(() => {
@@ -1018,7 +1551,10 @@ function PatientPhotoViewer({
             </p>
           </div>
           <div className="min-w-0 text-center sm:order-2">
-            <h2 id={titleId} className="truncate text-sm font-semibold text-white sm:text-base">
+            <h2
+              id={titleId}
+              className="truncate text-sm font-semibold text-white sm:text-base"
+            >
               {patientName}
             </h2>
             <p className="text-xs text-lavender-200/60">
@@ -1050,13 +1586,16 @@ function PatientPhotoViewer({
         <div
           className={cn(
             "relative min-h-0 overflow-hidden rounded-lg border border-lavender-500/25 bg-ink-950 shadow-2xl shadow-ink-950/60",
-            isZoomed ? "cursor-zoom-out" : "cursor-zoom-in"
+            isZoomed ? "cursor-zoom-out" : "cursor-zoom-in",
           )}
           onPointerMove={handleImagePointerMove}
           onPointerUp={handleImagePointerUp}
         >
           {isOriginalLoading ? (
-            <div className="image-preview-skeleton absolute inset-0" aria-hidden="true" />
+            <div
+              className="image-preview-skeleton absolute inset-0"
+              aria-hidden="true"
+            />
           ) : null}
           <Image
             key={currentPhoto.id}
@@ -1067,7 +1606,7 @@ function PatientPhotoViewer({
             className={cn(
               "object-contain transition-[opacity,transform] duration-300 ease-out",
               isZoomed ? "scale-[2.5]" : "scale-100",
-              isOriginalLoading ? "opacity-0" : "opacity-100"
+              isOriginalLoading ? "opacity-0" : "opacity-100",
             )}
             style={{ transformOrigin: `${zoomPosition.x}% ${zoomPosition.y}%` }}
             priority
@@ -1123,7 +1662,7 @@ function PaymentHistoryPanel({
   patientId,
   sheet,
   missing = false,
-  featured = false
+  featured = false,
 }: {
   patientId: string;
   sheet: SerializedPatientDetail["paymentHistorySheets"][number];
@@ -1139,13 +1678,21 @@ function PaymentHistoryPanel({
             <PaymentHistoryStatusBadge status={sheet.uploadStatus} />
             {missing ? <Badge tone="coral">Faltante</Badge> : null}
           </div>
-          <p className="truncate font-medium text-ink-100">{sheet.attachment.originalName}</p>
-          <p className="truncate text-sm text-lavender-200/55">{sheet.attachment.sourceRelativePath}</p>
+          <p className="truncate font-medium text-ink-100">
+            {sheet.attachment.originalName}
+          </p>
+          <p className="truncate text-sm text-lavender-200/55">
+            {sheet.attachment.sourceRelativePath}
+          </p>
           <p className="text-xs text-lavender-200/45">
             Importado {formatDate(sheet.createdAt)}
-            {sheet.uploadedAt ? ` · Subido ${formatDate(sheet.uploadedAt)}` : ""}
+            {sheet.uploadedAt
+              ? ` · Subido ${formatDate(sheet.uploadedAt)}`
+              : ""}
           </p>
-          {sheet.errorMessage ? <p className="text-sm text-coral-300">{sheet.errorMessage}</p> : null}
+          {sheet.errorMessage ? (
+            <p className="text-sm text-coral-300">{sheet.errorMessage}</p>
+          ) : null}
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -1174,7 +1721,10 @@ function PaymentHistoryPanel({
       </div>
 
       <div className="grid gap-3 lg:grid-cols-[1fr_auto]">
-        <form action={retryPaymentHistorySheetUpload} className="grid gap-2 sm:grid-cols-[1fr_auto]">
+        <form
+          action={retryPaymentHistorySheetUpload}
+          className="grid gap-2 sm:grid-cols-[1fr_auto]"
+        >
           <input type="hidden" name="sheetId" value={sheet.id} />
           <Input
             name="googleFolderId"
@@ -1203,7 +1753,7 @@ function PaymentHistoryPanel({
 }
 
 function PaymentHistoryStatusBadge({
-  status
+  status,
 }: {
   status: SerializedPatientDetail["paymentHistorySheets"][number]["uploadStatus"];
 }) {
@@ -1231,7 +1781,7 @@ function PaymentHistoryStatusBadge({
 function Tab({
   value,
   label,
-  icon: Icon
+  icon: Icon,
 }: {
   value: string;
   label: string;
@@ -1253,7 +1803,7 @@ function AttachmentTile({
   missing = false,
   priority = false,
   onPreviewSettled,
-  onOpen
+  onOpen,
 }: {
   attachment: SerializedAttachment;
   missing?: boolean;
@@ -1283,7 +1833,10 @@ function AttachmentTile({
       {isImage ? (
         <>
           {isPreviewLoading ? (
-            <div className="image-preview-skeleton absolute inset-0" aria-hidden="true" />
+            <div
+              className="image-preview-skeleton absolute inset-0"
+              aria-hidden="true"
+            />
           ) : null}
           <Image
             src={`/api/files/${attachment.id}/preview?w=520`}
@@ -1293,7 +1846,9 @@ function AttachmentTile({
             sizes="(max-width: 640px) calc(100vw - 2rem), (max-width: 1280px) calc((100vw - 5rem) / 2), 420px"
             className={cn(
               "h-full w-full object-cover transition duration-500",
-              isPreviewLoading ? "scale-[1.02] opacity-0" : "scale-100 opacity-100"
+              isPreviewLoading
+                ? "scale-[1.02] opacity-0"
+                : "scale-100 opacity-100",
             )}
             decoding="async"
             priority={priority}
@@ -1316,9 +1871,13 @@ function AttachmentTile({
   const details = (
     <div className="space-y-2 p-4">
       {missing ? <Badge tone="coral">Faltante</Badge> : null}
-      <p className="truncate text-sm font-medium text-ink-100">{attachment.originalName}</p>
+      <p className="truncate text-sm font-medium text-ink-100">
+        {attachment.originalName}
+      </p>
       <p className="text-xs text-lavender-200/55">
-        {attachment.capturedAt ? `Capturada ${formatDateOnly(attachment.capturedAt)}` : "Sin fecha de captura"}
+        {attachment.capturedAt
+          ? `Capturada ${formatDateOnly(attachment.capturedAt)}`
+          : "Sin fecha de captura"}
       </p>
     </div>
   );
@@ -1347,17 +1906,27 @@ function AttachmentTile({
 
 function LedgerList({
   title,
-  rows
+  rows,
 }: {
   title: string;
-  rows: Array<{ id: string; primary: string; secondary: string; amount: string }>;
+  rows: Array<{
+    id: string;
+    primary: string;
+    secondary: string;
+    amount: string;
+  }>;
 }) {
   return (
     <div className="surface overflow-hidden">
-      <div className="border-b border-lavender-600/45 bg-lavender-950/25 px-4 py-3 text-sm font-medium text-lavender-100">{title}</div>
+      <div className="border-b border-lavender-600/45 bg-lavender-950/25 px-4 py-3 text-sm font-medium text-lavender-100">
+        {title}
+      </div>
       {rows.length > 0 ? (
         rows.map((row) => (
-          <div key={row.id} className="flex items-center justify-between gap-3 border-b border-lavender-600/45 px-4 py-3 transition last:border-0 hover:bg-lavender-800/25">
+          <div
+            key={row.id}
+            className="flex items-center justify-between gap-3 border-b border-lavender-600/45 px-4 py-3 transition last:border-0 hover:bg-lavender-800/25"
+          >
             <div>
               <p className="text-sm font-medium text-ink-100">{row.primary}</p>
               <p className="text-xs text-lavender-200/55">{row.secondary}</p>
@@ -1366,7 +1935,9 @@ function LedgerList({
           </div>
         ))
       ) : (
-        <p className="px-4 py-6 text-sm text-lavender-200/55">Sin movimientos</p>
+        <p className="px-4 py-6 text-sm text-lavender-200/55">
+          Sin movimientos
+        </p>
       )}
     </div>
   );
@@ -1376,16 +1947,37 @@ function EmptyState({ text }: { text: string }) {
   return <div className="surface p-6 text-sm text-lavender-200/60">{text}</div>;
 }
 
-function isPreviewableAttachment(attachment: SerializedAttachment, missing: boolean | Set<string>) {
-  const isMissing = missing instanceof Set ? missing.has(attachment.id) : missing;
+function isPreviewableAttachment(
+  attachment: SerializedAttachment,
+  missing: boolean | Set<string>,
+) {
+  const isMissing =
+    missing instanceof Set ? missing.has(attachment.id) : missing;
 
   return Boolean(attachment.mimeType?.startsWith("image/") && !isMissing);
 }
 
-function getLinkedTextAttachment(entry: SerializedPatientDetail["clinicalEntries"][number]) {
+function getLinkedTextAttachment(
+  entry: SerializedPatientDetail["clinicalEntries"][number],
+) {
   return entry.attachments.find((attachment) =>
-    isPlainTextAttachment(attachment.originalName, attachment.mimeType)
+    isPlainTextAttachment(attachment.originalName, attachment.mimeType),
   );
+}
+
+function splitAttachmentSourcePath(
+  sourceRelativePath: string,
+  fallbackFileName: string,
+) {
+  const segments = sourceRelativePath
+    .replace(/\\/g, "/")
+    .split("/")
+    .filter(Boolean);
+
+  return {
+    folderName: segments.length > 1 ? segments[0] : "",
+    fileName: segments[segments.length - 1] ?? fallbackFileName,
+  };
 }
 
 function formatDateOnly(value: string) {

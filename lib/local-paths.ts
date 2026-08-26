@@ -13,6 +13,10 @@ export function getTextHistoryBackupDir() {
   return path.join(getBackupDir(), "text-history");
 }
 
+export function getTextHistoryBlockBackupDir() {
+  return path.join(getBackupDir(), "text-history-blocks");
+}
+
 export function getCacheDir() {
   return path.join(getAppDataDir(), "cache");
 }
@@ -30,7 +34,7 @@ export async function ensureDataDirectories() {
     mkdir(getAppDataDir(), { recursive: true }),
     mkdir(getBackupDir(), { recursive: true }),
     mkdir(getCacheDir(), { recursive: true }),
-    mkdir(getImportDir(), { recursive: true })
+    mkdir(getImportDir(), { recursive: true }),
   ]);
 }
 
@@ -58,7 +62,10 @@ export function normalizeStoredRelativePath(relativePath: string) {
   const normalized = trimmed.replace(/\\/g, "/").replace(/^\/+/, "");
   const segments = normalized.split("/").filter(Boolean);
 
-  if (!segments.length || segments.some((segment) => segment === "." || segment === "..")) {
+  if (
+    !segments.length ||
+    segments.some((segment) => segment === "." || segment === "..")
+  ) {
     throw new Error("La ruta local contiene segmentos inválidos");
   }
 
@@ -82,12 +89,16 @@ export function resolveLinkedAttachmentPath(params: {
   }
 
   const rootPath = normalizePatientsRootPath(params.patientsRootPath);
-  const patientFolderRelativePath = normalizeStoredRelativePath(params.patientFolderRelativePath);
-  const localRelativePath = normalizeStoredRelativePath(params.localRelativePath);
+  const patientFolderRelativePath = normalizeStoredRelativePath(
+    params.patientFolderRelativePath,
+  );
+  const localRelativePath = normalizeStoredRelativePath(
+    params.localRelativePath,
+  );
   const absolutePath = path.resolve(
     rootPath,
     toNativePath(patientFolderRelativePath),
-    toNativePath(localRelativePath)
+    toNativePath(localRelativePath),
   );
 
   if (!isPathInside(rootPath, absolutePath)) {
@@ -98,12 +109,22 @@ export function resolveLinkedAttachmentPath(params: {
 }
 
 export function isPathInside(parentPath: string, childPath: string) {
-  const relative = path.relative(path.resolve(parentPath), path.resolve(childPath));
-  return relative === "" || (!!relative && !relative.startsWith("..") && !path.isAbsolute(relative));
+  const relative = path.relative(
+    path.resolve(parentPath),
+    path.resolve(childPath),
+  );
+  return (
+    relative === "" ||
+    (!!relative && !relative.startsWith("..") && !path.isAbsolute(relative))
+  );
 }
 
 function isAbsolutePath(value: string) {
-  return path.isAbsolute(value) || path.win32.isAbsolute(value) || path.posix.isAbsolute(value);
+  return (
+    path.isAbsolute(value) ||
+    path.win32.isAbsolute(value) ||
+    path.posix.isAbsolute(value)
+  );
 }
 
 function toNativePath(storedRelativePath: string) {

@@ -12,6 +12,29 @@ export type ParsedTextHistory = {
   appointments: ParsedTextHistoryAppointment[];
 };
 
+export type DeletedTextHistoryBlockBackup = {
+  type: "appointment" | "next";
+  label: string;
+  content: string;
+};
+
+const monthLabels = [
+  "ENE",
+  "FEB",
+  "MAR",
+  "ABR",
+  "MAY",
+  "JUN",
+  "JUL",
+  "AGO",
+  "SEP",
+  "OCT",
+  "NOV",
+  "DIC",
+] as const;
+
+const noShowMarker = "NO ASISTIO";
+
 const monthNumbers: Record<string, number> = {
   ene: 1,
   feb: 2,
@@ -25,7 +48,7 @@ const monthNumbers: Record<string, number> = {
   sept: 9,
   oct: 10,
   nov: 11,
-  dic: 12
+  dic: 12,
 };
 
 const clinicalDateLinePattern =
@@ -52,7 +75,7 @@ export function parseLinkedTextHistory(value: string): ParsedTextHistory {
         dateText: dateMatch.dateText,
         bodyLines: [],
         nextLines: [],
-        nextStarted: false
+        nextStarted: false,
       };
 
       appendAppointmentLine(draft, dateMatch.rest.trimStart());
@@ -73,13 +96,13 @@ export function parseLinkedTextHistory(value: string): ParsedTextHistory {
 
   return {
     information: trimTrailingBlankLines(informationLines).join("\n"),
-    appointments
+    appointments,
   };
 }
 
 export function serializeLinkedTextHistory(
   history: ParsedTextHistory,
-  lineEnding: "\r\n" | "\n" = "\n"
+  lineEnding: "\r\n" | "\n" = "\n",
 ) {
   const sections: string[] = [];
   const information = normalizeBlock(history.information);
@@ -93,6 +116,113 @@ export function serializeLinkedTextHistory(
   }
 
   return sections.join("\n").replace(/\n/g, lineEnding);
+}
+
+export function createTextHistoryAppointment(
+  date = new Date(),
+): ParsedTextHistoryAppointment {
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = monthLabels[date.getMonth()] ?? "ENE";
+  const year = String(date.getFullYear()).slice(-2);
+  const dateText = `${day}-${month}-${year}`;
+
+  return {
+    dateText,
+    normalizedDate: normalizeClinicalDateText(dateText),
+    body: "",
+    next: "",
+    hasNext: false,
+    hasNoShow: false,
+  };
+}
+
+export function normalizeTextHistoryAppointment(
+  appointment: ParsedTextHistoryAppointment,
+): ParsedTextHistoryAppointment {
+  return {
+    ...appointment,
+    normalizedDate: normalizeClinicalDateText(appointment.dateText),
+    hasNext: appointment.hasNext || appointment.next.trim().length > 0,
+    hasNoShow: hasNoShowText(`${appointment.body}\n${appointment.next}`),
+  };
+}
+
+export function markTextHistoryAppointmentNoShow(
+  appointment: ParsedTextHistoryAppointment,
+): ParsedTextHistoryAppointment {
+  if (hasNoShowText(`${appointment.body}\n${appointment.next}`)) {
+    return normalizeTextHistoryAppointment(appointment);
+  }
+
+  const body = appointment.body.trimEnd();
+
+  return normalizeTextHistoryAppointment({
+    ...appointment,
+    body: body.length > 0 ? `${body}\n${noShowMarker}` : noShowMarker,
+  });
+}
+
+export function replaceTextHistoryAppointment(
+  history: ParsedTextHistory,
+  index: number,
+  appointment: ParsedTextHistoryAppointment,
+): ParsedTextHistory {
+  return {
+    ...history,
+    appointments: history.appointments.map(
+      (currentAppointment, currentIndex) =>
+        currentIndex === index
+          ? normalizeTextHistoryAppointment(appointment)
+          : currentAppointment,
+    ),
+  };
+}
+
+export function appendTextHistoryAppointment(
+  history: ParsedTextHistory,
+  appointment = createTextHistoryAppointment(),
+): ParsedTextHistory {
+  return {
+    ...history,
+    appointments: [
+      ...history.appointments,
+      normalizeTextHistoryAppointment(appointment),
+    ],
+  };
+}
+
+export function removeTextHistoryAppointment(
+  history: ParsedTextHistory,
+  index: number,
+): ParsedTextHistory {
+  return {
+    ...history,
+    appointments: history.appointments.filter(
+      (_, currentIndex) => currentIndex !== index,
+    ),
+  };
+}
+
+export function serializeTextHistoryAppointmentBlock(
+  appointment: ParsedTextHistoryAppointment,
+) {
+  return serializeAppointment(normalizeTextHistoryAppointment(appointment));
+}
+
+export function serializeTextHistoryNextBlock(next: string) {
+  return serializeNextLines(next, true).join("\n");
+}
+
+export function serializeDeletedTextHistoryBlockBackup({
+  type,
+  label,
+  content,
+}: DeletedTextHistoryBlockBackup) {
+  const blockTypeLabel = type === "appointment" ? "Cita" : "NEXT";
+
+  return [`Tipo: ${blockTypeLabel}`, `Referencia: ${label}`, "", content].join(
+    "\n",
+  );
 }
 
 export function normalizeClinicalDateText(dateText: string) {
@@ -117,7 +247,7 @@ export function normalizeClinicalDateText(dateText: string) {
   return [
     String(year).padStart(4, "0"),
     String(month).padStart(2, "0"),
-    String(day).padStart(2, "0")
+    String(day).padStart(2, "0"),
   ].join("-");
 }
 
@@ -131,7 +261,7 @@ function matchClinicalDateLine(line: string) {
 
   return {
     dateText: match[1],
-    rest: match[2] ?? ""
+    rest: match[2] ?? "",
   };
 }
 
@@ -179,30 +309,42 @@ function toAppointment(draft: AppointmentDraft): ParsedTextHistoryAppointment {
     body,
     next,
     hasNext: draft.nextStarted,
-    hasNoShow: hasNoShowText(`${body}\n${next}`)
+    hasNoShow: hasNoShowText(`${body}\n${next}`),
   };
 }
 
 function serializeAppointment(appointment: ParsedTextHistoryAppointment) {
   const lines: string[] = [];
   const bodyLines = splitBlockLines(appointment.body);
-  const nextLines = splitBlockLines(appointment.next);
 
   if (bodyLines.length > 0) {
     const [firstBodyLine, ...remainingBodyLines] = bodyLines;
-    lines.push(`${appointment.dateText}${firstBodyLine ? ` ${firstBodyLine.trimStart()}` : ""}`);
+    lines.push(
+      `${appointment.dateText}${firstBodyLine ? ` ${firstBodyLine.trimStart()}` : ""}`,
+    );
     lines.push(...remainingBodyLines);
   } else {
     lines.push(appointment.dateText);
   }
 
-  if (appointment.hasNext || nextLines.length > 0) {
-    const [firstNextLine, ...remainingNextLines] = nextLines;
-    lines.push(`          NEXT: ${(firstNextLine ?? "").trimStart()}`);
-    lines.push(...remainingNextLines.map((line) => `                ${line.trimStart()}`));
-  }
+  lines.push(...serializeNextLines(appointment.next, appointment.hasNext));
 
   return lines.join("\n");
+}
+
+function serializeNextLines(next: string, hasNext: boolean) {
+  const nextLines = splitBlockLines(next);
+
+  if (!hasNext && nextLines.length === 0) {
+    return [];
+  }
+
+  const [firstNextLine, ...remainingNextLines] = nextLines;
+
+  return [
+    `          NEXT: ${(firstNextLine ?? "").trimStart()}`,
+    ...remainingNextLines.map((line) => `                ${line.trimStart()}`),
+  ];
 }
 
 function splitBlockLines(value: string) {
