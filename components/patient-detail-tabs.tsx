@@ -46,7 +46,18 @@ import {
   retryPaymentHistorySheetUpload,
   setActivePaymentHistorySheet
 } from "@/lib/actions/payment-history.actions";
-import { isPlainTextAttachment } from "@/lib/text-attachments";
+import {
+  detectPreferredLineEnding,
+  isPlainTextAttachment
+} from "@/lib/text-attachments";
+import {
+  hasNoShowText,
+  normalizeClinicalDateText,
+  parseLinkedTextHistory,
+  serializeLinkedTextHistory,
+  type ParsedTextHistory,
+  type ParsedTextHistoryAppointment
+} from "@/lib/text-history-parser";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
 import { useGlobalLoading } from "@/components/loading-provider";
 import { Badge } from "@/components/ui/badge";
@@ -477,14 +488,21 @@ function ClinicalEntryCard({
   const loading = useGlobalLoading();
   const linkedTextAttachment = getLinkedTextAttachment(entry);
   const [isEditing, setIsEditing] = useState(false);
-  const [notes, setNotes] = useState(entry.notes);
+  const parsedHistory = useMemo(() => parseLinkedTextHistory(entry.notes), [entry.notes]);
+  const [historyDraft, setHistoryDraft] = useState<ParsedTextHistory>(() => parsedHistory);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
     if (isEditing) return;
-    setNotes(entry.notes);
-  }, [entry.notes, isEditing]);
+    setHistoryDraft(parsedHistory);
+  }, [isEditing, parsedHistory]);
+
+  const cancelEditing = useCallback(() => {
+    setError(null);
+    setHistoryDraft(parsedHistory);
+    setIsEditing(false);
+  }, [parsedHistory]);
 
   const handleSave = useCallback(() => {
     if (!linkedTextAttachment) return;
@@ -494,10 +512,15 @@ function ClinicalEntryCard({
 
     startTransition(async () => {
       try {
+        const nextNotes = serializeLinkedTextHistory(
+          historyDraft,
+          detectPreferredLineEnding(entry.notes)
+        );
+
         await updateLinkedTextClinicalHistory({
           patientId,
           clinicalEntryId: entry.id,
-          notes
+          notes: nextNotes
         });
         setIsEditing(false);
         router.refresh();
@@ -511,7 +534,7 @@ function ClinicalEntryCard({
         loading.hide();
       }
     });
-  }, [entry.id, linkedTextAttachment, loading, notes, patientId, router, startTransition]);
+  }, [entry.id, entry.notes, historyDraft, linkedTextAttachment, loading, patientId, router, startTransition]);
 
   return (
     <Card className="space-y-4">
@@ -542,12 +565,12 @@ function ClinicalEntryCard({
             variant={isEditing ? "ghost" : "secondary"}
             size="sm"
             onClick={() => {
-              setError(null);
               if (isEditing) {
-                setNotes(entry.notes);
-                setIsEditing(false);
+                cancelEditing();
                 return;
               }
+              setError(null);
+              setHistoryDraft(parsedHistory);
               setIsEditing(true);
             }}
             disabled={isPending}
@@ -570,11 +593,9 @@ function ClinicalEntryCard({
 
       {isEditing ? (
         <div className="space-y-3">
-          <Textarea
-            value={notes}
-            onChange={(event) => setNotes(event.target.value)}
-            className="min-h-[22rem] font-mono text-sm leading-6"
-            aria-label="Contenido de la historia vinculada"
+          <LinkedTextHistoryEditor
+            history={historyDraft}
+            onChange={setHistoryDraft}
             disabled={isPending}
           />
           <div className="flex flex-wrap justify-end gap-2">
@@ -582,11 +603,7 @@ function ClinicalEntryCard({
               type="button"
               variant="ghost"
               size="sm"
-              onClick={() => {
-                setError(null);
-                setNotes(entry.notes);
-                setIsEditing(false);
-              }}
+              onClick={cancelEditing}
               disabled={isPending}
             >
               Cancelar
@@ -601,10 +618,288 @@ function ClinicalEntryCard({
             </Button>
           </div>
         </div>
+      ) : linkedTextAttachment ? (
+        <LinkedTextHistoryView history={parsedHistory} />
       ) : (
         <p className="whitespace-pre-wrap text-sm text-lavender-200/65">{entry.notes}</p>
       )}
     </Card>
+  );
+}
+
+function LinkedTextHistoryView({ history }: { history: ParsedTextHistory }) {
+  const hasInformation = history.information.trim().length > 0;
+
+  return (
+    <div className="space-y-4">
+      <section className="rounded-lg border border-lavender-500/30 bg-lavender-950/24 p-4">
+        <div className="mb-3 flex items-center gap-2">
+          <FileText className="size-4 text-lavender-200/70" aria-hidden="true" />
+          <h3 className="text-sm font-semibold text-lavender-50">Información</h3>
+        </div>
+        {hasInformation ? (
+          <p className="whitespace-pre-wrap text-sm leading-6 text-lavender-100/72">
+            {history.information}
+          </p>
+        ) : (
+          <p className="text-sm text-lavender-200/45">Sin información previa registrada</p>
+        )}
+      </section>
+
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold text-lavender-50">Citas</h3>
+          <Badge tone="neutral">{history.appointments.length} cita(s)</Badge>
+        </div>
+        {history.appointments.length > 0 ? (
+          history.appointments.map((appointment, index) => (
+            <LinkedTextAppointmentView
+              key={`${appointment.dateText}-${index}`}
+              appointment={appointment}
+              index={index}
+            />
+          ))
+        ) : (
+          <div className="rounded-lg border border-dashed border-lavender-500/35 p-5 text-sm text-lavender-200/50">
+            Sin citas detectadas
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function LinkedTextAppointmentView({
+  appointment,
+  index
+}: {
+  appointment: ParsedTextHistoryAppointment;
+  index: number;
+}) {
+  const hasBody = appointment.body.trim().length > 0;
+  const hasNext = appointment.hasNext || appointment.next.trim().length > 0;
+  const hasNoShow = hasNoShowText(`${appointment.body}\n${appointment.next}`);
+
+  return (
+    <article
+      className={cn(
+        "grid gap-3 rounded-lg border bg-lavender-950/18 p-3 md:grid-cols-[9.5rem_minmax(0,1fr)]",
+        hasNoShow ? "border-coral-400/35" : "border-lavender-500/25"
+      )}
+    >
+      <div className="space-y-2">
+        <p className="text-[0.68rem] font-semibold uppercase tracking-wide text-lavender-200/45">
+          Fecha
+        </p>
+        <p className="rounded-md border border-brand-300/35 bg-brand-900/45 px-3 py-2 text-sm font-semibold text-white">
+          {appointment.dateText}
+        </p>
+        <p className="text-xs text-lavender-200/45">
+          {appointment.normalizedDate ?? "Fecha sin normalizar"}
+        </p>
+      </div>
+
+      <div className="min-w-0 space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-sm font-semibold text-lavender-50">Cita {index + 1}</p>
+          {hasNoShow ? <Badge tone="coral">No asistió</Badge> : null}
+        </div>
+
+        {hasBody ? (
+          <p className="whitespace-pre-wrap text-sm leading-6 text-lavender-100/72">
+            {appointment.body}
+          </p>
+        ) : (
+          <p className="rounded-md border border-dashed border-lavender-500/25 px-3 py-2 text-sm text-lavender-200/45">
+            Cita sin notas
+          </p>
+        )}
+
+        {hasNext ? (
+          <div className="rounded-md border border-amber-400/25 bg-amber-950/20 p-3">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-amber-300/80">
+              NEXT
+            </p>
+            <p className="whitespace-pre-wrap text-sm leading-6 text-lavender-100/72">
+              {appointment.next}
+            </p>
+          </div>
+        ) : null}
+      </div>
+    </article>
+  );
+}
+
+function LinkedTextHistoryEditor({
+  history,
+  onChange,
+  disabled
+}: {
+  history: ParsedTextHistory;
+  onChange: (history: ParsedTextHistory) => void;
+  disabled: boolean;
+}) {
+  const informationId = useId();
+
+  const updateAppointment = useCallback(
+    (index: number, nextAppointment: ParsedTextHistoryAppointment) => {
+      onChange({
+        ...history,
+        appointments: history.appointments.map((appointment, appointmentIndex) =>
+          appointmentIndex === index ? nextAppointment : appointment
+        )
+      });
+    },
+    [history, onChange]
+  );
+
+  return (
+    <div className="space-y-4">
+      <section className="rounded-lg border border-lavender-500/30 bg-lavender-950/24 p-4">
+        <label htmlFor={informationId} className="mb-2 block text-sm font-semibold text-lavender-50">
+          Información
+        </label>
+        <Textarea
+          id={informationId}
+          value={history.information}
+          onChange={(event) =>
+            onChange({
+              ...history,
+              information: event.target.value
+            })
+          }
+          className="min-h-32 font-mono text-sm leading-6"
+          placeholder="Información del paciente"
+          disabled={disabled}
+        />
+      </section>
+
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold text-lavender-50">Citas</h3>
+          <Badge tone="neutral">{history.appointments.length} cita(s)</Badge>
+        </div>
+
+        {history.appointments.length > 0 ? (
+          history.appointments.map((appointment, index) => (
+            <LinkedTextAppointmentEditor
+              key={`${appointment.dateText}-${index}`}
+              appointment={appointment}
+              index={index}
+              disabled={disabled}
+              onChange={(nextAppointment) => updateAppointment(index, nextAppointment)}
+            />
+          ))
+        ) : (
+          <div className="rounded-lg border border-dashed border-lavender-500/35 p-5 text-sm text-lavender-200/50">
+            Sin citas detectadas
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function LinkedTextAppointmentEditor({
+  appointment,
+  index,
+  disabled,
+  onChange
+}: {
+  appointment: ParsedTextHistoryAppointment;
+  index: number;
+  disabled: boolean;
+  onChange: (appointment: ParsedTextHistoryAppointment) => void;
+}) {
+  const dateId = useId();
+  const bodyId = useId();
+  const nextId = useId();
+  const hasNext = appointment.hasNext || appointment.next.trim().length > 0;
+  const hasNoShow = hasNoShowText(`${appointment.body}\n${appointment.next}`);
+
+  const updateAppointment = useCallback(
+    (patch: Partial<ParsedTextHistoryAppointment>) => {
+      const nextAppointment = {
+        ...appointment,
+        ...patch
+      };
+
+      onChange({
+        ...nextAppointment,
+        normalizedDate: normalizeClinicalDateText(nextAppointment.dateText),
+        hasNoShow: hasNoShowText(`${nextAppointment.body}\n${nextAppointment.next}`)
+      });
+    },
+    [appointment, onChange]
+  );
+
+  return (
+    <article
+      className={cn(
+        "grid gap-3 rounded-lg border bg-lavender-950/18 p-3 md:grid-cols-[9.5rem_minmax(0,1fr)]",
+        hasNoShow ? "border-coral-400/35" : "border-lavender-500/25"
+      )}
+    >
+      <div className="space-y-2">
+        <label
+          htmlFor={dateId}
+          className="block text-[0.68rem] font-semibold uppercase tracking-wide text-lavender-200/45"
+        >
+          Fecha
+        </label>
+        <Input
+          id={dateId}
+          value={appointment.dateText}
+          onChange={(event) => updateAppointment({ dateText: event.target.value })}
+          className="font-mono font-semibold"
+          disabled={disabled}
+        />
+        <p className="text-xs text-lavender-200/45">
+          {normalizeClinicalDateText(appointment.dateText) ?? "Fecha sin normalizar"}
+        </p>
+      </div>
+
+      <div className="min-w-0 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <label htmlFor={bodyId} className="text-sm font-semibold text-lavender-50">
+            Cita {index + 1}
+          </label>
+          {hasNoShow ? <Badge tone="coral">No asistió</Badge> : null}
+        </div>
+        <Textarea
+          id={bodyId}
+          value={appointment.body}
+          onChange={(event) => updateAppointment({ body: event.target.value })}
+          className="min-h-28 font-mono text-sm leading-6"
+          placeholder="Notas de la cita"
+          disabled={disabled}
+        />
+
+        {hasNext ? (
+          <div className="rounded-md border border-amber-400/25 bg-amber-950/20 p-3">
+            <label
+              htmlFor={nextId}
+              className="mb-2 block text-xs font-semibold uppercase tracking-wide text-amber-300/80"
+            >
+              NEXT
+            </label>
+            <Textarea
+              id={nextId}
+              value={appointment.next}
+              onChange={(event) =>
+                updateAppointment({
+                  next: event.target.value,
+                  hasNext: true
+                })
+              }
+              className="min-h-20 font-mono text-sm leading-6"
+              placeholder="Pendiente de la siguiente cita"
+              disabled={disabled}
+            />
+          </div>
+        ) : null}
+      </div>
+    </article>
   );
 }
 
