@@ -31,6 +31,7 @@ import {
   Pencil,
   Plus,
   Save,
+  Search,
   Table2,
   Trash2,
   UploadCloud,
@@ -68,9 +69,17 @@ import {
   type ParsedTextHistory,
   type ParsedTextHistoryAppointment,
 } from "@/lib/text-history-parser";
+import {
+  getTextHistoryHighlightSegments,
+  getTextHistorySearchSummary,
+} from "@/lib/text-history-search";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
 import { ConfirmDeleteModal } from "@/components/confirm-delete-modal";
 import { useGlobalLoading } from "@/components/loading-provider";
+import {
+  PendingEditsModal,
+  type PendingEditItem,
+} from "@/components/pending-edits-modal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -90,6 +99,7 @@ const historyNoShowButtonClass =
   "w-fit border-transparent bg-coral-950/30 text-red-400 backdrop-blur-md hover:border-transparent hover:bg-coral-900/55 hover:text-red-200";
 const historyCancelButtonClass =
   "bg-lavender-700/40 text-lavender-50 hover:bg-lavender-700/55 hover:text-white";
+const filterLinkedTextHistorySearchResults = true;
 
 export function PatientDetailTabs({
   patient,
@@ -597,9 +607,9 @@ function ClinicalEntryCard({
   const linkedTextAttachment = getLinkedTextAttachment(entry);
   const linkedTextPath = linkedTextAttachment
     ? splitAttachmentSourcePath(
-      linkedTextAttachment.sourceRelativePath,
-      linkedTextAttachment.originalName,
-    )
+        linkedTextAttachment.sourceRelativePath,
+        linkedTextAttachment.originalName,
+      )
     : null;
   const parsedHistory = useMemo(
     () => parseLinkedTextHistory(entry.notes),
@@ -740,6 +750,11 @@ type SaveLinkedTextHistory = (
   deletedBlockBackup?: DeletedTextHistoryBlockBackup,
 ) => Promise<boolean>;
 
+type HistoryEditingChange = (
+  block: PendingEditItem,
+  isEditing: boolean,
+) => void;
+
 function LinkedTextHistoryBlocks({
   history,
   disabled,
@@ -751,10 +766,74 @@ function LinkedTextHistoryBlocks({
 }) {
   const [newAppointment, setNewAppointment] =
     useState<ParsedTextHistoryAppointment | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [editingBlocks, setEditingBlocks] = useState<PendingEditItem[]>([]);
+  const [pendingEditsModalOpen, setPendingEditsModalOpen] = useState(false);
+  const searchSummary = useMemo(
+    () => getTextHistorySearchSummary(history, searchQuery),
+    [history, searchQuery],
+  );
+  const hasSearchQuery = searchSummary.hasQuery;
+  const matchingAppointmentIndexes = useMemo(
+    () => new Set(searchSummary.appointmentMatches.map((match) => match.index)),
+    [searchSummary.appointmentMatches],
+  );
+  const appointmentRows = useMemo(
+    () =>
+      history.appointments
+        .map((appointment, index) => ({ appointment, index }))
+        .filter(
+          ({ index }) =>
+            !filterLinkedTextHistorySearchResults ||
+            !hasSearchQuery ||
+            matchingAppointmentIndexes.has(index),
+        ),
+    [hasSearchQuery, history.appointments, matchingAppointmentIndexes],
+  );
+  const showInformationBlock =
+    !filterLinkedTextHistorySearchResults ||
+    !hasSearchQuery ||
+    searchSummary.informationMatches > 0;
+  const hasPendingEdits = editingBlocks.length > 0;
 
   useEffect(() => {
     setNewAppointment(null);
   }, [history]);
+
+  const registerEditingBlock = useCallback<HistoryEditingChange>(
+    (block, isEditing) => {
+      setEditingBlocks((current) => {
+        const existingIndex = current.findIndex((item) => item.id === block.id);
+
+        if (isEditing) {
+          if (existingIndex >= 0) {
+            const next = [...current];
+            next[existingIndex] = block;
+            return next;
+          }
+
+          return [...current, block];
+        }
+
+        if (existingIndex < 0) return current;
+
+        return current.filter((item) => item.id !== block.id);
+      });
+    },
+    [],
+  );
+
+  const requestSearchChange = useCallback(
+    (nextQuery: string) => {
+      if (hasPendingEdits) {
+        setPendingEditsModalOpen(true);
+        return;
+      }
+
+      setSearchQuery(nextQuery);
+    },
+    [hasPendingEdits],
+  );
 
   const saveInformation = useCallback(
     (information: string) => onSave({ ...history, information }),
@@ -838,17 +917,55 @@ function LinkedTextHistoryBlocks({
 
   return (
     <div className="space-y-4">
-      <LinkedTextInformationBlock
-        information={history.information}
-        disabled={disabled}
-        onSave={saveInformation}
-      />
+      {showInformationBlock ? (
+        <LinkedTextInformationBlock
+          information={history.information}
+          disabled={disabled}
+          searchQuery={searchQuery}
+          onEditingChange={registerEditingBlock}
+          onSave={saveInformation}
+        />
+      ) : null}
 
       <section className="space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="grid gap-3 lg:grid-cols-[auto_minmax(14rem,1fr)_auto] lg:items-center">
           <div className="flex items-center gap-2">
             <h3 className="text-sm font-semibold text-lavender-50">Citas</h3>
             <Badge tone="neutral">{history.appointments.length} cita(s)</Badge>
+            {hasSearchQuery ? (
+              <Badge
+                tone={searchSummary.totalMatches > 0 ? "amber" : "neutral"}
+              >
+                {searchSummary.totalMatches} coincidencia(s)
+              </Badge>
+            ) : null}
+          </div>
+          <div className="relative w-full lg:mx-auto lg:max-w-xl">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-lavender-200/55" />
+            <Input
+              value={searchQuery}
+              onFocus={() => {
+                if (hasPendingEdits) setPendingEditsModalOpen(true);
+              }}
+              onChange={(event) => requestSearchChange(event.target.value)}
+              placeholder="Buscar en historia"
+              className="h-10 rounded-full pl-10 pr-10"
+              aria-label="Buscar palabras en historia"
+              disabled={disabled}
+            />
+            {hasSearchQuery ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="absolute right-1 top-1/2 size-8 -translate-y-1/2"
+                aria-label="Limpiar búsqueda en historia"
+                disabled={disabled}
+                onClick={() => requestSearchChange("")}
+              >
+                <X className="size-4" aria-hidden="true" />
+              </Button>
+            ) : null}
           </div>
           <Button
             type="button"
@@ -863,14 +980,16 @@ function LinkedTextHistoryBlocks({
           </Button>
         </div>
 
-        {history.appointments.length > 0 || newAppointment ? (
+        {appointmentRows.length > 0 || newAppointment ? (
           <>
-            {history.appointments.map((appointment, index) => (
+            {appointmentRows.map(({ appointment, index }) => (
               <LinkedTextAppointmentBlock
                 key={`${appointment.dateText}-${index}`}
                 appointment={appointment}
                 index={index}
                 disabled={disabled}
+                searchQuery={searchQuery}
+                onEditingChange={registerEditingBlock}
                 onSave={(nextAppointment) =>
                   saveAppointment(index, nextAppointment)
                 }
@@ -886,6 +1005,8 @@ function LinkedTextHistoryBlocks({
                 index={history.appointments.length}
                 disabled={disabled}
                 isNew
+                searchQuery={searchQuery}
+                onEditingChange={registerEditingBlock}
                 onSave={async (appointment) => {
                   const saved = await addAppointment(appointment);
                   if (saved) setNewAppointment(null);
@@ -900,10 +1021,18 @@ function LinkedTextHistoryBlocks({
           </>
         ) : (
           <div className="rounded-lg border border-dashed border-lavender-500/35 p-5 text-sm text-lavender-200/50">
-            Sin citas detectadas
+            {hasSearchQuery
+              ? "Sin coincidencias en citas"
+              : "Sin citas detectadas"}
           </div>
         )}
       </section>
+
+      <PendingEditsModal
+        open={pendingEditsModalOpen}
+        items={editingBlocks}
+        onClose={() => setPendingEditsModalOpen(false)}
+      />
     </div>
   );
 }
@@ -911,10 +1040,14 @@ function LinkedTextHistoryBlocks({
 function LinkedTextInformationBlock({
   information,
   disabled,
+  searchQuery,
+  onEditingChange,
   onSave,
 }: {
   information: string;
   disabled: boolean;
+  searchQuery: string;
+  onEditingChange: HistoryEditingChange;
   onSave: (information: string) => Promise<boolean>;
 }) {
   const informationId = useId();
@@ -928,6 +1061,14 @@ function LinkedTextInformationBlock({
       setDraft(information);
     }
   }, [information, isEditing]);
+
+  useEffect(() => {
+    onEditingChange({ id: "information", label: "Información" }, isEditing);
+
+    return () => {
+      onEditingChange({ id: "information", label: "Información" }, false);
+    };
+  }, [isEditing, onEditingChange]);
 
   const cancelEditing = useCallback(() => {
     setDraft(information);
@@ -977,7 +1118,7 @@ function LinkedTextInformationBlock({
         />
       ) : hasInformation ? (
         <p className="whitespace-pre-wrap text-sm leading-6 text-lavender-100/72">
-          {information}
+          <HighlightedHistoryText text={information} query={searchQuery} />
         </p>
       ) : (
         <p className="text-sm text-lavender-200/45">
@@ -993,6 +1134,8 @@ function LinkedTextAppointmentBlock({
   index,
   disabled,
   isNew = false,
+  searchQuery,
+  onEditingChange,
   onSave,
   onCancelNew,
   onDelete,
@@ -1003,6 +1146,8 @@ function LinkedTextAppointmentBlock({
   index: number;
   disabled: boolean;
   isNew?: boolean;
+  searchQuery: string;
+  onEditingChange: HistoryEditingChange;
   onSave: (appointment: ParsedTextHistoryAppointment) => Promise<boolean>;
   onCancelNew?: () => void;
   onDelete: () => Promise<boolean>;
@@ -1026,6 +1171,10 @@ function LinkedTextAppointmentBlock({
     `${visibleAppointment.body}\n${visibleAppointment.next}`,
   );
   const hasNext = appointment.hasNext || appointment.next.trim().length > 0;
+  const editBlockId = isNew ? "new-appointment" : `appointment-${index}`;
+  const editBlockLabel = isNew
+    ? "Cita nueva"
+    : `Cita ${index + 1} - ${appointment.dateText || "Sin fecha"}`;
   const noShowButton =
     !isEditing && !isNew && !hasNoShow ? (
       <Button
@@ -1056,6 +1205,14 @@ function LinkedTextAppointmentBlock({
       setIsConfirmingDelete(false);
     }
   }, [appointment, isEditing, isNew]);
+
+  useEffect(() => {
+    onEditingChange({ id: editBlockId, label: editBlockLabel }, isEditing);
+
+    return () => {
+      onEditingChange({ id: editBlockId, label: editBlockLabel }, false);
+    };
+  }, [editBlockId, editBlockLabel, isEditing, onEditingChange]);
 
   const updateDraft = useCallback(
     (patch: Partial<ParsedTextHistoryAppointment>) => {
@@ -1120,11 +1277,17 @@ function LinkedTextAppointmentBlock({
             />
           ) : (
             <p className="rounded-md border border-brand-300/35 bg-brand-900/45 px-3 py-2 text-sm font-semibold text-white">
-              {appointment.dateText}
+              <HighlightedHistoryText
+                text={appointment.dateText}
+                query={searchQuery}
+              />
             </p>
           )}
           <p className="text-xs text-lavender-200/45">
-            {visibleAppointment.normalizedDate ?? "Fecha sin normalizar"}
+            <HighlightedHistoryText
+              text={visibleAppointment.normalizedDate ?? "Fecha sin normalizar"}
+              query={searchQuery}
+            />
           </p>
         </div>
 
@@ -1169,7 +1332,10 @@ function LinkedTextAppointmentBlock({
             />
           ) : hasBody ? (
             <p className="whitespace-pre-wrap text-sm leading-6 text-lavender-100/72">
-              {appointment.body}
+              <HighlightedHistoryText
+                text={appointment.body}
+                query={searchQuery}
+              />
             </p>
           ) : (
             <p className="rounded-md border border-dashed border-lavender-500/25 px-3 py-2 text-sm text-lavender-200/45">
@@ -1185,6 +1351,8 @@ function LinkedTextAppointmentBlock({
                   next={appointment.next}
                   hasNext={hasNext}
                   disabled={disabled || isEditing}
+                  searchQuery={searchQuery}
+                  onEditingChange={onEditingChange}
                   onSave={onSaveNext}
                   onDelete={onDeleteNext}
                 />
@@ -1201,6 +1369,8 @@ function LinkedTextAppointmentBlock({
                   next={appointment.next}
                   hasNext={hasNext}
                   disabled={disabled || isEditing}
+                  searchQuery={searchQuery}
+                  onEditingChange={onEditingChange}
                   onSave={onSaveNext}
                   onDelete={onDeleteNext}
                 />
@@ -1229,6 +1399,8 @@ function LinkedTextNextBlock({
   next,
   hasNext,
   disabled,
+  searchQuery,
+  onEditingChange,
   onSave,
   onDelete,
 }: {
@@ -1236,6 +1408,8 @@ function LinkedTextNextBlock({
   next: string;
   hasNext: boolean;
   disabled: boolean;
+  searchQuery: string;
+  onEditingChange: HistoryEditingChange;
   onSave: (next: string) => Promise<boolean>;
   onDelete: () => Promise<boolean>;
 }) {
@@ -1252,6 +1426,19 @@ function LinkedTextNextBlock({
       setIsConfirmingDelete(false);
     }
   }, [isEditing, next]);
+
+  useEffect(() => {
+    const block = {
+      id: `next-${appointmentIndex}`,
+      label: `NEXT de cita ${appointmentIndex + 1}`,
+    };
+
+    onEditingChange(block, isEditing);
+
+    return () => {
+      onEditingChange(block, false);
+    };
+  }, [appointmentIndex, isEditing, onEditingChange]);
 
   const cancelEditing = useCallback(() => {
     setDraft(next);
@@ -1343,7 +1530,7 @@ function LinkedTextNextBlock({
           />
         ) : next.trim().length > 0 ? (
           <p className="whitespace-pre-wrap text-sm leading-6 text-lavender-100/72">
-            {next}
+            <HighlightedHistoryText text={next} query={searchQuery} />
           </p>
         ) : (
           <p className="text-sm text-lavender-200/45">
@@ -1361,6 +1548,38 @@ function LinkedTextNextBlock({
         onCancel={() => setIsConfirmingDelete(false)}
         onConfirm={handleDelete}
       />
+    </>
+  );
+}
+
+function HighlightedHistoryText({
+  text,
+  query,
+}: {
+  text: string;
+  query: string;
+}) {
+  const segments = useMemo(
+    () => getTextHistoryHighlightSegments(text, query),
+    [query, text],
+  );
+
+  if (segments.length === 0) return null;
+
+  return (
+    <>
+      {segments.map((segment, index) =>
+        segment.highlighted ? (
+          <mark
+            key={`${segment.text}-${index}`}
+            className="rounded-[3px] bg-amber-300/25 px-0.5 text-amber-100 ring-1 ring-amber-200/20"
+          >
+            {segment.text}
+          </mark>
+        ) : (
+          <span key={`${segment.text}-${index}`}>{segment.text}</span>
+        ),
+      )}
     </>
   );
 }
