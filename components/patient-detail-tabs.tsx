@@ -1232,13 +1232,13 @@ function LinkedTextAppointmentBlock({
 
   const handleSave = useCallback(async () => {
     setIsSaving(true);
-    const saved = await onSave(normalizeTextHistoryAppointment(draft));
+    const saved = await onSave(normalizeTextHistoryAppointment({ ...draft, next: appointment.next }));
     setIsSaving(false);
 
     if (saved) {
       setIsEditing(false);
     }
-  }, [draft, onSave]);
+  }, [draft, appointment, onSave]);
 
   const handleDelete = useCallback(async () => {
     setIsDeleting(true);
