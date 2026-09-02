@@ -790,10 +790,7 @@ function LinkedTextHistoryBlocks({
         ),
     [hasSearchQuery, history.appointments, matchingAppointmentIndexes],
   );
-  const showInformationBlock =
-    !filterLinkedTextHistorySearchResults ||
-    !hasSearchQuery ||
-    searchSummary.informationMatches > 0;
+  const showInformationBlock = true;
   const hasPendingEdits = editingBlocks.length > 0;
 
   useEffect(() => {
@@ -1014,7 +1011,12 @@ function LinkedTextHistoryBlocks({
                 }}
                 onCancelNew={() => setNewAppointment(null)}
                 onDelete={() => Promise.resolve(false)}
-                onSaveNext={() => Promise.resolve(false)}
+                onSaveNext={(next) => {
+                  setNewAppointment((prev) =>
+                    prev ? { ...prev, next, hasNext: true } : prev,
+                  );
+                  return Promise.resolve(true);
+                }}
                 onDeleteNext={() => Promise.resolve(false)}
               />
             ) : null}
@@ -1330,6 +1332,7 @@ function LinkedTextAppointmentBlock({
               className="min-h-28 font-mono text-sm leading-6"
               placeholder="Notas de la cita"
               disabled={disabled || isSaving}
+              autoFocus={isNew}
             />
           ) : hasBody ? (
             <p className="whitespace-pre-wrap text-sm leading-6 text-lavender-100/72">
@@ -1344,9 +1347,29 @@ function LinkedTextAppointmentBlock({
             </p>
           )}
 
-          {!isNew ? (
-            hasNext ? (
-              <>
+          {hasNext ? (
+            <>
+              <LinkedTextNextBlock
+                appointmentIndex={index}
+                next={appointment.next}
+                hasNext={hasNext}
+                disabled={disabled}
+                searchQuery={searchQuery}
+                onEditingChange={onEditingChange}
+                onLocalEditingChange={setIsNextEditing}
+                onSave={onSaveNext}
+                onDelete={onDeleteNext}
+              />
+              {noShowButton ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  {noShowButton}
+                </div>
+              ) : null}
+            </>
+          ) : (
+            <div className="flex flex-wrap items-center gap-2">
+              {noShowButton}
+              <div className={cn(isNextEditing ? "w-full" : "w-fit")}>
                 <LinkedTextNextBlock
                   appointmentIndex={index}
                   next={appointment.next}
@@ -1358,31 +1381,9 @@ function LinkedTextAppointmentBlock({
                   onSave={onSaveNext}
                   onDelete={onDeleteNext}
                 />
-                {noShowButton ? (
-                  <div className="flex flex-wrap items-center gap-2">
-                    {noShowButton}
-                  </div>
-                ) : null}
-              </>
-            ) : (
-              <div className="flex flex-wrap items-center gap-2">
-                {noShowButton}
-                <div className={cn(isNextEditing ? "w-full" : "w-fit")}>
-                  <LinkedTextNextBlock
-                    appointmentIndex={index}
-                    next={appointment.next}
-                    hasNext={hasNext}
-                    disabled={disabled}
-                    searchQuery={searchQuery}
-                    onEditingChange={onEditingChange}
-                    onLocalEditingChange={setIsNextEditing}
-                    onSave={onSaveNext}
-                    onDelete={onDeleteNext}
-                  />
-                </div>
               </div>
-            )
-          ) : null}
+            </div>
+          )}
         </div>
       </article>
 
