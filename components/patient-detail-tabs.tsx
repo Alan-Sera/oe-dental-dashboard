@@ -1163,6 +1163,7 @@ function LinkedTextAppointmentBlock({
   );
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isNextEditing, setIsNextEditing] = useState(false);
   const visibleAppointment = isEditing
     ? normalizeTextHistoryAppointment(draft)
     : appointment;
@@ -1176,7 +1177,7 @@ function LinkedTextAppointmentBlock({
     ? "Cita nueva"
     : `Cita ${index + 1} - ${appointment.dateText || "Sin fecha"}`;
   const noShowButton =
-    !isEditing && !isNew && !hasNoShow ? (
+    !isEditing && !isNew && !hasNoShow && !isNextEditing ? (
       <Button
         type="button"
         variant="secondary"
@@ -1203,6 +1204,7 @@ function LinkedTextAppointmentBlock({
     if (!isEditing) {
       setDraft(appointment);
       setIsConfirmingDelete(false);
+      setIsNextEditing(false);
     }
   }, [appointment, isEditing, isNew]);
 
@@ -1353,6 +1355,7 @@ function LinkedTextAppointmentBlock({
                   disabled={disabled || isEditing}
                   searchQuery={searchQuery}
                   onEditingChange={onEditingChange}
+                  onLocalEditingChange={setIsNextEditing}
                   onSave={onSaveNext}
                   onDelete={onDeleteNext}
                 />
@@ -1364,17 +1367,20 @@ function LinkedTextAppointmentBlock({
               </>
             ) : (
               <div className="flex flex-wrap items-center gap-2">
-                <LinkedTextNextBlock
-                  appointmentIndex={index}
-                  next={appointment.next}
-                  hasNext={hasNext}
-                  disabled={disabled || isEditing}
-                  searchQuery={searchQuery}
-                  onEditingChange={onEditingChange}
-                  onSave={onSaveNext}
-                  onDelete={onDeleteNext}
-                />
                 {noShowButton}
+                <div className={cn(isNextEditing ? "w-full" : "w-fit")}>
+                  <LinkedTextNextBlock
+                    appointmentIndex={index}
+                    next={appointment.next}
+                    hasNext={hasNext}
+                    disabled={disabled || isEditing}
+                    searchQuery={searchQuery}
+                    onEditingChange={onEditingChange}
+                    onLocalEditingChange={setIsNextEditing}
+                    onSave={onSaveNext}
+                    onDelete={onDeleteNext}
+                  />
+                </div>
               </div>
             )
           ) : null}
@@ -1401,6 +1407,7 @@ function LinkedTextNextBlock({
   disabled,
   searchQuery,
   onEditingChange,
+  onLocalEditingChange,
   onSave,
   onDelete,
 }: {
@@ -1410,6 +1417,7 @@ function LinkedTextNextBlock({
   disabled: boolean;
   searchQuery: string;
   onEditingChange: HistoryEditingChange;
+  onLocalEditingChange?: (isEditing: boolean) => void;
   onSave: (next: string) => Promise<boolean>;
   onDelete: () => Promise<boolean>;
 }) {
@@ -1434,16 +1442,19 @@ function LinkedTextNextBlock({
     };
 
     onEditingChange(block, isEditing);
+    onLocalEditingChange?.(isEditing);
 
     return () => {
       onEditingChange(block, false);
+      onLocalEditingChange?.(false);
     };
-  }, [appointmentIndex, isEditing, onEditingChange]);
+  }, [appointmentIndex, isEditing, onEditingChange, onLocalEditingChange]);
 
   const cancelEditing = useCallback(() => {
     setDraft(next);
     setIsEditing(false);
-  }, [next]);
+    onLocalEditingChange?.(false);
+  }, [next, onLocalEditingChange]);
 
   const handleSave = useCallback(async () => {
     setIsSaving(true);
@@ -1452,8 +1463,9 @@ function LinkedTextNextBlock({
 
     if (saved) {
       setIsEditing(false);
+      onLocalEditingChange?.(false);
     }
-  }, [draft, onSave]);
+  }, [draft, onLocalEditingChange, onSave]);
 
   const handleDelete = useCallback(async () => {
     setIsDeleting(true);
@@ -1475,6 +1487,7 @@ function LinkedTextNextBlock({
         disabled={disabled}
         onClick={() => {
           setDraft("");
+          onLocalEditingChange?.(true);
           setIsEditing(true);
         }}
       >
@@ -1486,7 +1499,7 @@ function LinkedTextNextBlock({
 
   return (
     <>
-      <div className="rounded-md border border-amber-400/25 bg-amber-950/20 p-3">
+      <div className="w-full rounded-md border border-amber-400/25 bg-amber-950/20 p-3">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
           <label
             htmlFor={nextId}
@@ -1499,7 +1512,10 @@ function LinkedTextNextBlock({
               isEditing={isEditing}
               isSaving={isSaving}
               disabled={disabled || isDeleting}
-              onEdit={() => setIsEditing(true)}
+              onEdit={() => {
+                onLocalEditingChange?.(true);
+                setIsEditing(true);
+              }}
               onCancel={cancelEditing}
               onSave={handleSave}
             />
