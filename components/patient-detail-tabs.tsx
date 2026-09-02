@@ -1204,7 +1204,6 @@ function LinkedTextAppointmentBlock({
     if (!isEditing) {
       setDraft(appointment);
       setIsConfirmingDelete(false);
-      setIsNextEditing(false);
     }
   }, [appointment, isEditing, isNew]);
 
@@ -1352,7 +1351,7 @@ function LinkedTextAppointmentBlock({
                   appointmentIndex={index}
                   next={appointment.next}
                   hasNext={hasNext}
-                  disabled={disabled || isEditing}
+                  disabled={disabled}
                   searchQuery={searchQuery}
                   onEditingChange={onEditingChange}
                   onLocalEditingChange={setIsNextEditing}
@@ -1373,7 +1372,7 @@ function LinkedTextAppointmentBlock({
                     appointmentIndex={index}
                     next={appointment.next}
                     hasNext={hasNext}
-                    disabled={disabled || isEditing}
+                    disabled={disabled}
                     searchQuery={searchQuery}
                     onEditingChange={onEditingChange}
                     onLocalEditingChange={setIsNextEditing}
