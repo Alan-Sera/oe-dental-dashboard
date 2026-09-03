@@ -1234,13 +1234,13 @@ function LinkedTextAppointmentBlock({
 
   const handleSave = useCallback(async () => {
     setIsSaving(true);
-    const saved = await onSave(normalizeTextHistoryAppointment({ ...draft, next: appointment.next }));
+    const saved = await onSave(normalizeTextHistoryAppointment(draft));
     setIsSaving(false);
 
     if (saved) {
       setIsEditing(false);
     }
-  }, [draft, appointment, onSave]);
+  }, [draft, onSave]);
 
   const handleDelete = useCallback(async () => {
     setIsDeleting(true);
@@ -1359,6 +1359,10 @@ function LinkedTextAppointmentBlock({
                 onLocalEditingChange={setIsNextEditing}
                 onSave={onSaveNext}
                 onDelete={onDeleteNext}
+                isNew={isNew}
+                onNextTextChange={(text) =>
+                  updateDraft({ next: text })
+                }
               />
               {noShowButton ? (
                 <div className="flex flex-wrap items-center gap-2">
@@ -1380,6 +1384,10 @@ function LinkedTextAppointmentBlock({
                   onLocalEditingChange={setIsNextEditing}
                   onSave={onSaveNext}
                   onDelete={onDeleteNext}
+                  isNew={isNew}
+                  onNextTextChange={(text) =>
+                    updateDraft({ next: text })
+                  }
                 />
               </div>
             </div>
@@ -1410,6 +1418,8 @@ function LinkedTextNextBlock({
   onLocalEditingChange,
   onSave,
   onDelete,
+  isNew,
+  onNextTextChange,
 }: {
   appointmentIndex: number;
   next: string;
@@ -1420,6 +1430,8 @@ function LinkedTextNextBlock({
   onLocalEditingChange?: (isEditing: boolean) => void;
   onSave: (next: string) => Promise<boolean>;
   onDelete: () => Promise<boolean>;
+  isNew?: boolean;
+  onNextTextChange?: (next: string) => void;
 }) {
   const nextId = useId();
   const [isEditing, setIsEditing] = useState(false);
@@ -1454,7 +1466,8 @@ function LinkedTextNextBlock({
     setDraft(next);
     setIsEditing(false);
     onLocalEditingChange?.(false);
-  }, [next, onLocalEditingChange]);
+    onNextTextChange?.(next);
+  }, [next, onLocalEditingChange, onNextTextChange]);
 
   const handleSave = useCallback(async () => {
     setIsSaving(true);
@@ -1512,6 +1525,7 @@ function LinkedTextNextBlock({
               isEditing={isEditing}
               isSaving={isSaving}
               disabled={disabled || isDeleting}
+              isNew={isNew}
               onEdit={() => {
                 onLocalEditingChange?.(true);
                 setIsEditing(true);
@@ -1539,7 +1553,11 @@ function LinkedTextNextBlock({
           <Textarea
             id={nextId}
             value={draft}
-            onChange={(event) => setDraft(event.target.value)}
+            onChange={(event) => {
+              const value = event.target.value;
+              setDraft(value);
+              onNextTextChange?.(value);
+            }}
             className="min-h-20 font-mono text-sm leading-6"
             placeholder="Pendiente de la siguiente cita"
             disabled={disabled || isSaving}
@@ -1604,6 +1622,7 @@ function BlockActions({
   isEditing,
   isSaving,
   disabled,
+  isNew,
   onEdit,
   onCancel,
   onSave,
@@ -1611,6 +1630,7 @@ function BlockActions({
   isEditing: boolean;
   isSaving: boolean;
   disabled: boolean;
+  isNew?: boolean;
   onEdit: () => void;
   onCancel: () => void;
   onSave: () => void | Promise<void>;
@@ -1643,19 +1663,21 @@ function BlockActions({
       >
         Cancelar
       </Button>
-      <Button
-        type="button"
-        size="sm"
-        onClick={onSave}
-        disabled={disabled || isSaving}
-      >
-        {isSaving ? (
-          <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
-        ) : (
-          <Save className="size-4" aria-hidden="true" />
-        )}
-        {isSaving ? "Guardando..." : "Guardar"}
-      </Button>
+      {!isNew && (
+        <Button
+          type="button"
+          size="sm"
+          onClick={onSave}
+          disabled={disabled || isSaving}
+        >
+          {isSaving ? (
+            <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
+          ) : (
+            <Save className="size-4" aria-hidden="true" />
+          )}
+          {isSaving ? "Guardando..." : "Guardar"}
+        </Button>
+      )}
     </div>
   );
 }
