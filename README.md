@@ -42,10 +42,10 @@ Add local values to `.env.local`:
 ```bash
 GOOGLE_CLIENT_ID=""
 GOOGLE_CLIENT_SECRET=""
-GOOGLE_REDIRECT_URI="http://127.0.0.1:3000/api/google/oauth/callback"
+GOOGLE_REDIRECT_URI="http://localhost:3000/api/google/oauth/callback"
 GOOGLE_TOKEN_ENCRYPTION_KEY=""
 ```
 
 Create `GOOGLE_TOKEN_ENCRYPTION_KEY` with a local random 32-byte value, for example `openssl rand -base64 32`. Do not commit `.env.local`.
 
-In Google Cloud, configure the OAuth web client with the same redirect URI. During import, paste the shared Drive folder link or folder ID when `.xlsx` payment-history files are detected. If Google is not configured or an upload fails, the local file remains available from the patient's `Historial pagos` tab.
+In Google Cloud, configure the OAuth web client with the same redirect URI. The redirect URI host must match the address you use to open the app (use `localhost:3000` or `127.0.0.1:3000` consistently; 127.0.0.1 and localhost are different hosts for cookies). During import, paste the shared Drive folder link or folder ID when `.xlsx` payment-history files are detected. If Google is not configured or an upload fails, the local file remains available from the patient's `Historial pagos` tab.

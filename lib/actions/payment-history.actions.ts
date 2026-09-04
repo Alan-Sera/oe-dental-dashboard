@@ -11,6 +11,7 @@ import { resolveLinkedAttachmentPath } from "@/lib/local-paths";
 import {
   extractGoogleDriveFolderId,
   getGoogleOAuthConfig,
+  isGoogleReconnectRequiredError,
   refreshGoogleAccessToken,
   uploadXlsxAsGoogleSheet
 } from "@/lib/google-drive";
@@ -187,7 +188,11 @@ async function uploadPaymentHistorySheet({
       data: {
         googleFolderId,
         uploadStatus: "FAILED",
-        errorMessage: error instanceof Error ? error.message : "No se pudo subir a Google Sheets"
+        errorMessage: isGoogleReconnectRequiredError(error)
+          ? "El acceso a Google expiró o fue revocado. Reconecta Google en la pestaña Importar."
+          : error instanceof Error
+            ? error.message
+            : "No se pudo subir a Google Sheets"
       }
     });
 

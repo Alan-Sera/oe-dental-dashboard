@@ -1,7 +1,8 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 
+import { OAuth2Client } from "google-auth-library";
+
 const DRIVE_FILE_SCOPE = "https://www.googleapis.com/auth/drive.file";
-const TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
 const DRIVE_UPLOAD_ENDPOINT = "https://www.googleapis.com/upload/drive/v3/files";
 const GOOGLE_SHEETS_MIME_TYPE = "application/vnd.google-apps.spreadsheet";
 const XLSX_MIME_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
@@ -45,67 +46,63 @@ export function getGoogleOAuthConfig(): GoogleOAuthConfig | null {
 }
 
 export function createGoogleAuthorizationUrl(config: GoogleOAuthConfig, state: string) {
-  const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
-  url.searchParams.set("client_id", config.clientId);
-  url.searchParams.set("redirect_uri", config.redirectUri);
-  url.searchParams.set("response_type", "code");
-  url.searchParams.set("scope", DRIVE_FILE_SCOPE);
-  url.searchParams.set("access_type", "offline");
-  url.searchParams.set("prompt", "consent");
-  url.searchParams.set("include_granted_scopes", "true");
-  url.searchParams.set("state", state);
+  const client = new OAuth2Client(config.clientId, config.clientSecret, config.redirectUri);
 
-  return url;
+  return new URL(
+    client.generateAuthUrl({
+      access_type: "offline",
+      prompt: "consent",
+      scope: DRIVE_FILE_SCOPE,
+      include_granted_scopes: true,
+      state
+    })
+  );
 }
 
-export async function exchangeCodeForTokens(config: GoogleOAuthConfig, code: string) {
-  const response = await fetch(TOKEN_ENDPOINT, {
-    method: "POST",
-    headers: {
-      "content-type": "application/x-www-form-urlencoded"
-    },
-    body: new URLSearchParams({
-      code,
-      client_id: config.clientId,
-      client_secret: config.clientSecret,
-      redirect_uri: config.redirectUri,
-      grant_type: "authorization_code"
-    })
-  });
+export async function exchangeCodeForTokens(config: GoogleOAuthConfig, code: string): Promise<GoogleTokenResponse> {
+  const client = new OAuth2Client(config.clientId, config.clientSecret, config.redirectUri);
+  const { tokens } = await client.getToken(code);
 
-  return parseTokenResponse(response);
+  return tokens as GoogleTokenResponse;
+}
+
+export class GoogleReconnectRequiredError extends Error {
+  constructor() {
+    super("El acceso a Google fue revocado o expiró. Reconecta Google para continuar.");
+    this.name = "GoogleReconnectRequiredError";
+  }
+}
+
+export function isGoogleReconnectRequiredError(error: unknown) {
+  return error instanceof GoogleReconnectRequiredError;
 }
 
 export async function refreshGoogleAccessToken(config: GoogleOAuthConfig, refreshToken: string) {
-  const response = await fetch(TOKEN_ENDPOINT, {
-    method: "POST",
-    headers: {
-      "content-type": "application/x-www-form-urlencoded"
-    },
-    body: new URLSearchParams({
-      client_id: config.clientId,
-      client_secret: config.clientSecret,
-      refresh_token: refreshToken,
-      grant_type: "refresh_token"
-    })
-  });
+  const client = new OAuth2Client(config.clientId, config.clientSecret, config.redirectUri);
+  client.setCredentials({ refresh_token: refreshToken });
 
-  const tokens = await parseTokenResponse(response);
-  if (!tokens.access_token) {
-    throw new Error("Google no devolvió access token");
+  try {
+    const { credentials } = await client.refreshAccessToken();
+    if (!credentials.access_token) {
+      throw new Error("Google no devolvió access token");
+    }
+
+    return credentials.access_token;
+  } catch (error) {
+    if (isInvalidGrantError(error)) {
+      throw new GoogleReconnectRequiredError();
+    }
+    throw error;
   }
-
-  return tokens.access_token;
 }
 
-async function parseTokenResponse(response: Response) {
-  const payload = (await response.json().catch(() => ({}))) as GoogleTokenResponse;
+function isInvalidGrantError(error: unknown) {
+  if (typeof error !== "object" || error === null) return false;
 
-  if (!response.ok) {
-    throw new Error(payload.error_description || payload.error || `Google OAuth falló (${response.status})`);
-  }
+  const candidate = error as { response?: { data?: unknown } };
+  const data = candidate.response?.data as { error?: unknown } | undefined;
 
-  return payload;
+  return data?.error === "invalid_grant";
 }
 
 export async function uploadXlsxAsGoogleSheet({

@@ -1,13 +1,8 @@
-import { randomBytes } from "node:crypto";
-
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 import { requireSession } from "@/lib/auth";
-import {
-  createGoogleAuthorizationUrl,
-  getGoogleOAuthConfig
-} from "@/lib/google-drive";
+import { createGoogleAuthorizationUrl, getGoogleOAuthConfig } from "@/lib/google-drive";
+import { createOAuthState } from "@/lib/google-oauth";
 
 export const runtime = "nodejs";
 
@@ -22,22 +17,7 @@ export async function GET(request: Request) {
     return redirectWithGoogleStatus(request, returnTo, "not-configured");
   }
 
-  const state = randomBytes(24).toString("hex");
-  const cookieStore = await cookies();
-  cookieStore.set("google_oauth_state", state, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: 600
-  });
-  cookieStore.set("google_oauth_return_to", returnTo, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: 600
-  });
+  const state = createOAuthState(returnTo);
 
   return NextResponse.redirect(createGoogleAuthorizationUrl(config, state));
 }

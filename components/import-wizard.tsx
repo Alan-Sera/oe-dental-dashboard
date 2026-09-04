@@ -25,6 +25,25 @@ type BatchResponse = {
 type GoogleStatus = {
   configured: boolean;
   connected: boolean;
+  needsReconnect: boolean;
+};
+
+type GoogleNotice = {
+  error: boolean;
+  text: string;
+};
+
+const GOOGLE_STATUS_MESSAGES: Record<string, GoogleNotice> = {
+  connected: { error: false, text: "Google conectado correctamente." },
+  "not-configured": { error: true, text: "Google no está configurado en el servidor." },
+  "invalid-state": { error: true, text: "La conexión expiró o fue inválida. Intenta de nuevo." },
+  "missing-code": { error: true, text: "No se recibió el código de autorización de Google." },
+  "missing-refresh-token": {
+    error: true,
+    text: "Google no devolvió un token de renovación. Reconecta e intenta de nuevo."
+  },
+  "access-denied": { error: true, text: "Cancelaste la autorización de Google. Puedes intentarlo de nuevo." },
+  error: { error: true, text: "Ocurrió un error al conectar con Google." }
 };
 
 export function ImportWizard({
@@ -41,19 +60,28 @@ export function ImportWizard({
   const [error, setError] = useState("");
   const [result, setResult] = useState<BatchResponse["batch"] | null>(null);
   const [googleStatus, setGoogleStatus] = useState<GoogleStatus | null>(null);
+  const [googleNotice, setGoogleNotice] = useState<GoogleNotice | null>(null);
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
     let cancelled = false;
 
-    fetch("/api/google/status")
-      .then((response) => (response.ok ? response.json() : null))
-      .then((status: GoogleStatus | null) => {
-        if (!cancelled) setGoogleStatus(status);
-      })
-      .catch(() => {
+    void (async () => {
+      const status = new URLSearchParams(window.location.search).get("google");
+      if (status) {
+        setGoogleNotice(GOOGLE_STATUS_MESSAGES[status] ?? GOOGLE_STATUS_MESSAGES.error);
+        window.history.replaceState(null, "", window.location.pathname);
+      }
+
+      try {
+        const response = await fetch("/api/google/status");
+        if (!cancelled) {
+          setGoogleStatus(response.ok ? ((await response.json()) as GoogleStatus) : null);
+        }
+      } catch {
         if (!cancelled) setGoogleStatus(null);
-      });
+      }
+    })();
 
     return () => {
       cancelled = true;
@@ -164,17 +192,28 @@ export function ImportWizard({
           </div>
         </div>
         <div className="flex flex-col justify-center gap-2">
-          <Badge tone={googleStatus?.connected ? "brand" : "neutral"}>
+          <Badge
+            tone={googleStatus?.connected ? "brand" : googleStatus?.needsReconnect ? "coral" : "neutral"}
+          >
             {googleStatus?.connected
               ? "Google conectado"
-              : googleStatus?.configured
-                ? "Google sin conectar"
-                : "Google no configurado"}
+              : googleStatus?.needsReconnect
+                ? "Reconexión requerida"
+                : googleStatus?.configured
+                  ? "Google sin conectar"
+                  : "Google no configurado"}
           </Badge>
           {googleStatus?.configured && !googleStatus.connected ? (
             <Button asChild variant="secondary" size="sm">
-              <Link href="/api/google/oauth/start?returnTo=/import">Conectar Google</Link>
+              <Link href="/api/google/oauth/start?returnTo=/import">
+                {googleStatus.needsReconnect ? "Reconectar Google" : "Conectar Google"}
+              </Link>
             </Button>
+          ) : null}
+          {googleNotice ? (
+            <p className={googleNotice.error ? "text-sm text-coral-400" : "text-sm text-ink-200"}>
+              {googleNotice.text}
+            </p>
           ) : null}
         </div>
       </div>

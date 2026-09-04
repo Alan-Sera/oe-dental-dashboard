@@ -4,21 +4,44 @@ import { prisma } from "@/lib/prisma";
 import {
   decryptToken,
   encryptToken,
-  getGoogleOAuthConfig
+  getGoogleOAuthConfig,
+  isGoogleReconnectRequiredError,
+  refreshGoogleAccessToken
 } from "@/lib/google-drive";
 
 const REFRESH_TOKEN_SETTING = "google.refreshTokenEncrypted";
 
 export async function getGoogleConnectionStatus() {
   const config = getGoogleOAuthConfig();
-  const token = await prisma.setting.findUnique({
+
+  if (!config) {
+    return { configured: false, connected: false, needsReconnect: false };
+  }
+
+  const storedToken = await prisma.setting.findUnique({
     where: { key: REFRESH_TOKEN_SETTING }
   });
 
-  return {
-    configured: Boolean(config),
-    connected: Boolean(config && token?.value)
-  };
+  if (!storedToken?.value) {
+    return { configured: true, connected: false, needsReconnect: false };
+  }
+
+  let refreshToken: string;
+  try {
+    refreshToken = decryptToken(storedToken.value, config.tokenEncryptionKey);
+  } catch {
+    return { configured: true, connected: false, needsReconnect: true };
+  }
+
+  try {
+    await refreshGoogleAccessToken(config, refreshToken);
+    return { configured: true, connected: true, needsReconnect: false };
+  } catch (error) {
+    if (isGoogleReconnectRequiredError(error)) {
+      return { configured: true, connected: false, needsReconnect: true };
+    }
+    return { configured: true, connected: true, needsReconnect: false };
+  }
 }
 
 export async function storeGoogleRefreshToken(refreshToken: string) {

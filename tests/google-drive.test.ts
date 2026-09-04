@@ -1,11 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { OAuth2Client } from "google-auth-library";
 
 import {
   encryptToken,
   decryptToken,
   extractGoogleDriveFolderId,
+  createGoogleAuthorizationUrl,
+  exchangeCodeForTokens,
   refreshGoogleAccessToken,
   uploadXlsxAsGoogleSheet,
+  GoogleReconnectRequiredError,
   type GoogleOAuthConfig
 } from "@/lib/google-drive";
 
@@ -36,24 +40,60 @@ describe("google drive helpers", () => {
     expect(decryptToken(encrypted, config.tokenEncryptionKey)).toBe("refresh-token");
   });
 
-  it("refreshes a Google access token", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ access_token: "access-token", expires_in: 3600 }), {
-        status: 200,
-        headers: { "content-type": "application/json" }
+  it("builds the Google authorization URL", () => {
+    vi.spyOn(OAuth2Client.prototype, "generateAuthUrl").mockReturnValue(
+      "https://accounts.google.com/o/oauth2/v2/auth?client_id=client-id&redirect_uri=http%3A%2F%2F127.0.0.1%3A3000%2Fapi%2Fgoogle%2Foauth%2Fcallback"
+    );
+
+    const url = createGoogleAuthorizationUrl(config, "state-token");
+
+    expect(url.hostname).toBe("accounts.google.com");
+    expect(url.searchParams.get("client_id")).toBe("client-id");
+    expect(url.searchParams.get("redirect_uri")).toBe(config.redirectUri);
+    expect(OAuth2Client.prototype.generateAuthUrl).toHaveBeenCalledWith(
+      expect.objectContaining({
+        access_type: "offline",
+        prompt: "consent",
+        scope: "https://www.googleapis.com/auth/drive.file",
+        include_granted_scopes: true,
+        state: "state-token"
       })
     );
-    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  it("exchanges an authorization code for tokens", async () => {
+    vi.spyOn(OAuth2Client.prototype, "getToken").mockResolvedValue({
+      tokens: { access_token: "access-token", refresh_token: "refresh-token", expires_in: 3600 },
+      res: null
+    } as never);
+
+    const tokens = await exchangeCodeForTokens(config, "auth-code");
+
+    expect(tokens.access_token).toBe("access-token");
+    expect(tokens.refresh_token).toBe("refresh-token");
+  });
+
+  it("refreshes a Google access token", async () => {
+    const refreshMock = vi
+      .spyOn(OAuth2Client.prototype, "refreshAccessToken")
+      .mockResolvedValue({ credentials: { access_token: "access-token" }, res: null } as never);
 
     const token = await refreshGoogleAccessToken(config, "refresh-token");
 
     expect(token).toBe("access-token");
-    expect(fetchMock).toHaveBeenCalledWith(
-      "https://oauth2.googleapis.com/token",
-      expect.objectContaining({
-        method: "POST",
-        headers: { "content-type": "application/x-www-form-urlencoded" }
-      })
+    expect(refreshMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("throws a reconnect error when the refresh token is revoked", async () => {
+    vi.spyOn(OAuth2Client.prototype, "refreshAccessToken").mockRejectedValue({
+      code: 400,
+      response: {
+        data: { error: "invalid_grant", error_description: "Token has been expired or revoked." }
+      }
+    } as never);
+
+    await expect(refreshGoogleAccessToken(config, "revoked-token")).rejects.toBeInstanceOf(
+      GoogleReconnectRequiredError
     );
   });
 
