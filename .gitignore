@@ -17,3 +17,4 @@ data/cache/**
 *.tsbuildinfo
 dev.log
 dev.err
+.env
