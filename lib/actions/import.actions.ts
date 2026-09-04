@@ -8,6 +8,7 @@ import { AttachmentCategory, ImportItemStatus } from "@prisma/client";
 
 import { recordAudit } from "@/lib/actions/audit.actions";
 import { createPaymentHistorySheetForAttachment } from "@/lib/actions/payment-history.actions";
+import { linkTextAttachmentAsClinicalHistory } from "@/lib/actions/clinical.actions";
 import {
   classifyImportCandidate,
   extractPatientName,
@@ -21,6 +22,7 @@ import {
 } from "@/lib/local-paths";
 import { prisma } from "@/lib/prisma";
 import { importPatientsRootSchema } from "@/lib/validation";
+import { extractGoogleDriveFolderId } from "@/lib/google-drive";
 
 type ScannedFile = {
   fileName: string;
@@ -49,6 +51,20 @@ export async function importPatientsRoot(input: unknown) {
     update: { value: patientsRootPath }
   });
 
+  const patientDriveLinkMap = new Map<string, string>();
+  if (parsed.patientsDriveLinks) {
+    try {
+      const jsonData = JSON.parse(parsed.patientsDriveLinks);
+      for (const item of jsonData.carpetas ?? []) {
+        if (item.carpeta_creada && item.link_para_compartir) {
+          patientDriveLinkMap.set(item.carpeta_creada, item.link_para_compartir);
+        }
+      }
+    } catch {
+      // JSON inválido, continuar con el googleFolderId global
+    }
+  }
+
   const sourceRootName = path.basename(patientsRootPath) || patientsRootPath;
   const batch = await prisma.importBatch.create({
     data: {
@@ -61,6 +77,7 @@ export async function importPatientsRoot(input: unknown) {
   let importedCount = 0;
   let duplicateCount = 0;
   let errorCount = 0;
+  const clinicalHistoryAttachments: { patientId: string; attachmentId: string }[] = [];
 
   try {
     const patientDirectories = (await readdir(patientsRootPath, { withFileTypes: true }))
@@ -85,7 +102,19 @@ export async function importPatientsRoot(input: unknown) {
           fileName: file.fileName,
           mimeType: file.mimeType
         });
-        const category = classified.category as AttachmentCategoryValue;
+        let category = classified.category as AttachmentCategoryValue;
+        if (
+          file.fileName.toLowerCase().endsWith(".txt") &&
+          category !== "CLINICAL_HISTORY"
+        ) {
+          category = "CLINICAL_HISTORY";
+        }
+        if (
+          file.fileName.toLowerCase().endsWith(".xlsx") &&
+          category !== "PAYMENT_HISTORY"
+        ) {
+          category = "PAYMENT_HISTORY";
+        }
         const existingAttachment = await prisma.attachment.findUnique({
           where: {
             patientId_localRelativePath: {
@@ -123,11 +152,16 @@ export async function importPatientsRoot(input: unknown) {
           });
 
           if (category === "PAYMENT_HISTORY") {
+            const driveLink = patientDriveLinkMap.get(patientName) ?? parsed.googleFolderId;
             await ensurePaymentHistorySheet({
               patientId: patient.id,
               attachmentId: attachment.id,
-              googleFolderInput: parsed.googleFolderId
+              googleFolderInput: driveLink
             });
+          }
+
+          if (category === "CLINICAL_HISTORY") {
+            clinicalHistoryAttachments.push({ patientId: patient.id, attachmentId: attachment.id });
           }
 
           continue;
@@ -150,28 +184,15 @@ export async function importPatientsRoot(input: unknown) {
         importedCount += 1;
 
         if (category === "CLINICAL_HISTORY") {
-          const entry = await prisma.clinicalEntry.create({
-            data: {
-              patientId: patient.id,
-              entryDate: new Date(),
-              notes: `Documento clínico vinculado: ${file.fileName}`,
-              attachments: {
-                connect: { id: attachment.id }
-              }
-            }
-          });
-
-          await prisma.attachment.update({
-            where: { id: attachment.id },
-            data: { clinicalEntryId: entry.id }
-          });
+          clinicalHistoryAttachments.push({ patientId: patient.id, attachmentId: attachment.id });
         }
 
         if (category === "PAYMENT_HISTORY") {
+          const driveLink = patientDriveLinkMap.get(patientName) ?? parsed.googleFolderId;
           await createPaymentHistorySheetForAttachment({
             patientId: patient.id,
             attachmentId: attachment.id,
-            googleFolderInput: parsed.googleFolderId
+            googleFolderInput: driveLink
           });
         }
 
@@ -185,6 +206,17 @@ export async function importPatientsRoot(input: unknown) {
           status: ImportItemStatus.IMPORTED,
           attachmentId: attachment.id
         });
+      }
+    }
+
+    for (const { patientId, attachmentId } of clinicalHistoryAttachments) {
+      try {
+        await linkTextAttachmentAsClinicalHistory({ patientId, attachmentId });
+      } catch (linkingError) {
+        console.error(
+          `No se pudo vincular historia clínica para attachment ${attachmentId}:`,
+          linkingError instanceof Error ? linkingError.message : linkingError
+        );
       }
     }
 
@@ -422,7 +454,16 @@ async function ensurePaymentHistorySheet({
     where: { attachmentId }
   });
 
-  if (existing) return existing;
+  if (existing) {
+    const desiredFolderId = extractGoogleDriveFolderId(googleFolderInput ?? "");
+    if (desiredFolderId && existing.googleFolderId !== desiredFolderId) {
+      await prisma.paymentHistorySheet.update({
+        where: { id: existing.id },
+        data: { googleFolderId: desiredFolderId }
+      });
+    }
+    return existing;
+  }
 
   return createPaymentHistorySheetForAttachment({
     patientId,

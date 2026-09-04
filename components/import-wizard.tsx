@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, FolderDown, Loader2, Table2 } from "lucide-react";
@@ -55,7 +55,10 @@ export function ImportWizard({
   const loading = useGlobalLoading();
   const [patientsRootPath, setPatientsRootPath] = useState(defaultPatientsRootPath);
   const [googleFolderId, setGoogleFolderId] = useState("");
+  const [patientsDriveLinks, setPatientsDriveLinks] = useState("");
+  const [driveLinksFile, setDriveLinksFile] = useState<File | null>(null);
   const [resetExistingData, setResetExistingData] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const [result, setResult] = useState<BatchResponse["batch"] | null>(null);
@@ -88,6 +91,24 @@ export function ImportWizard({
     };
   }, []);
 
+  const handleDriveLinksFile = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] ?? null;
+    setDriveLinksFile(file);
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const content = e.target?.result as string;
+        setPatientsDriveLinks(content);
+      };
+      reader.onerror = () => {
+        setError("Error al leer el archivo JSON");
+      };
+      reader.readAsText(file);
+    } else {
+      setPatientsDriveLinks("");
+    }
+  }, []);
+
   function runImport() {
     if (!patientsRootPath.trim()) return;
 
@@ -106,6 +127,7 @@ export function ImportWizard({
           body: JSON.stringify({
             patientsRootPath,
             googleFolderId,
+            patientsDriveLinks,
             resetExistingData
           })
         });
@@ -159,13 +181,36 @@ export function ImportWizard({
               placeholder="D:\Pacientes"
             />
           </Field>
-          <Field label="Google Drive para .xlsx">
-            <Input
-              value={googleFolderId}
-              onChange={(event) => setGoogleFolderId(event.target.value)}
-              placeholder="Link o ID de carpeta"
-            />
-          </Field>
+<Field label="Google Drive para .xlsx">
+             <Input
+               value={googleFolderId}
+               onChange={(event) => setGoogleFolderId(event.target.value)}
+               placeholder="Link o ID de carpeta"
+             />
+           </Field>
+<Field label="Links de pacientes (.json)">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".json"
+                onChange={handleDriveLinksFile}
+                className="hidden"
+                id="drive-links-file"
+              />
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  {driveLinksFile ? driveLinksFile.name : "Seleccionar JSON"}
+                </Button>
+                {patientsDriveLinks && (
+                  <span className="text-xs text-green-600">Archivo cargado</span>
+                )}
+              </div>
+            </Field>
         </div>
 
         <label className="flex items-start gap-3 rounded-md border border-lavender-600/55 bg-lavender-950/25 p-3 text-sm text-lavender-100/85">

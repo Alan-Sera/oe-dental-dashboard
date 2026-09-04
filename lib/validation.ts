@@ -115,6 +115,7 @@ export const importPatientsRootSchema = z.object({
     .min(1, "Escribe la carpeta maestra de pacientes"),
   googleFolderId: z.string().optional().or(z.literal("")),
   resetExistingData: z.boolean().optional().default(false),
+  patientsDriveLinks: z.string().optional(),
 });
 
 export type SetupInput = z.infer<typeof setupSchema>;
