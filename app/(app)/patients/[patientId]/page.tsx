@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 
 import { PatientDetailTabs } from "@/components/patient-detail-tabs";
+import { PatientAvatar } from "@/components/patient-avatar";
 import { Button } from "@/components/ui/button";
 import { getPatientById } from "@/lib/actions/patient.actions";
 import { getPatientMissingAttachmentIds } from "@/lib/actions/settings.actions";
@@ -37,8 +38,17 @@ export default async function PatientDetailPage({
               Pacientes
             </Link>
           </Button>
-          <h1 className="mt-2 text-2xl font-semibold text-white">{patient.fullName}</h1>
-          <p className="muted">{patient.phone ?? "Sin teléfono"} · {patient.email ?? "Sin correo"}</p>
+          <div className="mt-2 flex items-center gap-3">
+            <PatientAvatar
+              fullName={patient.fullName}
+              photoAttachmentId={serializedPatient.profilePhotoId}
+              size="lg"
+            />
+            <div>
+              <h1 className="text-2xl font-semibold text-white">{patient.fullName}</h1>
+              <p className="muted">{patient.phone ?? "Sin teléfono"} · {patient.email ?? "Sin correo"}</p>
+            </div>
+          </div>
         </div>
       </div>
 

@@ -86,6 +86,67 @@ export async function getPatients() {
   });
 }
 
+export async function setPatientProfilePhoto(input: {
+  patientId: string;
+  attachmentId: string | null;
+}) {
+  const { patientId, attachmentId } = input;
+
+  const patient = await prisma.patient.findUnique({
+    where: { id: patientId }
+  });
+
+  if (!patient) {
+    throw new Error("Paciente no encontrado");
+  }
+
+  if (attachmentId) {
+    const attachment = await prisma.attachment.findUnique({
+      where: { id: attachmentId }
+    });
+
+    if (!attachment || attachment.patientId !== patientId) {
+      throw new Error("Adjunto no válido para este paciente");
+    }
+  }
+
+  await prisma.patient.update({
+    where: { id: patientId },
+    data: { profilePhotoId: attachmentId }
+  });
+
+  revalidatePath(`/patients/${patientId}`);
+  revalidatePath("/patients");
+  revalidatePath("/dashboard");
+
+  return true;
+}
+
+export async function ensureProfilePhotos() {
+  const patients = await prisma.patient.findMany({
+    where: { profilePhotoId: null },
+    include: {
+      attachments: {
+        orderBy: { importedAt: "asc" }
+      }
+    }
+  });
+
+  for (const patient of patients) {
+    const firstPhoto = patient.attachments.find(
+      (a) => a.category === "PHOTO"
+    );
+    if (firstPhoto) {
+      await prisma.patient.update({
+        where: { id: patient.id },
+        data: { profilePhotoId: firstPhoto.id }
+      });
+    }
+  }
+
+  return { updated: patients.length };
+}
+
 export async function getPatientById(patientId: string) {
   const patient = await prisma.patient.findUnique({
     where: { id: patientId },

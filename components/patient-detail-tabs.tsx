@@ -35,6 +35,7 @@ import {
   Table2,
   Trash2,
   UploadCloud,
+  UserCircle2,
   X,
 } from "lucide-react";
 
@@ -44,10 +45,7 @@ import {
   linkTextAttachmentAsClinicalHistory,
   updateLinkedTextClinicalHistory,
 } from "@/lib/actions/clinical.actions";
-import {
-  retryPaymentHistorySheetUpload,
-  setActivePaymentHistorySheet,
-} from "@/lib/actions/payment-history.actions";
+import { retryPaymentHistorySheetUpload, setActivePaymentHistorySheet } from "@/lib/actions/payment-history.actions";
 import {
   detectPreferredLineEnding,
   isPlainTextAttachment,
@@ -74,7 +72,10 @@ import {
   getTextHistorySearchSummary,
 } from "@/lib/text-history-search";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
+import { getAppointmentNextAnchor, getRecentAttendance } from "@/lib/attendance";
+import type { AttendanceItem } from "@/lib/attendance";
 import { ConfirmDeleteModal } from "@/components/confirm-delete-modal";
+import { PatientAttendanceSummary } from "@/components/patient-attendance-summary";
 import { useGlobalLoading } from "@/components/loading-provider";
 import {
   PendingEditsModal,
@@ -90,6 +91,7 @@ import {
   TreatmentChargeForm,
 } from "@/components/forms/ledger-forms";
 import { PatientForm } from "@/components/forms/patient-form";
+import { setPatientProfilePhoto } from "@/lib/actions/patient.actions";
 
 const historyDeleteButtonClass =
   "border-coral-400/55 bg-coral-900/60 text-coral-400 backdrop-blur-md hover:bg-coral-500 hover:text-white";
@@ -161,6 +163,10 @@ export function PatientDetailTabs({
     ? viewablePhotos.findIndex((photo) => photo.id === selectedPhotoId)
     : -1;
   const missingCount = missingAttachmentIds.length;
+  const recentAttendance = useMemo(
+    () => getRecentAttendance(patient.clinicalEntries, 4),
+    [patient.clinicalEntries]
+  );
 
   const stopMediaLoading = useCallback(() => {
     if (mediaLoadTimeoutRef.current) {
@@ -220,6 +226,22 @@ export function PatientDetailTabs({
       setActiveTab(value);
     },
     [startMediaLoading, stopMediaLoading],
+  );
+
+  const handleViewNext = useCallback(
+    (item: AttendanceItem) => {
+      handleTabChange("clinical");
+
+      window.setTimeout(() => {
+        const target = document.getElementById(getAppointmentNextAnchor(item));
+        if (!target) return;
+
+        const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        target.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "center" });
+        target.focus({ preventScroll: true });
+      }, 80);
+    },
+    [handleTabChange],
   );
 
   const handleLinkTextHistory = useCallback(
@@ -342,15 +364,11 @@ export function PatientDetailTabs({
                   Nueva Cita
                 </Button>
               </div>
-              <div className="rounded-md border border-dashed border-lavender-500/45 px-4 py-8 text-center">
-                <p className="text-sm font-medium text-lavender-100">
-                  Sin asistencias registradas
-                </p>
-                <p className="mt-1 text-sm text-lavender-200/50">
-                  Aquí aparecerán las citas cuando se agregue el módulo de
-                  agenda.
-                </p>
-              </div>
+              <PatientAttendanceSummary
+                nextAppointmentDate={patient.nextAppointmentDate}
+                items={recentAttendance}
+                onViewNext={handleViewNext}
+              />
             </Card>
           </div>
         </Tabs.Content>
@@ -364,6 +382,8 @@ export function PatientDetailTabs({
               <AttachmentTile
                 key={attachment.id}
                 attachment={attachment}
+                patientId={patient.id}
+                profilePhotoId={patient.profilePhotoId}
                 missing={missingAttachmentIdSet.has(attachment.id)}
                 priority={index < 6}
                 onPreviewSettled={handlePreviewSettled}
@@ -732,6 +752,7 @@ function ClinicalEntryCard({
 
       {linkedTextAttachment ? (
         <LinkedTextHistoryBlocks
+          entryId={entry.id}
           history={history}
           disabled={isSaving}
           onSave={saveHistory}
@@ -756,10 +777,12 @@ type HistoryEditingChange = (
 ) => void;
 
 function LinkedTextHistoryBlocks({
+  entryId,
   history,
   disabled,
   onSave,
 }: {
+  entryId: string;
   history: ParsedTextHistory;
   disabled: boolean;
   onSave: SaveLinkedTextHistory;
@@ -982,6 +1005,7 @@ function LinkedTextHistoryBlocks({
             {appointmentRows.map(({ appointment, index }) => (
               <LinkedTextAppointmentBlock
                 key={`${appointment.dateText}-${index}`}
+                entryId={entryId}
                 appointment={appointment}
                 index={index}
                 disabled={disabled}
@@ -998,6 +1022,7 @@ function LinkedTextHistoryBlocks({
             {newAppointment ? (
               <LinkedTextAppointmentBlock
                 key="new-appointment"
+                entryId={entryId}
                 appointment={newAppointment}
                 index={history.appointments.length}
                 disabled={disabled}
@@ -1132,6 +1157,7 @@ function LinkedTextInformationBlock({
 }
 
 function LinkedTextAppointmentBlock({
+  entryId,
   appointment,
   index,
   disabled,
@@ -1144,6 +1170,7 @@ function LinkedTextAppointmentBlock({
   onSaveNext,
   onDeleteNext,
 }: {
+  entryId: string;
   appointment: ParsedTextHistoryAppointment;
   index: number;
   disabled: boolean;
@@ -1255,8 +1282,9 @@ function LinkedTextAppointmentBlock({
   return (
     <>
       <article
+        id={isNew ? undefined : `cita-${entryId}-${index}`}
         className={cn(
-          "grid gap-3 rounded-lg border bg-lavender-950/18 p-3 md:grid-cols-[9.5rem_minmax(0,1fr)]",
+          "grid gap-3 scroll-mt-24 rounded-lg border bg-lavender-950/18 p-3 md:grid-cols-[9.5rem_minmax(0,1fr)]",
           hasNoShow ? "border-coral-400/35" : "border-lavender-500/25",
         )}
       >
@@ -1351,6 +1379,7 @@ function LinkedTextAppointmentBlock({
             <>
               <LinkedTextNextBlock
                 appointmentIndex={index}
+                anchorId={isNew ? undefined : `cita-${entryId}-${index}-next`}
                 next={appointment.next}
                 hasNext={hasNext}
                 disabled={disabled}
@@ -1376,6 +1405,7 @@ function LinkedTextAppointmentBlock({
               <div className={cn(isNextEditing ? "w-full" : "w-fit")}>
                 <LinkedTextNextBlock
                   appointmentIndex={index}
+                  anchorId={isNew ? undefined : `cita-${entryId}-${index}-next`}
                   next={appointment.next}
                   hasNext={hasNext}
                   disabled={disabled}
@@ -1410,6 +1440,7 @@ function LinkedTextAppointmentBlock({
 
 function LinkedTextNextBlock({
   appointmentIndex,
+  anchorId,
   next,
   hasNext,
   disabled,
@@ -1422,6 +1453,7 @@ function LinkedTextNextBlock({
   onNextTextChange,
 }: {
   appointmentIndex: number;
+  anchorId?: string;
   next: string;
   hasNext: boolean;
   disabled: boolean;
@@ -1512,7 +1544,11 @@ function LinkedTextNextBlock({
 
   return (
     <>
-      <div className="w-full rounded-md border border-amber-400/25 bg-amber-950/20 p-3">
+      <div
+        id={anchorId}
+        tabIndex={anchorId ? -1 : undefined}
+        className="w-full scroll-mt-24 rounded-md border border-amber-400/25 bg-amber-950/20 p-3 focus-visible:outline-2 focus-visible:outline-amber-200/70"
+      >
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
           <label
             htmlFor={nextId}
@@ -2057,12 +2093,16 @@ function Tab({
 
 function AttachmentTile({
   attachment,
+  patientId,
+  profilePhotoId,
   missing = false,
   priority = false,
   onPreviewSettled,
   onOpen,
 }: {
   attachment: SerializedAttachment;
+  patientId: string;
+  profilePhotoId: string | null;
   missing?: boolean;
   priority?: boolean;
   onPreviewSettled?: (attachmentId: string) => void;
@@ -2070,7 +2110,9 @@ function AttachmentTile({
 }) {
   const isImage = isPreviewableAttachment(attachment, missing);
   const [isPreviewLoading, setIsPreviewLoading] = useState(isImage);
+  const [isSettingProfile, startSettingProfileTransition] = useTransition();
   const previewSettledRef = useRef(false);
+  const isProfilePhoto = profilePhotoId === attachment.id;
 
   useEffect(() => {
     previewSettledRef.current = false;
@@ -2079,11 +2121,23 @@ function AttachmentTile({
 
   const markPreviewSettled = useCallback(() => {
     if (previewSettledRef.current) return;
-
     previewSettledRef.current = true;
     setIsPreviewLoading(false);
     onPreviewSettled?.(attachment.id);
   }, [attachment.id, onPreviewSettled]);
+
+  const handleSetProfilePhoto = useCallback(async () => {
+    startSettingProfileTransition(async () => {
+      try {
+        await setPatientProfilePhoto({
+          patientId,
+          attachmentId: attachment.id,
+        });
+      } catch {
+        // Ignorar errores
+      }
+    });
+  }, [patientId, attachment.id]);
 
   const preview = (
     <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-lavender-950/45">
@@ -2126,31 +2180,65 @@ function AttachmentTile({
     </div>
   );
   const details = (
-    <div className="space-y-2 p-4">
+    <div className="space-y-2 p-4" onClick={(e) => e.stopPropagation()}>
       {missing ? <Badge tone="coral">Faltante</Badge> : null}
-      <p className="truncate text-sm font-medium text-ink-100">
-        {attachment.originalName}
-      </p>
+      <div className="flex items-center gap-2">
+        {isProfilePhoto ? (
+          <Badge tone="brand">Foto de perfil</Badge>
+        ) : null}
+        <p className="truncate text-sm font-medium text-ink-100">
+          {attachment.originalName}
+        </p>
+      </div>
       <p className="text-xs text-lavender-200/55">
         {attachment.capturedAt
           ? `Capturada ${formatDateOnly(attachment.capturedAt)}`
           : "Sin fecha de captura"}
       </p>
+      <Button
+        type="button"
+        variant={isProfilePhoto ? "secondary" : "ghost"}
+        size="sm"
+        className={cn(
+          isProfilePhoto
+            ? "border-emerald-300/45 bg-emerald-700/60 text-white"
+            : "text-lavender-200 hover:text-white",
+          "h-7 text-xs",
+        )}
+        disabled={isProfilePhoto || isSettingProfile}
+        onClick={handleSetProfilePhoto}
+      >
+        {isSettingProfile ? (
+          <LoaderCircle className="size-3 animate-spin" aria-hidden="true" />
+        ) : isProfilePhoto ? (
+          <CheckCircle2 className="size-3" aria-hidden="true" />
+        ) : (
+          <UserCircle2 className="size-3" aria-hidden="true" />
+        )}
+        {isProfilePhoto ? "Foto de perfil activa" : "Elegir como foto de perfil"}
+      </Button>
     </div>
   );
 
   return (
     <Card className="overflow-hidden p-0">
       {isImage && onOpen ? (
-        <button
-          type="button"
+        <div
+          role="button"
+          tabIndex={0}
           className="group block w-full text-left outline-none transition focus-visible:ring-2 focus-visible:ring-lavender-200/65"
           aria-label={`Abrir ${attachment.originalName} en tamaño completo`}
           onClick={onOpen}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              onOpen();
+            }
+          }}
         >
           {preview}
           {details}
-        </button>
+        </div>
       ) : (
         <>
           {preview}

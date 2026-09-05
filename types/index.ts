@@ -42,6 +42,7 @@ export type SerializedPatientDetail = {
   gender: PatientGender | null;
   nextAppointmentDate: string | null;
   notes: string | null;
+  profilePhotoId: string | null;
   attachments: SerializedAttachment[];
   clinicalEntries: Array<{
     id: string;

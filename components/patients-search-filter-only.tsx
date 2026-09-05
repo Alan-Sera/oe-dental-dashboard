@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowUpAZ, ArrowUpZA, BadgeDollarSign, CalendarDays, Search, X } from "lucide-react";
 
 import { PatientCreateModal } from "@/components/patient-create-modal";
+import { PatientAvatar } from "@/components/patient-avatar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -15,12 +16,13 @@ import {
   type PatientGenderFilter,
   type PatientSortOrder
 } from "@/lib/patient-search";
-import { formatDate, initials } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
 
 export type PatientListItem = PatientDirectoryRecord & {
   id: string;
   email: string | null;
   updatedAt: string;
+  photoAttachmentId: string | null;
 };
 
 export function PatientsSearchFilterOnly({ patients }: { patients: PatientListItem[] }) {
@@ -165,11 +167,13 @@ export function PatientsSearchFilterOnly({ patients }: { patients: PatientListIt
               href={`/patients/${patient.id}`}
               className="grid gap-4 border-b border-lavender-600/45 px-4 py-4 transition last:border-0 hover:bg-lavender-800/30 md:grid-cols-[auto_1fr_auto]"
             >
-              <div className="flex size-11 items-center justify-center rounded-md bg-lavender-800/70 text-sm font-semibold text-lavender-100 ring-1 ring-lavender-300/30">
-                {initials(patient.fullName)}
-              </div>
+              <PatientAvatar
+                fullName={patient.fullName}
+                photoAttachmentId={patient.photoAttachmentId}
+                size="md"
+              />
               <div>
-                <p className="font-medium text-white">{patient.fullName}</p>
+                <p className="text-lg font-medium text-white">{patient.fullName}</p>
                 <p className="text-sm text-lavender-200/55">
                   {patient.phone ?? "Sin teléfono"} · {patient.email ?? "Sin correo"}
                 </p>

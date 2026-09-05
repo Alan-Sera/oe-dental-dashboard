@@ -8,6 +8,7 @@ import { useForm } from "react-hook-form";
 import { createPatient, updatePatient } from "@/lib/actions/patient.actions";
 import { patientSchema, type PatientInput } from "@/lib/validation";
 import { useGlobalLoading } from "@/components/loading-provider";
+import { PatientNextAppointment } from "@/components/patient-attendance-summary";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -78,9 +79,12 @@ export function PatientForm({
           <option value="MASCULINO">Masculino</option>
         </Select>
       </Field>
-      <Field label="Próxima cita" error={form.formState.errors.nextAppointmentDate?.message}>
-        <Input type="date" {...form.register("nextAppointmentDate")} />
-      </Field>
+      <div className="flex flex-col gap-2 text-sm text-lavender-100/85">
+        <span>Próxima cita</span>
+        <PatientNextAppointment value={defaultValues?.nextAppointmentDate ?? null} compact />
+        <input type="hidden" {...form.register("nextAppointmentDate")} />
+        <p className="text-xs text-lavender-200/55">Se gestionará desde el módulo de agenda.</p>
+      </div>
       <Field label="Notas" error={form.formState.errors.notes?.message} className="md:col-span-2">
         <Textarea {...form.register("notes")} />
       </Field>
