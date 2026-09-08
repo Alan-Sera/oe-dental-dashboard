@@ -12,6 +12,7 @@
 
 html {
   background: #070916;
+  font-size: 112.5%;
 }
 
 body {
@@ -51,7 +52,7 @@ select {
   }
 
   .page-shell {
-    @apply mx-auto flex w-full max-w-[1480px] flex-col gap-6 px-4 py-4 sm:px-6 lg:px-8;
+    @apply mx-auto flex w-full max-w-[1480px] flex-col gap-3 px-4 py-4 sm:pl-6 lg:pl-8;
   }
 
   .section-title {
@@ -116,6 +117,7 @@ select {
 }
 
 @keyframes muelita-loader-float {
+
   0%,
   100% {
     transform: translateY(0) rotate(-1deg) scale(1);
@@ -127,6 +129,7 @@ select {
 }
 
 @keyframes muelita-loader-soft-pulse {
+
   0%,
   100% {
     opacity: 0.86;

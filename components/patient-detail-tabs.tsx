@@ -21,6 +21,7 @@ import {
   ChevronLeft,
   ChevronRight,
   CheckCircle2,
+  CloudOff,
   ExternalLink,
   FileText,
   FolderOpen,
@@ -72,6 +73,9 @@ import {
   getTextHistorySearchSummary,
 } from "@/lib/text-history-search";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
+import { toDateKey } from "@/lib/date-utils";
+import { appointmentStatusLabels } from "@/components/schedule/constants";
+import type { AgendaAppointment } from "@/components/schedule/types";
 import { getAppointmentNextAnchor, getRecentAttendance } from "@/lib/attendance";
 import type { AttendanceItem } from "@/lib/attendance";
 import { ConfirmDeleteModal } from "@/components/confirm-delete-modal";
@@ -103,16 +107,54 @@ const historyCancelButtonClass =
   "bg-lavender-700/40 text-lavender-50 hover:bg-lavender-700/55 hover:text-white";
 const filterLinkedTextHistorySearchResults = true;
 
+function formatAppointmentTime(value: string) {
+  return new Intl.DateTimeFormat("es", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(new Date(value));
+}
+
+function appointmentStatusToneClass(status: string) {
+  switch (status) {
+    case "CONFIRMED":
+      return "border-brand-400/40 bg-brand-900/60 text-brand-200";
+    case "COMPLETED":
+      return "border-emerald-400/40 bg-emerald-950/50 text-emerald-300";
+    case "CANCELLED":
+      return "border-coral-500/40 bg-coral-950/50 text-coral-300";
+    case "NO_SHOW":
+      return "border-amber-500/40 bg-amber-950/50 text-amber-300";
+    default:
+      return "border-lavender-500/40 bg-lavender-900/50 text-lavender-100";
+  }
+}
+
 export function PatientDetailTabs({
   patient,
   missingAttachmentIds = [],
+  upcomingAppointments = []
 }: {
   patient: SerializedPatientDetail;
   missingAttachmentIds?: string[];
+  upcomingAppointments?: AgendaAppointment[];
 }) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("summary");
   const [selectedPhotoId, setSelectedPhotoId] = useState<string | null>(null);
+
+  function handleNewAppointmentForPatient() {
+    const date = upcomingAppointments[0]
+      ? toDateKey(new Date(upcomingAppointments[0].startTime))
+      : toDateKey(new Date());
+    router.push(`/agenda?view=day&date=${date}&paciente=${patient.id}`);
+  }
+
+  function openAppointmentOnAgenda(appointment: AgendaAppointment) {
+    router.push(`/agenda?view=day&date=${toDateKey(new Date(appointment.startTime))}&cita=${appointment.id}`);
+  }
   const [pendingInitialImageIds, setPendingInitialImageIds] = useState<
     Set<string>
   >(() => new Set());
@@ -297,7 +339,7 @@ export function PatientDetailTabs({
       <Tabs.Root
         value={activeTab}
         onValueChange={handleTabChange}
-        className="space-y-5"
+        className="space-y-2.5"
       >
         <Tabs.List className="flex gap-2 overflow-x-auto rounded-lg border border-lavender-600/55 bg-lavender-900/35 p-1">
           <Tab value="summary" icon={FileText} label="Resumen" />
@@ -358,7 +400,7 @@ export function PatientDetailTabs({
                   variant="secondary"
                   size="sm"
                   className="w-full"
-                  disabled
+                  onClick={handleNewAppointmentForPatient}
                 >
                   <Plus className="size-4" aria-hidden="true" />
                   Nueva Cita
@@ -369,6 +411,47 @@ export function PatientDetailTabs({
                 items={recentAttendance}
                 onViewNext={handleViewNext}
               />
+              {upcomingAppointments.length > 0 ? (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-lavender-200/45">
+                    Próximas citas programadas
+                  </p>
+                  <ul className="space-y-2">
+                    {upcomingAppointments.map((appointment) => (
+                      <li key={appointment.id}>
+                        <button
+                          type="button"
+                          onClick={() => openAppointmentOnAgenda(appointment)}
+                          className="flex w-full items-center justify-between gap-3 rounded-md border border-lavender-500/25 bg-lavender-950/18 px-3 py-2 text-left transition hover:border-brand-400/50 hover:bg-lavender-800/30"
+                        >
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-white">
+                              {appointment.title}
+                              {!appointment.googleEventId ? (
+                                <CloudOff
+                                  className="ml-1.5 inline size-3.5 text-amber-300/90"
+                                  aria-label="Sin sincronizar con Google Calendar"
+                                />
+                              ) : null}
+                            </p>
+                            <p className="truncate text-xs text-lavender-200/60">
+                              {formatAppointmentTime(appointment.startTime)}
+                            </p>
+                          </div>
+                          <span
+                            className={cn(
+                              "shrink-0 rounded-full border px-2.5 py-1 text-xs font-medium",
+                              appointmentStatusToneClass(appointment.status)
+                            )}
+                          >
+                            {appointmentStatusLabels[appointment.status] ?? appointment.status}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
             </Card>
           </div>
         </Tabs.Content>
@@ -627,9 +710,9 @@ function ClinicalEntryCard({
   const linkedTextAttachment = getLinkedTextAttachment(entry);
   const linkedTextPath = linkedTextAttachment
     ? splitAttachmentSourcePath(
-        linkedTextAttachment.sourceRelativePath,
-        linkedTextAttachment.originalName,
-      )
+      linkedTextAttachment.sourceRelativePath,
+      linkedTextAttachment.originalName,
+    )
     : null;
   const parsedHistory = useMemo(
     () => parseLinkedTextHistory(entry.notes),

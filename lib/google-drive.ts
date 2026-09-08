@@ -3,6 +3,7 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:
 import { OAuth2Client } from "google-auth-library";
 
 const DRIVE_FILE_SCOPE = "https://www.googleapis.com/auth/drive.file";
+export const CALENDAR_EVENTS_SCOPE = "https://www.googleapis.com/auth/calendar.events";
 const DRIVE_UPLOAD_ENDPOINT = "https://www.googleapis.com/upload/drive/v3/files";
 const GOOGLE_SHEETS_MIME_TYPE = "application/vnd.google-apps.spreadsheet";
 const XLSX_MIME_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
@@ -45,6 +46,8 @@ export function getGoogleOAuthConfig(): GoogleOAuthConfig | null {
   };
 }
 
+export const GOOGLE_OAUTH_SCOPES = [DRIVE_FILE_SCOPE, CALENDAR_EVENTS_SCOPE];
+
 export function createGoogleAuthorizationUrl(config: GoogleOAuthConfig, state: string) {
   const client = new OAuth2Client(config.clientId, config.clientSecret, config.redirectUri);
 
@@ -52,7 +55,7 @@ export function createGoogleAuthorizationUrl(config: GoogleOAuthConfig, state: s
     client.generateAuthUrl({
       access_type: "offline",
       prompt: "consent",
-      scope: DRIVE_FILE_SCOPE,
+      scope: GOOGLE_OAUTH_SCOPES,
       include_granted_scopes: true,
       state
     })

@@ -1,4 +1,5 @@
 import { BackupControls } from "@/components/backup-controls";
+import { GoogleConnectionCard } from "@/components/google-connection-card";
 import { LinkedFilesControls } from "@/components/linked-files-controls";
 import { SettingsForm } from "@/components/forms/settings-form";
 import { Card } from "@/components/ui/card";
@@ -27,6 +28,11 @@ export default async function SettingsPage() {
         <h1 className="text-2xl font-semibold text-white">Ajustes</h1>
         <p className="muted">Configuración local</p>
       </div>
+
+      <Card>
+        <h2 className="section-title mb-4">Google Calendar</h2>
+        <GoogleConnectionCard returnTo="/settings" />
+      </Card>
 
       <Card>
         <h2 className="section-title mb-4">Clínica</h2>

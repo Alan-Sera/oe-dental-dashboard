@@ -2,6 +2,7 @@ import "server-only";
 
 import { prisma } from "@/lib/prisma";
 import {
+  CALENDAR_EVENTS_SCOPE,
   decryptToken,
   encryptToken,
   getGoogleOAuthConfig,
@@ -11,11 +12,26 @@ import {
 
 const REFRESH_TOKEN_SETTING = "google.refreshTokenEncrypted";
 
-export async function getGoogleConnectionStatus() {
+export type GoogleConnectionStatus = {
+  configured: boolean;
+  connected: boolean;
+  needsReconnect: boolean;
+  /** true cuando el token concedido incluye el scope calendar.events */
+  calendarScope: boolean;
+};
+
+const DISCONNECTED_STATUS: GoogleConnectionStatus = {
+  configured: true,
+  connected: false,
+  needsReconnect: false,
+  calendarScope: false
+};
+
+export async function getGoogleConnectionStatus(): Promise<GoogleConnectionStatus> {
   const config = getGoogleOAuthConfig();
 
   if (!config) {
-    return { configured: false, connected: false, needsReconnect: false };
+    return { configured: false, connected: false, needsReconnect: false, calendarScope: false };
   }
 
   const storedToken = await prisma.setting.findUnique({
@@ -23,24 +39,42 @@ export async function getGoogleConnectionStatus() {
   });
 
   if (!storedToken?.value) {
-    return { configured: true, connected: false, needsReconnect: false };
+    return DISCONNECTED_STATUS;
   }
 
   let refreshToken: string;
   try {
     refreshToken = decryptToken(storedToken.value, config.tokenEncryptionKey);
   } catch {
-    return { configured: true, connected: false, needsReconnect: true };
+    return { ...DISCONNECTED_STATUS, needsReconnect: true };
   }
 
   try {
-    await refreshGoogleAccessToken(config, refreshToken);
-    return { configured: true, connected: true, needsReconnect: false };
+    const accessToken = await refreshGoogleAccessToken(config, refreshToken);
+    const calendarScope = await hasGoogleCalendarScope(accessToken);
+    return { configured: true, connected: true, needsReconnect: false, calendarScope };
   } catch (error) {
     if (isGoogleReconnectRequiredError(error)) {
-      return { configured: true, connected: false, needsReconnect: true };
+      return { ...DISCONNECTED_STATUS, needsReconnect: true };
     }
-    return { configured: true, connected: true, needsReconnect: false };
+    return { configured: true, connected: true, needsReconnect: false, calendarScope: false };
+  }
+}
+
+async function hasGoogleCalendarScope(accessToken: string) {
+  try {
+    const response = await fetch(
+      `https://oauth2.googleapis.com/tokeninfo?access_token=${encodeURIComponent(accessToken)}`,
+      { cache: "no-store" }
+    );
+    if (!response.ok) return false;
+    const data = (await response.json()) as { scope?: string };
+    return (data.scope ?? "")
+      .split(" ")
+      .filter(Boolean)
+      .includes(CALENDAR_EVENTS_SCOPE);
+  } catch {
+    return false;
   }
 }
 

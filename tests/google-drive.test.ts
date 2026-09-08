@@ -54,7 +54,10 @@ describe("google drive helpers", () => {
       expect.objectContaining({
         access_type: "offline",
         prompt: "consent",
-        scope: "https://www.googleapis.com/auth/drive.file",
+        scope: [
+          "https://www.googleapis.com/auth/drive.file",
+          "https://www.googleapis.com/auth/calendar.events"
+        ],
         include_granted_scopes: true,
         state: "state-token"
       })

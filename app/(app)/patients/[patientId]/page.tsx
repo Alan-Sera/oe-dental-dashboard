@@ -7,7 +7,9 @@ import { PatientAvatar } from "@/components/patient-avatar";
 import { Button } from "@/components/ui/button";
 import { getPatientById } from "@/lib/actions/patient.actions";
 import { getPatientMissingAttachmentIds } from "@/lib/actions/settings.actions";
+import { getUpcomingPatientAppointments } from "@/lib/actions/appointments.actions";
 import type { SerializedPatientDetail } from "@/types";
+import type { AgendaAppointment } from "@/components/schedule/types";
 
 export const dynamic = "force-dynamic";
 
@@ -17,9 +19,10 @@ export default async function PatientDetailPage({
   params: Promise<{ patientId: string }>;
 }) {
   const { patientId } = await params;
-  const [patient, missingAttachmentIds] = await Promise.all([
+  const [patient, missingAttachmentIds, upcomingAppointmentsRaw] = await Promise.all([
     getPatientById(patientId),
-    getPatientMissingAttachmentIds(patientId)
+    getPatientMissingAttachmentIds(patientId),
+    getUpcomingPatientAppointments(patientId)
   ]);
 
   if (!patient) {
@@ -27,6 +30,20 @@ export default async function PatientDetailPage({
   }
 
   const serializedPatient = JSON.parse(JSON.stringify(patient)) as SerializedPatientDetail;
+
+  const upcomingAppointments: AgendaAppointment[] = upcomingAppointmentsRaw.map((appointment) => ({
+    id: appointment.id,
+    patientId: appointment.patientId,
+    title: appointment.title,
+    description: appointment.description,
+    startTime: appointment.startTime.toISOString(),
+    endTime: appointment.endTime.toISOString(),
+    status: appointment.status,
+    googleEventId: appointment.googleEventId,
+    patientName: appointment.patient.fullName,
+    patientPhone: appointment.patient.phone,
+    patientEmail: appointment.patient.email
+  }));
 
   return (
     <main className="page-shell">
@@ -52,7 +69,11 @@ export default async function PatientDetailPage({
         </div>
       </div>
 
-      <PatientDetailTabs patient={serializedPatient} missingAttachmentIds={missingAttachmentIds} />
+      <PatientDetailTabs
+        patient={serializedPatient}
+        missingAttachmentIds={missingAttachmentIds}
+        upcomingAppointments={upcomingAppointments}
+      />
     </main>
   );
 }

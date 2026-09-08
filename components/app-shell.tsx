@@ -17,7 +17,7 @@ export function AppShell({
 }) {
   return (
     <div className="min-h-screen bg-ink-950 text-ink-100">
-      <aside className="fixed inset-y-0 left-0 hidden w-72 border-r border-lavender-600/60 bg-lavender-900/38 p-5 lg:block">
+      <aside className="fixed inset-y-0 left-0 hidden w-64 border-r border-lavender-600/60 bg-lavender-900/38 p-2 lg:block">
         <div className="flex h-full flex-col">
           <Link href="/dashboard" className="flex items-center gap-3">
             <BrandMark size="md" priority />
@@ -48,7 +48,7 @@ export function AppShell({
         </div>
       </aside>
 
-      <div className="lg:pl-72">
+      <div className="lg:pl-60">
         <LoadingProvider mode="content">
           <div className="fixed left-4 top-4 z-30 lg:hidden">
             <MobileNavDrawer

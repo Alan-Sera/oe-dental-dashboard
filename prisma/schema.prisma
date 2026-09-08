@@ -52,6 +52,14 @@ enum PaymentHistoryUploadStatus {
   FAILED
 }
 
+enum AppointmentStatus {
+  SCHEDULED
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
 model Setting {
   key       String   @id
   value     String
@@ -84,6 +92,7 @@ model Patient {
   charges              TreatmentCharge[]
   payments             Payment[]
   paymentHistorySheets PaymentHistorySheet[]
+  appointments         Appointment[]
 
   @@index([fullName])
 }
@@ -229,4 +238,21 @@ model AuditLog {
   entityId  String?
   metadata  String?
   createdAt DateTime @default(now())
+}
+
+model Appointment {
+  id            String            @id @default(cuid())
+  patientId     String
+  title         String
+  description   String?
+  startTime     DateTime
+  endTime       DateTime
+  status        AppointmentStatus @default(SCHEDULED)
+  googleEventId String?           @unique
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  patient       Patient           @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId, startTime])
+  @@index([startTime])
 }

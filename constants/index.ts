@@ -1,6 +1,7 @@
 import {
   Archive,
   BadgeDollarSign,
+  CalendarDays,
   ClipboardList,
   FolderDown,
   LayoutDashboard,
@@ -10,6 +11,7 @@ import {
 
 export const navigationItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/agenda", label: "Agenda", icon: CalendarDays },
   { href: "/patients", label: "Pacientes", icon: UsersRound },
   { href: "/import", label: "Importar", icon: FolderDown },
   { href: "/settings", label: "Ajustes", icon: Settings }

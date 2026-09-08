@@ -83,6 +83,33 @@ export const settingsSchema = z.object({
     .or(z.literal("")),
 });
 
+export const appointmentStatuses = ["SCHEDULED", "CONFIRMED", "COMPLETED", "CANCELLED", "NO_SHOW"] as const;
+export type AppointmentStatusValue = (typeof appointmentStatuses)[number];
+
+export const appointmentInputSchema = z
+  .object({
+    patientId: z.string().min(1, "Selecciona un paciente"),
+    title: z.string().max(200).optional().or(z.literal("")),
+    startTime: z.string().min(1, "Selecciona la fecha de inicio"),
+    endTime: z.string().min(1, "Selecciona la fecha de fin"),
+    description: z.string().max(2000, "La descripción es demasiado larga").optional().or(z.literal("")),
+    status: z.enum(appointmentStatuses).optional(),
+    adoptGoogleEventId: z.string().optional().nullable(),
+  })
+  .refine((value) => new Date(value.endTime).valueOf() > new Date(value.startTime).valueOf(), {
+    path: ["endTime"],
+    message: "La hora de fin debe ser posterior a la de inicio",
+  });
+
+export const appointmentDeleteSchema = z.object({
+  id: z.string().min(1),
+});
+
+export const appointmentStatusSchema = z.object({
+  id: z.string().min(1),
+  status: z.enum(appointmentStatuses),
+});
+
 export const importCandidateSchema = z.object({
   candidateId: z.string().min(1),
   patientName: z.string().min(1),
@@ -128,3 +155,4 @@ export type LinkedTextClinicalHistoryInput = z.infer<
 export type TreatmentChargeInput = z.infer<typeof treatmentChargeSchema>;
 export type PaymentInput = z.infer<typeof paymentSchema>;
 export type SettingsInput = z.infer<typeof settingsSchema>;
+export type AppointmentInput = z.infer<typeof appointmentInputSchema>;
