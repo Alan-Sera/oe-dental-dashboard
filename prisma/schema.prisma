@@ -248,6 +248,7 @@ model Appointment {
   startTime     DateTime
   endTime       DateTime
   status        AppointmentStatus @default(SCHEDULED)
+  colorId       String?
   googleEventId String?           @unique
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt

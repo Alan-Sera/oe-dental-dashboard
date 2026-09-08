@@ -6,6 +6,7 @@ import { CloudOff } from "lucide-react";
 
 import { formatTime } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
+import { getGoogleCalendarColor } from "@/components/schedule/constants";
 import type { AgendaAppointment } from "@/components/schedule/types";
 
 const statusColors: Record<string, string> = {
@@ -37,13 +38,19 @@ export function AppointmentChip({
   const end = new Date(appointment.endTime);
   const cancelled = appointment.status === "CANCELLED";
 
+  const colorDef = getGoogleCalendarColor(appointment.color);
+  const colorStyle = colorDef
+    ? { borderLeftColor: colorDef.hex, borderLeftWidth: "3px" }
+    : undefined;
+
   return (
     <button
       type="button"
       onClick={onClick}
+      style={colorStyle}
       className={cn(
         "block w-full rounded-md border px-2 py-1 text-left text-xs leading-tight transition",
-        statusColors[appointment.status] ?? statusColors.SCHEDULED,
+        colorDef ? colorDef.chipClass : statusColors[appointment.status] ?? statusColors.SCHEDULED,
         cancelled ? cancelledOpacity : undefined,
         className
       )}

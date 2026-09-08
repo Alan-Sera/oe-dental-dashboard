@@ -6,6 +6,7 @@ export type AgendaAppointment = {
   startTime: string;
   endTime: string;
   status: "SCHEDULED" | "CONFIRMED" | "COMPLETED" | "CANCELLED" | "NO_SHOW";
+  color: string | null;
   googleEventId: string | null;
   patientName: string;
   patientPhone: string | null;

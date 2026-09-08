@@ -39,6 +39,7 @@ export default async function PatientDetailPage({
     startTime: appointment.startTime.toISOString(),
     endTime: appointment.endTime.toISOString(),
     status: appointment.status,
+    color: appointment.colorId,
     googleEventId: appointment.googleEventId,
     patientName: appointment.patient.fullName,
     patientPhone: appointment.patient.phone,

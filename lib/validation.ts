@@ -94,6 +94,7 @@ export const appointmentInputSchema = z
     endTime: z.string().min(1, "Selecciona la fecha de fin"),
     description: z.string().max(2000, "La descripción es demasiado larga").optional().or(z.literal("")),
     status: z.enum(appointmentStatuses).optional(),
+    color: z.string().max(4).optional().or(z.literal("")),
     adoptGoogleEventId: z.string().optional().nullable(),
   })
   .refine((value) => new Date(value.endTime).valueOf() > new Date(value.startTime).valueOf(), {

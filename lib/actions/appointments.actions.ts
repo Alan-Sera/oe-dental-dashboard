@@ -50,6 +50,7 @@ export type AppointmentWithPatient = {
   startTime: Date;
   endTime: Date;
   status: "SCHEDULED" | "CONFIRMED" | "COMPLETED" | "CANCELLED" | "NO_SHOW";
+  colorId: string | null;
   googleEventId: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -78,6 +79,7 @@ export async function createAppointment(input: AppointmentInput): Promise<Appoin
   const startTime = new Date(parsed.startTime);
   const endTime = new Date(parsed.endTime);
   const adoptGoogleEventId = parsed.adoptGoogleEventId || null;
+  const color = clearOrNull(parsed.color);
 
   let appointment: AppointmentWithPatient;
   let synced = true;
@@ -92,6 +94,7 @@ export async function createAppointment(input: AppointmentInput): Promise<Appoin
         startTime,
         endTime,
         status: parsed.status ?? "SCHEDULED",
+        colorId: color,
         googleEventId: adoptGoogleEventId
       },
       include: patientInclude
@@ -104,7 +107,8 @@ export async function createAppointment(input: AppointmentInput): Promise<Appoin
         description,
         startTime,
         endTime,
-        status: parsed.status ?? "SCHEDULED"
+        status: parsed.status ?? "SCHEDULED",
+        colorId: color
       },
       include: patientInclude
     });
@@ -114,6 +118,7 @@ export async function createAppointment(input: AppointmentInput): Promise<Appoin
       description,
       startTime,
       endTime,
+      colorId: color,
       patientEmail: patient.email
     });
 
@@ -154,6 +159,7 @@ export async function updateAppointment(id: string, input: AppointmentInput): Pr
   const description = clearOrNull(parsed.description);
   const startTime = new Date(parsed.startTime);
   const endTime = new Date(parsed.endTime);
+  const color = clearOrNull(parsed.color);
 
   let appointment = await prisma.appointment.update({
     where: { id },
@@ -163,7 +169,8 @@ export async function updateAppointment(id: string, input: AppointmentInput): Pr
       description,
       startTime,
       endTime,
-      status: parsed.status ?? existing.status
+      status: parsed.status ?? existing.status,
+      colorId: color
     },
     include: patientInclude
   });
@@ -176,6 +183,7 @@ export async function updateAppointment(id: string, input: AppointmentInput): Pr
     description,
     startTime,
     endTime,
+    colorId: color,
     attendees: patient.email ? [{ email: patient.email, name: patient.fullName }] : undefined
   };
 
@@ -203,6 +211,7 @@ export async function updateAppointment(id: string, input: AppointmentInput): Pr
       description,
       startTime,
       endTime,
+      colorId: color,
       patientEmail: patient.email
     });
     synced = sync.synced;
@@ -415,6 +424,7 @@ async function runGoogleSync(): Promise<GoogleSyncSummary> {
       description: appointment.description,
       startTime: appointment.startTime,
       endTime: appointment.endTime,
+      colorId: appointment.colorId,
       attendees: appointment.patient.email
         ? [{ email: appointment.patient.email, name: appointment.patient.fullName }]
         : undefined
@@ -451,6 +461,7 @@ async function runGoogleSync(): Promise<GoogleSyncSummary> {
         description: eventInput.description,
         startTime: eventInput.startTime,
         endTime: eventInput.endTime,
+        colorId: eventInput.colorId,
         patientEmail: appointment.patient.email
       });
 
@@ -596,6 +607,7 @@ async function syncCreateToGoogle({
   description,
   startTime,
   endTime,
+  colorId,
   patientEmail
 }: GoogleCalendarEventInput & { patientEmail?: string | null }): Promise<{ synced: boolean; syncError?: string; googleEventId?: string }> {
   try {
@@ -604,6 +616,7 @@ async function syncCreateToGoogle({
       description,
       startTime,
       endTime,
+      colorId,
       attendees: patientEmail ? [{ email: patientEmail }] : undefined
     });
 

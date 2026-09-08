@@ -12,6 +12,7 @@ export type GoogleCalendarEventInput = {
   description?: string | null;
   startTime: Date;
   endTime: Date;
+  colorId?: string | null;
   attendees?: { email: string; name?: string }[];
 };
 
@@ -21,6 +22,7 @@ export type GoogleCalendarEvent = {
   description: string | null;
   start: Date;
   end: Date;
+  colorId: string | null;
 };
 
 const GOOGLE_CALENDAR_NOT_CONNECTED_MESSAGE =
@@ -65,6 +67,7 @@ export async function createGoogleCalendarEvent(input: GoogleCalendarEventInput)
         description: input.description,
         start: { dateTime: input.startTime.toISOString() },
         end: { dateTime: input.endTime.toISOString() },
+        ...(input.colorId ? { colorId: input.colorId } : {}),
         attendees: input.attendees
       }
     });
@@ -96,6 +99,7 @@ export async function updateGoogleCalendarEvent(
         description: input.description,
         start: { dateTime: input.startTime.toISOString() },
         end: { dateTime: input.endTime.toISOString() },
+        ...(input.colorId ? { colorId: input.colorId } : {}),
         attendees: input.attendees
       }
     });
@@ -161,7 +165,8 @@ export async function listGoogleCalendarEvents(start: Date, end: Date): Promise<
         summary: item.summary ?? "",
         description: item.description ?? null,
         start: eventStart,
-        end: eventEnd
+        end: eventEnd,
+        colorId: item.colorId ?? null
       });
     }
 

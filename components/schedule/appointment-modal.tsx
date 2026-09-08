@@ -13,7 +13,7 @@ import {
   toDatetimeLocal
 } from "@/lib/date-utils";
 import { appointmentInputSchema, appointmentStatuses, type AppointmentInput } from "@/lib/validation";
-import { appointmentStatusLabels } from "@/components/schedule/constants";
+import { appointmentStatusLabels, GOOGLE_CALENDAR_COLORS } from "@/components/schedule/constants";
 import { AppointmentStatusBadge } from "@/components/schedule/appointment-status-badge";
 import { CalendarWithPresets } from "@/components/schedule/calendar-with-presets";
 import type { AgendaAppointment, AgendaPatient } from "@/components/schedule/types";
@@ -127,6 +127,7 @@ export function AppointmentModal({
   const dateErrorId = useId();
   const titleId = useId();
   const notesId = useId();
+  const colorGroupId = useId();
   const dialogDescriptionId = useId();
   const timeGroupLabelId = useId();
   const durationGroupLabelId = useId();
@@ -165,6 +166,7 @@ export function AppointmentModal({
       ...composeRange(initial.day, initial.time, initial.duration),
       description: mode === "edit" ? appointment?.description ?? "" : presetDescription ?? "",
       status: mode === "edit" ? appointment?.status ?? "SCHEDULED" : undefined,
+      color: mode === "edit" ? appointment?.color ?? "" : "",
       adoptGoogleEventId: adoptGoogleEventId ?? null
     }
   });
@@ -176,6 +178,7 @@ export function AppointmentModal({
       ...composeRange(initial.day, initial.time, initial.duration),
       description: mode === "edit" ? appointment?.description ?? "" : presetDescription ?? "",
       status: mode === "edit" ? appointment?.status ?? "SCHEDULED" : undefined,
+      color: mode === "edit" ? appointment?.color ?? "" : "",
       adoptGoogleEventId: adoptGoogleEventId ?? null
     });
     setSelectedDay(initial.day);
@@ -192,6 +195,7 @@ export function AppointmentModal({
   }, [selectedDay, startTime, durationMinutes, form]);
 
   const patientId = form.watch("patientId");
+  const colorValue = form.watch("color") ?? "";
   const selectedPatient = useMemo(
     () => patients.find((patient) => patient.id === patientId) ?? null,
     [patients, patientId]
@@ -435,13 +439,59 @@ export function AppointmentModal({
               <FieldLabel htmlFor={notesId}>Descripción / notas</FieldLabel>
               <Textarea
                 id={notesId}
-                rows={3}
+                rows={2}
                 placeholder="Detalles de la cita..."
                 aria-invalid={Boolean(descriptionError)}
                 {...form.register("description")}
                 disabled={isPending}
               />
               <FieldError>{descriptionError}</FieldError>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <span id={colorGroupId} className="text-sm font-medium text-lavender-100">
+                Color del evento
+              </span>
+              <div
+                role="radiogroup"
+                aria-labelledby={colorGroupId}
+                className="flex flex-wrap gap-2"
+              >
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={colorValue === ""}
+                  onClick={() => form.setValue("color", "", { shouldDirty: true })}
+                  disabled={isPending}
+                  className="group relative size-8 rounded-full border-2 border-lavender-500/50 bg-lavender-800/40 transition hover:border-lavender-300/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lavender-200/60"
+                  title="Predeterminado (según estado)"
+                >
+                  <span className="absolute inset-0 flex items-center justify-center text-[10px] text-lavender-200/70">
+                    Auto
+                  </span>
+                  {colorValue === "" ? (
+                    <span className="absolute -inset-0.5 rounded-full ring-2 ring-lavender-300/80" />
+                  ) : null}
+                </button>
+                {GOOGLE_CALENDAR_COLORS.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={colorValue === c.id}
+                    onClick={() => form.setValue("color", c.id, { shouldDirty: true })}
+                    disabled={isPending}
+                    className="group relative size-8 rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lavender-200/60"
+                    style={{ backgroundColor: c.hex }}
+                    title={c.name}
+                  >
+                    {colorValue === c.id ? (
+                      <span className="absolute -inset-0.5 rounded-full ring-2 ring-white" />
+                    ) : null}
+                  </button>
+                ))}
+              </div>
+              <FieldDescription>Selecciona un color para identificar la cita en el calendario.</FieldDescription>
             </div>
 
             {mode === "edit" ? (
@@ -485,5 +535,5 @@ export function AppointmentModal({
 
 type AppointmentData = Pick<
   AgendaAppointment,
-  "id" | "patientId" | "title" | "description" | "startTime" | "endTime" | "status" | "googleEventId"
+  "id" | "patientId" | "title" | "description" | "startTime" | "endTime" | "status" | "color" | "googleEventId"
 > | null;
