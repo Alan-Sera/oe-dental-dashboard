@@ -87,19 +87,40 @@ export async function createAppointment(input: AppointmentInput): Promise<Appoin
   let syncError: string | undefined;
 
   if (adoptGoogleEventId) {
-    appointment = await prisma.appointment.create({
-      data: {
-        patientId: patient.id,
-        title,
-        description,
-        startTime,
-        endTime,
-        status: parsed.status ?? "SCHEDULED",
-        colorId: color,
-        googleEventId: adoptGoogleEventId
-      },
+    const existingByGoogleId = await prisma.appointment.findUnique({
+      where: { googleEventId: adoptGoogleEventId },
       include: patientInclude
     });
+
+    if (existingByGoogleId) {
+      appointment = await prisma.appointment.update({
+        where: { id: existingByGoogleId.id },
+        data: {
+          patientId: patient.id,
+          title,
+          description,
+          startTime,
+          endTime,
+          status: parsed.status ?? existingByGoogleId.status,
+          colorId: color
+        },
+        include: patientInclude
+      });
+    } else {
+      appointment = await prisma.appointment.create({
+        data: {
+          patientId: patient.id,
+          title,
+          description,
+          startTime,
+          endTime,
+          status: parsed.status ?? "SCHEDULED",
+          colorId: color,
+          googleEventId: adoptGoogleEventId
+        },
+        include: patientInclude
+      });
+    }
   } else {
     appointment = await prisma.appointment.create({
       data: {
