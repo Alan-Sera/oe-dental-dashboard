@@ -12,7 +12,7 @@ import {
   fromDatetimeLocal,
   toDatetimeLocal
 } from "@/lib/date-utils";
-import { appointmentInputSchema, appointmentStatuses, type AppointmentInput } from "@/lib/validation";
+import { APPOINTMENT_TITLE_PREFIX, appointmentInputSchema, appointmentStatuses, type AppointmentInput } from "@/lib/validation";
 import { appointmentStatusLabels, GOOGLE_CALENDAR_COLORS } from "@/components/schedule/constants";
 import { AppointmentStatusBadge } from "@/components/schedule/appointment-status-badge";
 import { CalendarWithPresets } from "@/components/schedule/calendar-with-presets";
@@ -150,9 +150,22 @@ export function AppointmentModal({
     const minutes = Math.round(
       (fromDatetimeLocal(endValue).getTime() - fromDatetimeLocal(startValue).getTime()) / 60000
     );
-    return { day, time, duration: minutes > 0 ? minutes : 60 };
+    let title: string;
+    if (mode === "edit" && appointment) {
+      title = appointment.title ?? "";
+    } else if (presetTitle) {
+      title = presetTitle;
+    } else {
+      const presetPatientName = presetPatientId
+        ? (patients.find((patient) => patient.id === presetPatientId)?.fullName ?? "")
+        : "";
+      title = presetPatientName
+        ? `${APPOINTMENT_TITLE_PREFIX}${presetPatientName}`
+        : APPOINTMENT_TITLE_PREFIX;
+    }
+    return { day, time, duration: minutes > 0 ? minutes : 60, title };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, appointment?.id, defaultStartTime, defaultEndTime]);
+  }, [mode, appointment?.id, defaultStartTime, defaultEndTime, presetPatientId, presetTitle]);
 
   const [selectedDay, setSelectedDay] = useState<Date>(() => initial.day);
   const [startTime, setStartTime] = useState(initial.time);
@@ -162,7 +175,7 @@ export function AppointmentModal({
     resolver: zodResolver(appointmentInputSchema),
     defaultValues: {
       patientId: mode === "edit" ? appointment?.patientId ?? "" : presetPatientId ?? "",
-      title: mode === "edit" ? appointment?.title ?? "" : presetTitle ?? "",
+      title: initial.title,
       ...composeRange(initial.day, initial.time, initial.duration),
       description: mode === "edit" ? appointment?.description ?? "" : presetDescription ?? "",
       status: mode === "edit" ? appointment?.status ?? "SCHEDULED" : undefined,
@@ -174,7 +187,7 @@ export function AppointmentModal({
   useEffect(() => {
     form.reset({
       patientId: mode === "edit" ? appointment?.patientId ?? "" : presetPatientId ?? "",
-      title: mode === "edit" ? appointment?.title ?? "" : presetTitle ?? "",
+      title: initial.title,
       ...composeRange(initial.day, initial.time, initial.duration),
       description: mode === "edit" ? appointment?.description ?? "" : presetDescription ?? "",
       status: mode === "edit" ? appointment?.status ?? "SCHEDULED" : undefined,
@@ -317,12 +330,28 @@ export function AppointmentModal({
               <Combobox
                 items={patients}
                 value={selectedPatient}
-                onValueChange={(value) =>
+                onValueChange={(value) => {
                   form.setValue("patientId", value?.id ?? "", {
                     shouldValidate: true,
                     shouldDirty: true
-                  })
-                }
+                  });
+                  if (value) {
+                    const currentTitle = form.getValues("title")?.trim() ?? "";
+                    const previousAutoTitle = selectedPatient
+                      ? `${APPOINTMENT_TITLE_PREFIX}${selectedPatient.fullName}`
+                      : APPOINTMENT_TITLE_PREFIX;
+                    if (
+                      currentTitle === "" ||
+                      currentTitle === APPOINTMENT_TITLE_PREFIX.trim() ||
+                      currentTitle === previousAutoTitle
+                    ) {
+                      form.setValue("title", `${APPOINTMENT_TITLE_PREFIX}${value.fullName}`, {
+                        shouldDirty: true,
+                        shouldValidate: true
+                      });
+                    }
+                  }
+                }}
                 autoHighlight
                 itemToStringLabel={(patient) => patient.fullName}
                 isItemEqualToValue={(a, b) => a?.id === b?.id}

@@ -1,5 +1,15 @@
 import { z } from "zod";
 
+export const APPOINTMENT_TITLE_PREFIX = "Cita con ";
+
+export function normalizeAppointmentTitle(value: string | undefined, patientName: string) {
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed || trimmed === APPOINTMENT_TITLE_PREFIX.trim()) {
+    return `${APPOINTMENT_TITLE_PREFIX}${patientName}`;
+  }
+  return trimmed;
+}
+
 export const setupSchema = z
   .object({
     clinicName: z.string().min(2, "Escribe el nombre de la clínica").max(80),

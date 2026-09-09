@@ -20,6 +20,7 @@ import {
   appointmentDeleteSchema,
   appointmentInputSchema,
   appointmentStatusSchema,
+  normalizeAppointmentTitle,
   type AppointmentInput
 } from "@/lib/validation";
 import type { GoogleSyncSummary, OrphanGoogleEvent } from "@/components/schedule/types";
@@ -74,7 +75,7 @@ export async function createAppointment(input: AppointmentInput): Promise<Appoin
   const patient = await getPatientForAppointment(parsed.patientId);
   if (!patient) throw new Error("Paciente no encontrado");
 
-  const title = normalizeTitle(parsed.title, patient.fullName);
+  const title = normalizeAppointmentTitle(parsed.title, patient.fullName);
   const description = clearOrNull(parsed.description);
   const startTime = new Date(parsed.startTime);
   const endTime = new Date(parsed.endTime);
@@ -155,7 +156,7 @@ export async function updateAppointment(id: string, input: AppointmentInput): Pr
   const patient = await getPatientForAppointment(parsed.patientId);
   if (!patient) throw new Error("Paciente no encontrado");
 
-  const title = normalizeTitle(parsed.title, patient.fullName);
+  const title = normalizeAppointmentTitle(parsed.title, patient.fullName);
   const description = clearOrNull(parsed.description);
   const startTime = new Date(parsed.startTime);
   const endTime = new Date(parsed.endTime);
@@ -590,11 +591,6 @@ async function getPatientForAppointment(patientId: string) {
     where: { id: patientId },
     select: { id: true, fullName: true, email: true, phone: true }
   });
-}
-
-function normalizeTitle(value: string | undefined, patientName: string) {
-  const trimmed = value?.trim();
-  return trimmed ? trimmed : `Cita con ${patientName}`;
 }
 
 function clearOrNull(value: string | undefined) {
