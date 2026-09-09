@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Dialog } from "@base-ui/react/dialog";
 
@@ -20,6 +20,7 @@ import type {
   GoogleSyncSummary,
   OrphanGoogleEvent
 } from "@/components/schedule/types";
+import { toastManager } from "@/components/toast-providers";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -96,6 +97,42 @@ export function AgendaView({
       (orphan) => !localEventIds.has(orphan.eventId)
     );
   }, [initialOrphans, clientOrphans, localEventIds]);
+
+  const toastedOrphansRef = useRef(new Set<string>());
+
+  useEffect(() => {
+    for (const orphan of orphans) {
+      if (toastedOrphansRef.current.has(orphan.eventId)) continue;
+      toastedOrphansRef.current.add(orphan.eventId);
+
+      const toastId = `orphan-${orphan.eventId}`;
+      toastManager.add({
+        id: toastId,
+        title: orphan.title || "Evento sin asignar",
+        description: formatEventRange(orphan.startTime, orphan.endTime),
+        type: "info",
+        data: { orphan },
+        actionProps: {
+          children: "Asignar",
+          onClick: () => {
+            setModal({
+              mode: "create",
+              startTime: toDatetimeLocal(new Date(orphan.startTime)),
+              endTime: toDatetimeLocal(new Date(orphan.endTime)),
+              adoptGoogleEventId: orphan.eventId,
+              title: orphan.title || "",
+              description: orphan.description ?? ""
+            });
+            toastManager.close(toastId);
+          }
+        },
+        onClose: () => {
+          toastedOrphansRef.current.delete(orphan.eventId);
+        }
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orphans]);
 
   useEffect(() => {
     if (focusAppointmentId) {
@@ -186,20 +223,10 @@ export function AgendaView({
     });
   }
 
-  function handleAssignOrphan(orphan: OrphanGoogleEvent) {
-    setModal({
-      mode: "create",
-      startTime: toDatetimeLocal(new Date(orphan.startTime)),
-      endTime: toDatetimeLocal(new Date(orphan.endTime)),
-      adoptGoogleEventId: orphan.eventId,
-      title: orphan.title || "",
-      description: orphan.description ?? ""
-    });
-  }
-
   function handleModalChanged() {
     if (modal?.mode === "create" && modal.adoptGoogleEventId) {
       setClientOrphans((current) => current.filter((item) => item.eventId !== modal.adoptGoogleEventId));
+      toastManager.close(`orphan-${modal.adoptGoogleEventId}`);
     }
     router.refresh();
   }
@@ -234,34 +261,6 @@ export function AgendaView({
       ) : (
         <DayView dateKey={dateKey} appointments={appointments} onCreateAt={handleCreateAt} onEdit={handleEdit} />
       )}
-
-      {orphans.length > 0 ? (
-        <section className="panel p-4">
-          <h2 className="section-title mb-1">Eventos de Google sin vincular ({orphans.length})</h2>
-          <p className="muted mb-3">
-            Estos eventos existen en Google Calendar pero no tienen una cita local. Asígnalos a un paciente para
-            vincularlos sin crear duplicados.
-          </p>
-          <ul className="space-y-2">
-            {orphans.map((orphan) => (
-              <li
-                key={orphan.eventId}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-lavender-500/25 bg-lavender-950/18 px-3 py-2"
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-white">{orphan.title}</p>
-                  <p className="truncate text-xs text-lavender-200/60">
-                    {formatEventRange(orphan.startTime, orphan.endTime)}
-                  </p>
-                </div>
-                <Button type="button" size="sm" onClick={() => handleAssignOrphan(orphan)}>
-                  Asignar
-                </Button>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
 
       {modal ? (
         <AppointmentModal
