@@ -74,7 +74,7 @@ export function CalendarHeader({
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        {onSyncAll ? (
+        {/* {onSyncAll ? (
           <button
             type="button"
             onClick={onSyncAll}
@@ -86,6 +86,7 @@ export function CalendarHeader({
             <span className="whitespace-nowrap">{isSyncing ? "Sincronizando..." : "Sincronizar"}</span>
           </button>
         ) : null}
+        */}
         {syncStatus ? <GoogleSyncBadge status={syncStatus} /> : null}
         <div className="flex rounded-md border border-lavender-500/50 bg-lavender-900/40 p-0.5" role="tablist">
           {views.map((item) => (
@@ -109,7 +110,8 @@ export function CalendarHeader({
         <DialogTrigger
           handle={dialogHandle}
           onClick={onNewAppointment}
-          className={cn(buttonVariants())}
+          // className={cn(buttonVariants())}
+          className="h-8 px-3 text-xs min-w-36 border-emerald-300/45 bg-emerald-700/70 text-white shadow-sm shadow-emerald-950/30 hover:border-emerald-200/70 hover:bg-emerald-600"
         >
           <Plus className="size-4" aria-hidden="true" />
           Nueva cita

@@ -310,9 +310,8 @@ export function AppointmentModal({
         ) : null}
 
         {isAdopting ? (
-          <div className="mb-4 rounded-md border border-brand-400/40 bg-brand-900/60 px-3 py-2 text-sm text-brand-200">
-            Esta cita ya existe en Google Calendar. Al guardar se vinculará al paciente sin crear un evento
-            duplicado.
+          <div className="mb-4 rounded-md border border-amber-500/40 bg-amber-950/50 px-3 py-2 text-sm text-amber-300">
+            Esta cita ya existe en Google Calendar. Seleciona el paciente para crear un evento sin duplicarlo.
           </div>
         ) : null}
 
