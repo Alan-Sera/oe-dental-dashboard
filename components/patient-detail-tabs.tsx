@@ -366,7 +366,7 @@ export function PatientDetailTabs({
           <Tab value="summary" icon={FileText} label="Resumen" />
           <Tab value="media" icon={ImageIcon} label="Fotos" />
           <Tab value="clinical" icon={NotebookPen} label="Historia" />
-          <Tab value="ledger" icon={BadgeDollarSign} label="Cuenta" />
+          {/* <Tab value="ledger" icon={BadgeDollarSign} label="Cuenta" /> */}
           <Tab value="payment-history" icon={Table2} label="Historial pagos" />
           <Tab value="files" icon={FolderOpen} label="Archivos" />
         </Tabs.List>
@@ -407,7 +407,7 @@ export function PatientDetailTabs({
                   type="button"
                   variant="secondary"
                   size="sm"
-                  className="w-full"
+                  className="min-w-full border-emerald-300/45 bg-emerald-700/70 px-5 text-white shadow-sm shadow-emerald-950/30 hover:border-emerald-200/70 hover:bg-emerald-600"
                   onClick={handleNewAppointmentForPatient}
                 >
                   <Plus className="size-4" aria-hidden="true" />
@@ -576,7 +576,7 @@ export function PatientDetailTabs({
             )}
           </Card>
 
-          <Card className="space-y-4">
+          {/* <Card className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="section-title">Historiales importados</h2>
               <Badge tone="neutral">
@@ -598,7 +598,7 @@ export function PatientDetailTabs({
             ) : (
               <EmptyState text="Aún no hay archivos .xlsx de historial de pagos para este paciente" />
             )}
-          </Card>
+          </Card> */}
         </Tabs.Content>
 
         <Tabs.Content value="files" className="space-y-3">

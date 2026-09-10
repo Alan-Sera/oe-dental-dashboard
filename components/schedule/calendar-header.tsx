@@ -110,8 +110,10 @@ export function CalendarHeader({
         <DialogTrigger
           handle={dialogHandle}
           onClick={onNewAppointment}
-          // className={cn(buttonVariants())}
-          className="h-8 px-3 text-xs min-w-36 border-emerald-300/45 bg-emerald-700/70 text-white shadow-sm shadow-emerald-950/30 hover:border-emerald-200/70 hover:bg-emerald-600"
+          className={cn(
+            buttonVariants({ variant: "secondary", size: "sm" }),
+            "min-w-36 border-emerald-300/45 bg-emerald-700/70 px-5 text-white shadow-sm shadow-emerald-950/30 hover:border-emerald-200/70 hover:bg-emerald-600"
+          )}
         >
           <Plus className="size-4" aria-hidden="true" />
           Nueva cita
