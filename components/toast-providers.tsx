@@ -1,6 +1,17 @@
 "use client";
 
-import { ToastProvider, ToastPortal, ToastViewport, ToastRoot, ToastContent, ToastTitle, ToastDescription, ToastAction, ToastClose, ToastPrimitive } from "@/components/ui/toast";
+import {
+  ToastAction,
+  ToastClose,
+  ToastContent,
+  ToastDescription,
+  ToastPortal,
+  ToastPrimitive,
+  ToastProvider,
+  ToastRoot,
+  ToastTitle,
+  ToastViewport,
+} from "@/components/ui/toast";
 
 export const toastManager = ToastPrimitive.createToastManager();
 
@@ -11,18 +22,20 @@ function ToastList() {
       <ToastContent>
         <div className="min-w-0 flex-1">
           <ToastTitle>{toast.title}</ToastTitle>
-          {toast.description ? <ToastDescription>{toast.description}</ToastDescription> : null}
+          {toast.description ? (
+            <ToastDescription>{toast.description}</ToastDescription>
+          ) : null}
           {toast.actionProps ? <ToastAction {...toast.actionProps} /> : null}
         </div>
+        <ToastClose />
       </ToastContent>
-      <ToastClose />
     </ToastRoot>
   ));
 }
 
 export function ToastProviders({ children }: { children: React.ReactNode }) {
   return (
-    <ToastProvider toastManager={toastManager} timeout={0}>
+    <ToastProvider toastManager={toastManager} timeout={0} limit={3}>
       {children}
       <ToastPortal>
         <ToastViewport>
