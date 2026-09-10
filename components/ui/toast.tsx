@@ -99,12 +99,12 @@ function ToastClose({
     <ToastPrimitive.Close
       aria-label="Cerrar"
       className={cn(
-        "absolute right-2 top-2 inline-flex size-7 items-center justify-center rounded-md text-lavender-300/60 transition hover:bg-lavender-800/50 hover:text-lavender-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lavender-200/60",
+        "absolute top-2 right-2 size-6 border-coral-400/55 bg-coral-900/60 text-coral-400 backdrop-blur-md hover:bg-coral-500 hover:text-white",
         className,
       )}
       {...props}
     >
-      <X className="size-3.5" aria-hidden="true" />
+      <X className="size-6" aria-hidden="true" />
     </ToastPrimitive.Close>
   );
 }

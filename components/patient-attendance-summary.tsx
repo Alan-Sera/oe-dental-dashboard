@@ -65,16 +65,18 @@ export function PatientAttendanceSummary({
   nextAppointmentDate,
   items,
   onViewNext,
+  showNextAppointment = true,
   className
 }: {
   nextAppointmentDate: string | null | undefined;
   items: AttendanceItem[];
   onViewNext?: (item: AttendanceItem) => void;
+  showNextAppointment?: boolean;
   className?: string;
 }) {
   return (
     <section aria-label="Historial de asistencias" className={cn("space-y-4", className)}>
-      <PatientNextAppointment value={nextAppointmentDate} />
+      {showNextAppointment && <PatientNextAppointment value={nextAppointmentDate} />}
 
       <div className="space-y-2">
         <p className="text-xs font-semibold uppercase tracking-wide text-lavender-200/45">

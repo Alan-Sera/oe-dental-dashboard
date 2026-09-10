@@ -406,52 +406,55 @@ export function PatientDetailTabs({
                   Nueva Cita
                 </Button>
               </div>
-              <PatientAttendanceSummary
-                nextAppointmentDate={patient.nextAppointmentDate}
-                items={recentAttendance}
-                onViewNext={handleViewNext}
-              />
               {upcomingAppointments.length > 0 ? (
                 <div className="space-y-2">
                   <p className="text-xs font-semibold uppercase tracking-wide text-lavender-200/45">
                     Próximas citas programadas
                   </p>
                   <ul className="space-y-2">
-                    {upcomingAppointments.map((appointment) => (
-                      <li key={appointment.id}>
-                        <button
-                          type="button"
-                          onClick={() => openAppointmentOnAgenda(appointment)}
-                          className="flex w-full items-center justify-between gap-3 rounded-md border border-lavender-500/25 bg-lavender-950/18 px-3 py-2 text-left transition hover:border-brand-400/50 hover:bg-lavender-800/30"
-                        >
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-semibold text-white">
-                              {appointment.title}
-                              {!appointment.googleEventId ? (
-                                <CloudOff
-                                  className="ml-1.5 inline size-3.5 text-amber-300/90"
-                                  aria-label="Sin sincronizar con Google Calendar"
-                                />
-                              ) : null}
-                            </p>
-                            <p className="truncate text-xs text-lavender-200/60">
-                              {formatAppointmentTime(appointment.startTime)}
-                            </p>
-                          </div>
-                          <span
-                            className={cn(
-                              "shrink-0 rounded-full border px-2.5 py-1 text-xs font-medium",
-                              appointmentStatusToneClass(appointment.status)
-                            )}
+                    {upcomingAppointments
+                      .slice(0, 2)
+                      .map((appointment) => (
+                        <li key={appointment.id}>
+                          <button
+                            type="button"
+                            onClick={() => openAppointmentOnAgenda(appointment)}
+                            className="flex w-full items-center justify-between gap-3 rounded-md border border-lavender-500/25 bg-lavender-950/18 px-3 py-2 text-left transition hover:border-brand-400/50 hover:bg-lavender-800/30"
                           >
-                            {appointmentStatusLabels[appointment.status] ?? appointment.status}
-                          </span>
-                        </button>
-                      </li>
-                    ))}
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold text-white">
+                                {appointment.title}
+                                {!appointment.googleEventId ? (
+                                  <CloudOff
+                                    className="ml-1.5 inline size-3.5 text-amber-300/90"
+                                    aria-label="Sin sincronizar con Google Calendar"
+                                  />
+                                ) : null}
+                              </p>
+                              <p className="truncate text-xs text-lavender-200/60">
+                                {formatAppointmentTime(appointment.startTime)}
+                              </p>
+                            </div>
+                            <span
+                              className={cn(
+                                "shrink-0 rounded-full border px-2.5 py-1 text-xs font-medium",
+                                appointmentStatusToneClass(appointment.status)
+                              )}
+                            >
+                              {appointmentStatusLabels[appointment.status] ?? appointment.status}
+                            </span>
+                          </button>
+                        </li>
+                      ))}
                   </ul>
                 </div>
               ) : null}
+              <PatientAttendanceSummary
+                nextAppointmentDate={patient.nextAppointmentDate}
+                items={recentAttendance}
+                onViewNext={handleViewNext}
+                showNextAppointment={false}
+              />
             </Card>
           </div>
         </Tabs.Content>
