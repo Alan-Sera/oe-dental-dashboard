@@ -13,6 +13,7 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { missingFilesToastManager } from "@/components/toast-providers";
 import * as Tabs from "@radix-ui/react-tabs";
 import {
   AlertTriangle,
@@ -170,6 +171,7 @@ export function PatientDetailTabs({
     null,
   );
   const mediaOverlayVisibleRef = useRef(false);
+  const toastedMissingRef = useRef(new Set<string>());
   const photos = useMemo(
     () =>
       patient.attachments.filter((attachment) =>
@@ -204,11 +206,30 @@ export function PatientDetailTabs({
   const selectedPhotoIndex = selectedPhotoId
     ? viewablePhotos.findIndex((photo) => photo.id === selectedPhotoId)
     : -1;
-  const missingCount = missingAttachmentIds.length;
   const recentAttendance = useMemo(
     () => getRecentAttendance(patient.clinicalEntries, 4),
     [patient.clinicalEntries]
   );
+
+  useEffect(() => {
+    if (missingAttachmentIds.length > 0) {
+      const key = `${patient.id}:${missingAttachmentIds.length}`;
+      if (!toastedMissingRef.current.has(key)) {
+        toastedMissingRef.current.add(key);
+        missingFilesToastManager.add({
+          id: `missing-files-${patient.id}`,
+          title: "Archivos no encontrados",
+          description: `${missingAttachmentIds.length} archivo(s) vinculado(s) no existen en la ruta configurada.`,
+          type: "warning",
+        });
+      }
+    }
+  }, [missingAttachmentIds.length, patient.id, toastedMissingRef]);
+
+  useEffect(() => {
+    // Reset toast state when patient changes or missing count changes significantly
+    toastedMissingRef.current = new Set();
+  }, [patient.id]);
 
   const stopMediaLoading = useCallback(() => {
     if (mediaLoadTimeoutRef.current) {
@@ -349,19 +370,6 @@ export function PatientDetailTabs({
           <Tab value="payment-history" icon={Table2} label="Historial pagos" />
           <Tab value="files" icon={FolderOpen} label="Archivos" />
         </Tabs.List>
-
-        {missingCount > 0 ? (
-          <div className="surface flex gap-3 p-4 text-sm text-coral-300">
-            <AlertTriangle
-              className="mt-0.5 size-4 shrink-0"
-              aria-hidden="true"
-            />
-            <p>
-              {missingCount} archivo(s) vinculado(s) no existen en la ruta
-              configurada.
-            </p>
-          </div>
-        ) : null}
 
         <Tabs.Content value="summary" className="space-y-5">
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
