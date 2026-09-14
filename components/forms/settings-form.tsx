@@ -11,7 +11,6 @@ import { useGlobalLoading } from "@/components/loading-provider";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
 
 export function SettingsForm({ settings }: { settings: ClinicSettings }) {
   const router = useRouter();
@@ -40,19 +39,19 @@ export function SettingsForm({ settings }: { settings: ClinicSettings }) {
       <Field label="Clínica" error={form.formState.errors.clinicName?.message}>
         <Input {...form.register("clinicName")} />
       </Field>
-      <Field label="Moneda" error={form.formState.errors.currency?.message}>
+      {/* <Field label="Moneda" error={form.formState.errors.currency?.message} className="max-w-28">
         <Input maxLength={3} className="uppercase" {...form.register("currency")} />
-      </Field>
-      <Field label="Modo" error={form.formState.errors.networkMode?.message}>
+      </Field> */}
+      {/* <Field label="Modo" error={form.formState.errors.networkMode?.message}>
         <Select {...form.register("networkMode")}>
-          <option value="single">Una computadora</option>
-          <option value="lan-ready">Preparado para red interna</option>
+        <option value="single">Una computadora</option>
+        <option value="lan-ready">Preparado para red interna</option>
         </Select>
-      </Field>
+        </Field> */}
       <Field
         label="Carpeta maestra de pacientes"
         error={form.formState.errors.patientsRootPath?.message}
-        className="md:col-span-3"
+        className="md:col-span-2"
       >
         <Input placeholder="D:\Pacientes" {...form.register("patientsRootPath")} />
       </Field>

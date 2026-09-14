@@ -1,5 +1,4 @@
-import Link from "next/link";
-import { AlertTriangle, FolderSearch } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 
 import {
   updatePatientLocalFolderPath,
@@ -29,12 +28,12 @@ export function LinkedFilesControls({ report }: { report: LinkedFilesReport }) {
                 ? "Rutas completas"
                 : "Sin revisión"}
           </Badge>
-          <Button asChild variant="secondary" size="sm">
+          {/* <Button asChild variant="secondary" size="sm">
             <Link href="/settings">
               <FolderSearch className="size-4" aria-hidden="true" />
               Revisar
             </Link>
-          </Button>
+          </Button> */}
         </div>
       </div>
 
@@ -56,7 +55,7 @@ export function LinkedFilesControls({ report }: { report: LinkedFilesReport }) {
         </div>
       ) : null}
 
-      {report.groups.map((group) => (
+      {report.groups?.map((group) => (
         <div key={group.patientId} className="surface space-y-4 p-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">

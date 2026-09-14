@@ -17,7 +17,6 @@ import { missingFilesToastManager } from "@/components/toast-providers";
 import * as Tabs from "@radix-ui/react-tabs";
 import {
   AlertTriangle,
-  BadgeDollarSign,
   CalendarDays,
   ChevronLeft,
   ChevronRight,

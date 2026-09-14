@@ -83,7 +83,6 @@ export function PatientForm({
         <span>Próxima cita</span>
         <PatientNextAppointment value={defaultValues?.nextAppointmentDate ?? null} compact />
         <input type="hidden" {...form.register("nextAppointmentDate")} />
-        <p className="text-xs text-lavender-200/55">Se gestionará desde el módulo de agenda.</p>
       </div>
       <Field label="Notas" error={form.formState.errors.notes?.message} className="md:col-span-2">
         <Textarea {...form.register("notes")} />

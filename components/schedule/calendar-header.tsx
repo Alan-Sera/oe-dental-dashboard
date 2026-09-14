@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, Plus, RefreshCw } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 
 import {
   addDays,
@@ -30,9 +30,7 @@ export function CalendarHeader({
   onNavigate,
   onToday,
   onViewChange,
-  onNewAppointment,
-  onSyncAll,
-  isSyncing
+  onNewAppointment
 }: {
   view: ScheduleView;
   dateKey: string;

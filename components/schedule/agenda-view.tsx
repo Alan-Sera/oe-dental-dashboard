@@ -21,19 +21,20 @@ import type {
   OrphanGoogleEvent
 } from "@/components/schedule/types";
 import { toastManager } from "@/components/toast-providers";
+import { isDismissedToast } from "@/components/toast-providers";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 type ModalState =
   | {
-      mode: "create";
-      startTime: string;
-      endTime: string;
-      patientId?: string;
-      adoptGoogleEventId?: string | null;
-      title?: string;
-      description?: string;
-    }
+    mode: "create";
+    startTime: string;
+    endTime: string;
+    patientId?: string;
+    adoptGoogleEventId?: string | null;
+    title?: string;
+    description?: string;
+  }
   | { mode: "edit"; appointment: AgendaAppointment }
   | null;
 
@@ -92,16 +93,26 @@ export function AgendaView({
     [appointments]
   );
 
+  const adoptingEventId =
+    modal?.mode === "create" ? modal.adoptGoogleEventId : null;
+
   const orphans = useMemo(() => {
     return dedupeOrphans([...(initialOrphans ?? []), ...clientOrphans]).filter(
-      (orphan) => !localEventIds.has(orphan.eventId)
+      (orphan) => {
+        // No volver a mostrar toasts de orphans que ya estamos adoptando
+        if (orphan.eventId === adoptingEventId) return false;
+        return !localEventIds.has(orphan.eventId);
+      }
     );
-  }, [initialOrphans, clientOrphans, localEventIds]);
+  }, [initialOrphans, clientOrphans, localEventIds, adoptingEventId]);
 
   const toastedOrphansRef = useRef(new Set<string>());
+  const previouslyDismissedOrphanIds = useRef(new Set<string>());
 
   useEffect(() => {
     for (const orphan of orphans) {
+      if (previouslyDismissedOrphanIds.current.has(orphan.eventId)) continue;
+
       if (toastedOrphansRef.current.has(orphan.eventId)) continue;
       toastedOrphansRef.current.add(orphan.eventId);
 
@@ -128,11 +139,12 @@ export function AgendaView({
         },
         onClose: () => {
           toastedOrphansRef.current.delete(orphan.eventId);
+          previouslyDismissedOrphanIds.current.add(orphan.eventId);
         }
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orphans]);
+  }, [orphans, adoptingEventId]);
 
   useEffect(() => {
     if (focusAppointmentId) {

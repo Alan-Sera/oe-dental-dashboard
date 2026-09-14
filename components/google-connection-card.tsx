@@ -98,7 +98,7 @@ export function GoogleConnectionCard({ returnTo }: { returnTo: string }) {
           ) : null}
         </div>
       </div>
-      <div className="flex flex-col justify-center gap-2">
+      <div className="flex flex-row justify-center gap-2">
         <Badge tone={badgeTone}>{badgeText}</Badge>
         {configured ? (
           <Button asChild variant="secondary" size="sm">

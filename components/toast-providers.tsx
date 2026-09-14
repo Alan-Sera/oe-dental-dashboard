@@ -16,22 +16,40 @@ import {
 export const toastManager = ToastPrimitive.createToastManager();
 export const missingFilesToastManager = ToastPrimitive.createToastManager();
 
+const dismissedToastIds = new Set<string>();
+
+export function isDismissedToast(toastId: string): boolean {
+  return dismissedToastIds.has(toastId);
+}
+
+export function markDismissedToast(toastId: string) {
+  dismissedToastIds.add(toastId);
+}
+
+export function closeAllToasts() {
+  toastManager.close();
+}
+
 function ToastList() {
   const { toasts } = ToastPrimitive.useToastManager();
-  return toasts.map((toast) => (
-    <ToastRoot key={toast.id} toast={toast}>
-      <ToastContent>
-        <div className="min-w-0 flex-1">
-          <ToastTitle>{toast.title}</ToastTitle>
-          {toast.description ? (
-            <ToastDescription>{toast.description}</ToastDescription>
-          ) : null}
-          {toast.actionProps ? <ToastAction {...toast.actionProps} /> : null}
-        </div>
+  return toasts.map((toast) => {
+    if (isDismissedToast(toast.id)) return null;
+
+    return (
+      <ToastRoot key={toast.id} toast={toast}>
+        <ToastContent>
+          <div className="min-w-0 flex-1">
+            <ToastTitle>{toast.title}</ToastTitle>
+            {toast.description ? (
+              <ToastDescription>{toast.description}</ToastDescription>
+            ) : null}
+            {toast.actionProps ? <ToastAction {...toast.actionProps} /> : null}
+          </div>
+        </ToastContent>
         <ToastClose />
-      </ToastContent>
-    </ToastRoot>
-  ));
+      </ToastRoot>
+    );
+  });
 }
 
 export function ToastProviders({ children }: { children: React.ReactNode }) {
