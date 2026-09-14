@@ -34,7 +34,6 @@ export async function createPatient(input: PatientInput) {
       phone: parsed.phone || null,
       birthDate: inputDateToUtcNoon(parsed.birthDate),
       gender: parsed.gender || null,
-      nextAppointmentDate: inputDateToUtcNoon(parsed.nextAppointmentDate),
       notes: parsed.notes || null,
       folderAliases: JSON.stringify([parsed.fullName])
     }
@@ -58,7 +57,6 @@ export async function updatePatient(patientId: string, input: PatientInput) {
       phone: parsed.phone || null,
       birthDate: inputDateToUtcNoon(parsed.birthDate),
       gender: parsed.gender || null,
-      nextAppointmentDate: inputDateToUtcNoon(parsed.nextAppointmentDate),
       notes: parsed.notes || null
     }
   });

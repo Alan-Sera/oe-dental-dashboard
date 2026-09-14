@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { Prisma } from "@prisma/client";
+import { Prisma, type AppointmentStatus } from "@prisma/client";
 
 import { recordAudit } from "@/lib/actions/audit.actions";
 import { isGoogleReconnectRequiredError } from "@/lib/google-drive";
@@ -31,6 +31,7 @@ const AUTO_SYNC_IDLE_MS = 5 * 60 * 1000;
 const AUTO_SYNC_RETRY_MIN_MS = 60 * 1000;
 const LAST_BULK_SYNC_KEY = "agenda.lastBulkSyncAt";
 const LAST_ORPHANS_KEY = "agenda.lastOrphanEvents";
+const NEXT_APPOINTMENT_EXCLUDED_STATUSES: AppointmentStatus[] = ["CANCELLED", "NO_SHOW"];
 
 const patientInclude = {
   patient: {
@@ -85,6 +86,7 @@ export async function createAppointment(input: AppointmentInput): Promise<Appoin
   let appointment: AppointmentWithPatient;
   let synced = true;
   let syncError: string | undefined;
+  let previousPatientId: string | null = null;
 
   if (adoptGoogleEventId) {
     const existingByGoogleId = await prisma.appointment.findUnique({
@@ -93,6 +95,7 @@ export async function createAppointment(input: AppointmentInput): Promise<Appoin
     });
 
     if (existingByGoogleId) {
+      previousPatientId = existingByGoogleId.patientId;
       appointment = await prisma.appointment.update({
         where: { id: existingByGoogleId.id },
         data: {
@@ -162,8 +165,9 @@ export async function createAppointment(input: AppointmentInput): Promise<Appoin
     syncError,
     adoptGoogleEventId
   });
-  revalidatePath("/agenda");
-  revalidatePath(`/patients/${patient.id}`);
+  const affectedPatientIds = uniquePatientIds([previousPatientId, patient.id]);
+  await syncPatientNextAppointmentDates(affectedPatientIds);
+  revalidateAppointmentViews(affectedPatientIds);
 
   return { appointment, synced, syncError };
 }
@@ -252,8 +256,9 @@ export async function updateAppointment(id: string, input: AppointmentInput): Pr
     synced,
     syncError
   });
-  revalidatePath("/agenda");
-  revalidatePath(`/patients/${patient.id}`);
+  const affectedPatientIds = uniquePatientIds([existing.patientId, patient.id]);
+  await syncPatientNextAppointmentDates(affectedPatientIds);
+  revalidateAppointmentViews(affectedPatientIds);
 
   return { appointment, synced, syncError };
 }
@@ -284,8 +289,9 @@ export async function deleteAppointment(id: string): Promise<{ synced: boolean; 
     synced,
     syncError
   });
-  revalidatePath("/agenda");
-  revalidatePath(`/patients/${appointment.patientId}`);
+  const affectedPatientIds = [appointment.patientId];
+  await syncPatientNextAppointmentDates(affectedPatientIds);
+  revalidateAppointmentViews(affectedPatientIds);
 
   return { synced, syncError };
 }
@@ -309,8 +315,9 @@ export async function updateAppointmentStatus(
     patientId: appointment.patientId,
     status: parsed.status
   });
-  revalidatePath("/agenda");
-  revalidatePath(`/patients/${appointment.patientId}`);
+  const affectedPatientIds = [appointment.patientId];
+  await syncPatientNextAppointmentDates(affectedPatientIds);
+  revalidateAppointmentViews(affectedPatientIds);
 
   return appointment;
 }
@@ -341,7 +348,7 @@ export async function getUpcomingPatientAppointments(
     where: {
       patientId,
       startTime: { gte: new Date() },
-      status: { notIn: ["CANCELLED", "NO_SHOW"] }
+      status: { notIn: NEXT_APPOINTMENT_EXCLUDED_STATUSES }
     },
     include: patientInclude,
     orderBy: { startTime: "asc" },
@@ -612,6 +619,42 @@ async function getPatientForAppointment(patientId: string) {
     where: { id: patientId },
     select: { id: true, fullName: true, email: true, phone: true }
   });
+}
+
+function uniquePatientIds(patientIds: Array<string | null | undefined>) {
+  return Array.from(
+    new Set(patientIds.filter((patientId): patientId is string => Boolean(patientId)))
+  );
+}
+
+async function syncPatientNextAppointmentDates(patientIds: string[]) {
+  await Promise.all(patientIds.map((patientId) => syncPatientNextAppointmentDate(patientId)));
+}
+
+async function syncPatientNextAppointmentDate(patientId: string) {
+  const nextAppointment = await prisma.appointment.findFirst({
+    where: {
+      patientId,
+      startTime: { gte: new Date() },
+      status: { notIn: NEXT_APPOINTMENT_EXCLUDED_STATUSES }
+    },
+    orderBy: { startTime: "asc" },
+    select: { startTime: true }
+  });
+
+  await prisma.patient.update({
+    where: { id: patientId },
+    data: { nextAppointmentDate: nextAppointment?.startTime ?? null }
+  });
+}
+
+function revalidateAppointmentViews(patientIds: string[]) {
+  revalidatePath("/agenda");
+  revalidatePath("/patients");
+
+  for (const patientId of patientIds) {
+    revalidatePath(`/patients/${patientId}`);
+  }
 }
 
 function clearOrNull(value: string | undefined) {

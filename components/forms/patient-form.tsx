@@ -33,7 +33,6 @@ export function PatientForm({
       phone: defaultValues?.phone ?? "",
       birthDate: defaultValues?.birthDate ?? "",
       gender: defaultValues?.gender ?? "",
-      nextAppointmentDate: defaultValues?.nextAppointmentDate ?? "",
       notes: defaultValues?.notes ?? ""
     }
   });
@@ -82,7 +81,6 @@ export function PatientForm({
       <div className="flex flex-col gap-2 text-sm text-lavender-100/85">
         <span>Próxima cita</span>
         <PatientNextAppointment value={defaultValues?.nextAppointmentDate ?? null} compact />
-        <input type="hidden" {...form.register("nextAppointmentDate")} />
       </div>
       <Field label="Notas" error={form.formState.errors.notes?.message} className="md:col-span-2">
         <Textarea {...form.register("notes")} />
