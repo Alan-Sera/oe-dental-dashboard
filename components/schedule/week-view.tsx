@@ -24,7 +24,7 @@ export function WeekView({
   }, [dateKey]);
 
   return (
-    <div className="panel overflow-x-auto">
+    <div className="panel">
       <div className="flex min-w-[680px]">
         <TimelineHourGutter />
         <div className="grid flex-1 grid-cols-7">

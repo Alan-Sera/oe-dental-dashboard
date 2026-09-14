@@ -59,7 +59,7 @@ export function formatWeekdayShort(date: Date): string {
 }
 
 export function formatWeekdayLetter(date: Date): string {
-  return formatWeekdayShort(date).replace(".", "").slice(0, 1);
+  return formatWeekdayShort(date).replace(".", "").slice(0, 3);
 }
 
 export function formatTime(date: Date): string {

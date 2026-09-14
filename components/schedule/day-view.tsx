@@ -2,6 +2,7 @@
 
 import { formatLongDate, fromDateKey } from "@/lib/date-utils";
 import { DayTimelineColumn, TimelineHourGutter, type TimelineCreatePoint } from "@/components/schedule/day-column";
+import { HOUR_HEIGHT_PX } from "@/components/schedule/constants";
 import type { AgendaAppointment } from "@/components/schedule/types";
 
 export function DayView({
@@ -19,10 +20,14 @@ export function DayView({
 
   return (
     <div className="panel p-3">
-      <div className="mb-3 capitalize text-sm text-lavender-200/70">{formatLongDate(date)}</div>
       <div className="flex">
         <TimelineHourGutter />
-        <div className="flex-1 overflow-x-auto">
+        <div className="flex-1">
+          <div
+            className="border-b border-lavender-500/45"
+            style={{ height: HOUR_HEIGHT_PX }}
+            aria-hidden="true"
+          />
           <DayTimelineColumn
             date={date}
             appointments={appointments}
