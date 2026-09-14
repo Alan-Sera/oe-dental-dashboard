@@ -1930,7 +1930,7 @@ function PatientPhotoViewer({
       />
 
       <section className="relative z-10 grid h-full w-full max-w-7xl grid-rows-[auto_minmax(0,1fr)] gap-3 rounded-xl border border-lavender-200/20 bg-lavender-950/22 p-2 shadow-[0_28px_90px_rgba(0,0,0,0.58)] ring-1 ring-white/5 sm:p-3">
-        <div className="grid gap-3 rounded-lg border border-lavender-500/30 bg-lavender-950/72 px-3 py-2 shadow-panel backdrop-blur-md sm:grid-cols-[minmax(0,1fr)_minmax(0,auto)_minmax(0,1fr)] sm:items-center sm:px-4">
+        <div className="grid gap-3 rounded-lg border border-lavender-500/30 bg-ink-950 px-3 py-2 shadow-panel backdrop-blur-md sm:grid-cols-[minmax(0,1fr)_minmax(0,auto)_minmax(0,1fr)] sm:items-center sm:px-4">
           <div className="min-w-0 sm:order-1">
             <p className="truncate text-sm font-semibold text-white">
               {currentPhoto.originalName}
@@ -1971,7 +1971,7 @@ function PatientPhotoViewer({
 
         <div
           className={cn(
-            "relative min-h-0 overflow-hidden rounded-lg border border-lavender-500/25 bg-ink-950 shadow-2xl shadow-ink-950/60",
+            "relative min-h-0 overflow-hidden rounded-lg bg-ink-950 shadow-2xl shadow-ink-950/60",
             isZoomed ? "cursor-zoom-out" : "cursor-zoom-in",
           )}
           onPointerMove={handleImagePointerMove}

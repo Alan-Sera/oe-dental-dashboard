@@ -134,7 +134,9 @@ export function LoadingProvider({
               className={cn(
                 "z-40 bg-ink-950/55 backdrop-blur-sm transition-opacity duration-250",
                 isFadingOut ? "opacity-0" : "opacity-100",
-                mode === "content" ? "absolute inset-0" : "fixed inset-0"
+                mode === "content"
+                  ? "fixed inset-0 lg:left-64"
+                  : "fixed inset-0"
               )}
               aria-hidden="true"
             />
