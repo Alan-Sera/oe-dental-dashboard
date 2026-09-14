@@ -360,15 +360,6 @@ select {
   height: calc(var(--gap) + 1px);
 }
 
-.muelita-loader-ring {
-  animation: none;
-}
-
-.muelita-loader-mark,
-.image-preview-skeleton {
-  animation: muelita-loader-soft-pulse 2.2s ease-in-out infinite;
-}
-
 .oe-toast-root,
 .oe-toast-content {
   transition-duration: .6s;

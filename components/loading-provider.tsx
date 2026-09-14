@@ -24,6 +24,8 @@ type LoadingContextValue = {
 
 const DEFAULT_LABEL = "Cargando...";
 const SAFETY_TIMEOUT_MS = 12_000;
+const MIN_DISPLAY_MS = 400;
+const FADE_OUT_MS = 250;
 const LoadingContext = createContext<LoadingContextValue | null>(null);
 
 export function LoadingProvider({
@@ -35,42 +37,65 @@ export function LoadingProvider({
 }) {
   const pathname = usePathname();
   const [isLoading, setIsLoading] = useState(false);
+  const [isFadingOut, setIsFadingOut] = useState(false);
   const [label, setLabel] = useState(DEFAULT_LABEL);
   const activeRequestsRef = useRef(0);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showTimeRef = useRef<number>(0);
+  const fadeOutTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const clearSafetyTimeout = useCallback(() => {
+  const clearAllTimeouts = useCallback(() => {
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
+    }
+    if (fadeOutTimeoutRef.current) {
+      clearTimeout(fadeOutTimeoutRef.current);
+      fadeOutTimeoutRef.current = null;
     }
   }, []);
 
   const forceHide = useCallback(() => {
     activeRequestsRef.current = 0;
-    clearSafetyTimeout();
+    clearAllTimeouts();
+    setIsFadingOut(false);
     setIsLoading(false);
-  }, [clearSafetyTimeout]);
+  }, [clearAllTimeouts]);
+
+  const startFadeOut = useCallback(() => {
+    setIsFadingOut(true);
+    fadeOutTimeoutRef.current = setTimeout(() => {
+      setIsFadingOut(false);
+      setIsLoading(false);
+    }, FADE_OUT_MS);
+  }, []);
 
   const show = useCallback(
     (nextLabel = DEFAULT_LABEL) => {
       activeRequestsRef.current += 1;
       setLabel(nextLabel);
+      setIsFadingOut(false);
       setIsLoading(true);
-      clearSafetyTimeout();
+      showTimeRef.current = Date.now();
+      clearAllTimeouts();
       timeoutRef.current = setTimeout(forceHide, SAFETY_TIMEOUT_MS);
     },
-    [clearSafetyTimeout, forceHide]
+    [clearAllTimeouts, forceHide]
   );
 
   const hide = useCallback(() => {
     activeRequestsRef.current = Math.max(0, activeRequestsRef.current - 1);
 
     if (activeRequestsRef.current === 0) {
-      clearSafetyTimeout();
-      setIsLoading(false);
+      clearAllTimeouts();
+      const elapsed = Date.now() - showTimeRef.current;
+      if (elapsed < MIN_DISPLAY_MS) {
+        setTimeout(startFadeOut, MIN_DISPLAY_MS - elapsed);
+      } else {
+        startFadeOut();
+      }
     }
-  }, [clearSafetyTimeout]);
+  }, [clearAllTimeouts, startFadeOut]);
 
   useEffect(() => {
     forceHide();
@@ -86,9 +111,9 @@ export function LoadingProvider({
 
     return () => {
       document.removeEventListener("click", handleDocumentClick, true);
-      clearSafetyTimeout();
+      clearAllTimeouts();
     };
-  }, [clearSafetyTimeout, show]);
+  }, [clearAllTimeouts, show]);
 
   const value = useMemo(
     () => ({
@@ -107,14 +132,20 @@ export function LoadingProvider({
           <>
             <div
               className={cn(
-                "z-40 bg-ink-950/55 backdrop-blur-sm",
+                "z-40 bg-ink-950/55 backdrop-blur-sm transition-opacity duration-250",
+                isFadingOut ? "opacity-0" : "opacity-100",
                 mode === "content" ? "absolute inset-0" : "fixed inset-0"
               )}
               aria-hidden="true"
             />
-            <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center px-4">
+            <div
+              className={cn(
+                "pointer-events-none fixed inset-0 z-50 flex items-center justify-center px-4 transition-opacity duration-250",
+                isFadingOut ? "opacity-0" : "opacity-100"
+              )}
+            >
               <div className="pointer-events-auto rounded-lg border border-lavender-500/35 bg-lavender-950/82 px-8 py-8 shadow-panel backdrop-blur-md sm:px-10">
-              <MuelitaLoader label={label} />
+                <MuelitaLoader label={label} />
               </div>
             </div>
           </>
