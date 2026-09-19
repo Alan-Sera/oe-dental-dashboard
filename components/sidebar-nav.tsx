@@ -15,7 +15,7 @@ export function SidebarNav({
   itemClassName?: string;
   onNavigate?: () => void;
 }) {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
 
   return (
     <nav className={cn("space-y-1", className)} aria-label="Navegación principal">

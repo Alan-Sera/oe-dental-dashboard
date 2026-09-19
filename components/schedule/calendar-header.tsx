@@ -55,8 +55,8 @@ export function CalendarHeader({
         : formatLongDate(date);
 
   return (
-    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-      <div className="flex items-center gap-3">
+    <div className="flex flex-col gap-1 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex items-center gap-1">
         <h1 className="section-title text-xl capitalize">{title}</h1>
         <div className="flex items-center gap-1">
           <Button type="button" variant="ghost" size="icon" aria-label="Anterior" onClick={() => onNavigate(-1)}>
@@ -71,7 +71,7 @@ export function CalendarHeader({
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center gap-1">
         {/* {onSyncAll ? (
           <button
             type="button"
@@ -110,7 +110,7 @@ export function CalendarHeader({
           onClick={onNewAppointment}
           className={cn(
             buttonVariants({ variant: "secondary", size: "sm" }),
-            "min-w-36 border-emerald-300/45 bg-emerald-700/70 px-5 text-white shadow-sm shadow-emerald-950/30 hover:border-emerald-200/70 hover:bg-emerald-600"
+            "min-w-32 border-emerald-300/45 bg-emerald-700/70 px-5 text-white shadow-sm shadow-emerald-950/30 hover:border-emerald-200/70 hover:bg-emerald-600"
           )}
         >
           <Plus className="size-4" aria-hidden="true" />

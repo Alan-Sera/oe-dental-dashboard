@@ -31,7 +31,7 @@ export function PatientCreateModal() {
 
   return (
     <>
-      <Button type="button" onClick={() => setOpen(true)}>
+      <Button type="button" disabled onClick={() => setOpen(true)}>
         <Plus className="size-4" aria-hidden="true" />
         Nuevo paciente
       </Button>

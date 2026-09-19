@@ -2277,7 +2277,7 @@ function AttachmentTile({
       {missing ? <Badge tone="coral">Faltante</Badge> : null}
       <div className="flex items-center gap-2">
         {isProfilePhoto ? (
-          <Badge tone="brand">Foto de perfil</Badge>
+          <Badge className="whitespace-nowrap" tone="brand">Foto de perfil</Badge>
         ) : null}
         <p className="truncate text-sm font-medium text-ink-100">
           {attachment.originalName}

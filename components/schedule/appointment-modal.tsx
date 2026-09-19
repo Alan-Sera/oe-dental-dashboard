@@ -384,7 +384,7 @@ export function AppointmentModal({
 
             <div className="flex flex-col gap-1">
               <div className="grid gap-2 grid-cols-2">
-                <FieldLabel>Día</FieldLabel>
+                <FieldLabel className="pl-5">Día</FieldLabel>
                 <span id={timeGroupLabelId} className="text-sm text-lavender-100/85">
                   Hora de inicio
                 </span>
@@ -443,7 +443,7 @@ export function AppointmentModal({
                 </div>
               </div>
               <div className="grid place-items-center">
-                <FieldDescription>{summary}</FieldDescription>
+                <FieldDescription className="text-white">{summary}</FieldDescription>
               </div>
               <span id={dateErrorId}>
                 <FieldError>{dateError}</FieldError>

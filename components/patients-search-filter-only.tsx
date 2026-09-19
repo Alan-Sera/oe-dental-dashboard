@@ -136,6 +136,7 @@ export function PatientsSearchFilterOnly({ patients }: { patients: PatientListIt
               size="sm"
               onClick={() => setDebtorsOnly((current) => !current)}
               aria-pressed={debtorsOnly}
+              disabled
             >
               <BadgeDollarSign className="size-4" aria-hidden="true" />
               Deudores

@@ -21,7 +21,6 @@ import type {
   OrphanGoogleEvent
 } from "@/components/schedule/types";
 import { toastManager } from "@/components/toast-providers";
-import { isDismissedToast } from "@/components/toast-providers";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 

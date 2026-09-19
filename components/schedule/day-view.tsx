@@ -1,6 +1,6 @@
 "use client";
 
-import { formatLongDate, fromDateKey } from "@/lib/date-utils";
+import { fromDateKey } from "@/lib/date-utils";
 import { DayTimelineColumn, TimelineHourGutter, type TimelineCreatePoint } from "@/components/schedule/day-column";
 import { HOUR_HEIGHT_PX } from "@/components/schedule/constants";
 import type { AgendaAppointment } from "@/components/schedule/types";
