@@ -1,7 +1,6 @@
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { NextResponse } from "next/server";
-import sharp from "sharp";
 
 import { getClinicSettings } from "@/lib/actions/settings.actions";
 import { requireSession } from "@/lib/auth";
@@ -90,6 +89,7 @@ export async function GET(
 
   try {
     await mkdir(cacheDir, { recursive: true });
+    const { default: sharp } = await import("sharp");
     const previewBuffer = await sharp(absolutePath, { failOn: "none" })
       .rotate()
       .resize({
@@ -104,7 +104,8 @@ export async function GET(
     await writeFile(cachePath, previewBuffer);
 
     return imageResponse(previewBuffer, "image/webp", getPreviewHeaders(etag));
-  } catch {
+  } catch (error) {
+    console.error(`[image-preview] No se pudo generar ${attachment.id}:`, error);
     return originalImageFallbackResponse(absolutePath, attachment.mimeType);
   }
 }

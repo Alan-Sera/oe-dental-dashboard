@@ -2,6 +2,11 @@ node_modules
 .next
 out
 dist
+release
+asar-check
+.electron-build
+electron/next-node_modules
+electron/runtime/
 coverage
 .env*.local
 data/app.db

@@ -14,6 +14,24 @@ Open `http://127.0.0.1:3000`, create the first local admin account, and start im
 
 After pulling schema changes into an existing local install, run `pnpm db:init` again. Legacy test databases that still use the old vault schema are reset so the app can use linked patient folders.
 
+## Windows Desktop App
+
+The Electron wrapper runs the same Next.js application against a local SQLite database. During development it starts Next.js on an available loopback port and opens the desktop window:
+
+```bash
+pnpm electron:dev
+```
+
+Build the unsigned Windows x64 NSIS installer with:
+
+```bash
+pnpm electron:build
+```
+
+The build copies the current Windows Node runtime into the temporary `.electron-build/` staging directory so the installed application does not require Node.js. The runtime, staging files, and installers under `release/` are generated locally and are intentionally excluded from Git.
+
+Use `pnpm electron:preview` to open the unpacked build after a successful package. Desktop data and logs are stored under `%APPDATA%\OE Dental`; uninstalling or rebuilding the application does not remove the clinic database from that directory.
+
 ## Tech Stack
 
 - Next.js 15.5
