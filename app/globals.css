@@ -12,13 +12,17 @@
 
 html {
   background: #070916;
+  font-size: 112.5%;
 }
 
 body {
   min-height: 100vh;
   margin: 0;
   background:
-    linear-gradient(180deg, rgba(30, 20, 44, 0.98), rgba(12, 10, 28, 0.98) 42%, rgba(7, 9, 22, 1)),
+    linear-gradient(180deg,
+      rgba(30, 20, 44, 0.98),
+      rgba(12, 10, 28, 0.98) 42%,
+      rgba(7, 9, 22, 1)),
     #070916;
   color: #e8eaf2;
 }
@@ -51,7 +55,7 @@ select {
   }
 
   .page-shell {
-    @apply mx-auto flex w-full max-w-[1480px] flex-col gap-6 px-4 py-4 sm:px-6 lg:px-8;
+    @apply mx-auto flex w-full max-w-[1480px] flex-col gap-3 px-4 py-4 sm:pl-6 lg:pl-8;
   }
 
   .section-title {
@@ -61,4 +65,302 @@ select {
   .table-row {
     @apply grid gap-3 border-b border-lavender-600/45 px-4 py-3 last:border-0;
   }
+}
+
+.muelita-loader-frame {
+  position: relative;
+  display: grid;
+  width: clamp(7.5rem, 24vw, 10.5rem);
+  height: clamp(7.5rem, 24vw, 10.5rem);
+  place-items: center;
+}
+
+.muelita-loader-frame-compact {
+  width: 5.75rem;
+  height: 5.75rem;
+}
+
+.muelita-loader-ring {
+  position: absolute;
+  inset: 0.2rem;
+  border: 1px solid rgba(208, 192, 224, 0.24);
+  border-top-color: rgba(255, 255, 255, 0.82);
+  border-right-color: rgba(119, 183, 238, 0.68);
+  border-radius: 999px;
+  box-shadow:
+    0 0 32px rgba(119, 183, 238, 0.16),
+    inset 0 0 24px rgba(208, 192, 224, 0.08);
+  animation: muelita-loader-ring 1.15s linear infinite;
+}
+
+.muelita-loader-ring::after {
+  position: absolute;
+  inset: 0.8rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: inherit;
+  content: "";
+}
+
+.muelita-loader-mark {
+  width: clamp(7.5rem, 20vw, 9.375rem);
+  height: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 16px 24px rgba(0, 0, 0, 0.42));
+  animation: muelita-loader-float 1.7s ease-in-out infinite;
+}
+
+.muelita-loader-frame-compact .muelita-loader-mark {
+  width: 5.75rem;
+}
+
+@keyframes muelita-loader-ring {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes muelita-loader-float {
+
+  0%,
+  100% {
+    transform: translateY(0) rotate(-1deg) scale(1);
+  }
+
+  50% {
+    transform: translateY(-0.65rem) rotate(1deg) scale(1.04);
+  }
+}
+
+@keyframes muelita-loader-soft-pulse {
+
+  0%,
+  100% {
+    opacity: 0.86;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+.image-preview-skeleton {
+  background:
+    linear-gradient(110deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.1) 42%,
+      transparent 78%),
+    linear-gradient(135deg,
+      rgba(20, 11, 29, 0.95),
+      rgba(16, 40, 62, 0.5),
+      rgba(36, 23, 47, 0.9));
+  background-size:
+    220% 100%,
+    100% 100%;
+  animation: image-preview-skeleton 1.25s ease-in-out infinite;
+}
+
+.oe-toast-viewport {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  left: auto;
+  top: auto;
+  z-index: 9999;
+  width: min(var(--toast-viewport-width, 24rem), calc(100vw - 2rem));
+  margin: 0 auto;
+  outline: 0;
+}
+
+.oe-toast-root {
+  --gap: 0.2rem;
+  --peek: 0.75rem;
+  --scale: calc(max(0, 1 - (var(--toast-index) * 0.08)));
+  --shrink: calc(1 - var(--scale));
+  --height: var(--toast-frontmost-height, var(--toast-height));
+  --offset-y: calc(var(--toast-offset-y) * -1 + (var(--toast-index) * var(--gap) * -1) + var(--toast-swipe-movement-y));
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: auto;
+  box-sizing: border-box;
+  width: 100%;
+  height: var(--height);
+  margin: 0 auto;
+  margin-right: 0;
+  overflow: hidden;
+  z-index: calc(1000 - var(--toast-index));
+  transform: translateX(var(--toast-swipe-movement-x)) translateY(calc(var(--toast-swipe-movement-y) - (var(--toast-index) * var(--peek)) - (var(--shrink) * var(--height)))) scale(var(--scale));
+  transform-origin: bottom center;
+  user-select: none;
+  will-change: transform, opacity, height;
+  transition:
+    transform 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.5s,
+    height 0.15s,
+    border-color 0.2s,
+    background-color 0.2s;
+}
+
+.oe-toast-root::after {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  height: calc(var(--gap) + 1px);
+  content: "";
+}
+
+.oe-toast-root[data-expanded] {
+  height: var(--toast-height);
+  transform: translateX(var(--toast-swipe-movement-x)) translateY(var(--offset-y));
+}
+
+.oe-toast-root[data-limited] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.oe-toast-root[data-starting-style] {
+  opacity: 0;
+  transform: translateY(150%);
+}
+
+.oe-toast-root[data-ending-style] {
+  opacity: 0;
+}
+
+.oe-toast-root[data-ending-style]:not([data-limited]):not([data-swipe-direction]) {
+  transform: translateY(150%);
+}
+
+.oe-toast-root[data-ending-style][data-swipe-direction="down"],
+.oe-toast-root[data-expanded][data-ending-style][data-swipe-direction="down"] {
+  transform: translateY(calc(var(--toast-swipe-movement-y) + 150%));
+}
+
+.oe-toast-root[data-ending-style][data-swipe-direction="up"],
+.oe-toast-root[data-expanded][data-ending-style][data-swipe-direction="up"] {
+  transform: translateY(calc(var(--toast-swipe-movement-y) - 150%));
+}
+
+.oe-toast-root[data-ending-style][data-swipe-direction="left"],
+.oe-toast-root[data-expanded][data-ending-style][data-swipe-direction="left"] {
+  transform: translateX(calc(var(--toast-swipe-movement-x) - 150%)) translateY(var(--offset-y));
+}
+
+.oe-toast-root[data-ending-style][data-swipe-direction="right"],
+.oe-toast-root[data-expanded][data-ending-style][data-swipe-direction="right"] {
+  transform: translateX(calc(var(--toast-swipe-movement-x) + 150%)) translateY(var(--offset-y));
+}
+
+.oe-toast-content {
+  overflow: hidden;
+  opacity: 1;
+  transition: opacity 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.oe-toast-content[data-behind] {
+  opacity: 0;
+}
+
+.oe-toast-content[data-expanded] {
+  opacity: 1;
+}
+
+@keyframes image-preview-skeleton {
+  0% {
+    background-position:
+      180% 0,
+      0 0;
+  }
+
+  100% {
+    background-position:
+      -80% 0,
+      0 0;
+  }
+}
+
+@media (min-width: 640px) {
+  .oe-toast-viewport {
+    right: 2rem;
+    bottom: 2rem;
+    width: min(var(--toast-viewport-width, 24rem), calc(100vw - 4rem));
+  }
+}
+
+.oe-toast-viewport-top-right {
+  top: 1rem;
+  right: 1rem;
+  bottom: auto;
+  left: auto;
+  width: min(var(--toast-viewport-width, 24rem), calc(100vw - 2rem));
+}
+
+.oe-toast-viewport-top-right {
+  top: 1rem;
+  right: 1rem;
+  bottom: auto;
+  left: auto;
+  width: min(var(--toast-viewport-width, 24rem), calc(100vw - 2rem));
+}
+
+.oe-toast-viewport-top-right .oe-toast-root {
+  top: 0;
+  right: 0;
+  bottom: auto;
+  left: auto;
+  transform-origin: top center;
+  transition:
+    transform 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.5s,
+    height 0.15s,
+    border-color 0.2s,
+    background-color 0.2s;
+}
+
+.oe-toast-viewport-top-right .oe-toast-root[data-starting-style] {
+  opacity: 0;
+  transform: translateY(-150%);
+}
+
+.oe-toast-viewport-top-right .oe-toast-root[data-ending-style] {
+  opacity: 0;
+}
+
+.oe-toast-viewport-top-right .oe-toast-root[data-ending-style]:not([data-limited]):not([data-swipe-direction]) {
+  transform: translateY(-150%);
+}
+
+.oe-toast-viewport-top-right .oe-toast-root[data-ending-style][data-swipe-direction="up"],
+.oe-toast-viewport-top-right .oe-toast-root[data-expanded][data-ending-style][data-swipe-direction="up"] {
+  transform: translateY(calc(var(--toast-swipe-movement-y) - 150%));
+}
+
+.oe-toast-viewport-top-right .oe-toast-root[data-ending-style][data-swipe-direction="right"],
+.oe-toast-viewport-top-right .oe-toast-root[data-expanded][data-ending-style][data-swipe-direction="right"] {
+  transform: translateX(calc(var(--toast-swipe-movement-x) + 150%)) translateY(var(--offset-y));
+}
+
+.oe-toast-viewport-top-right .oe-toast-root[data-ending-style][data-swipe-direction="left"],
+.oe-toast-viewport-top-right .oe-toast-root[data-expanded][data-ending-style][data-swipe-direction="left"] {
+  transform: translateX(calc(var(--toast-swipe-movement-x) - 150%)) translateY(var(--offset-y));
+}
+
+.oe-toast-viewport-top-right .oe-toast-root[data-ending-style][data-swipe-direction="down"],
+.oe-toast-viewport-top-right .oe-toast-root[data-expanded][data-ending-style][data-swipe-direction="down"] {
+  transform: translateY(calc(var(--toast-swipe-movement-y) + 150%));
+}
+
+.oe-toast-viewport-top-right .oe-toast-root::after {
+  top: auto;
+  bottom: 100%;
+  left: 0;
+  width: 100%;
+  height: calc(var(--gap) + 1px);
+}
+
+.oe-toast-root,
+.oe-toast-content {
+  transition-duration: .6s;
 }

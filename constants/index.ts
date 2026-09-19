@@ -1,6 +1,7 @@
 import {
   Archive,
   BadgeDollarSign,
+  CalendarDays,
   ClipboardList,
   FolderDown,
   LayoutDashboard,
@@ -10,6 +11,7 @@ import {
 
 export const navigationItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/agenda", label: "Agenda", icon: CalendarDays },
   { href: "/patients", label: "Pacientes", icon: UsersRound },
   { href: "/import", label: "Importar", icon: FolderDown },
   { href: "/settings", label: "Ajustes", icon: Settings }
@@ -20,6 +22,7 @@ export const categoryLabels = {
   RADIOGRAPH: "Radiografías",
   CLINICAL_HISTORY: "Historia clínica",
   PAYMENT_RECEIPT: "Pagos",
+  PAYMENT_HISTORY: "Historial pagos",
   OTHER: "Otros"
 };
 
@@ -28,6 +31,7 @@ export const categoryIcons = {
   RADIOGRAPH: ClipboardList,
   CLINICAL_HISTORY: ClipboardList,
   PAYMENT_RECEIPT: BadgeDollarSign,
+  PAYMENT_HISTORY: BadgeDollarSign,
   OTHER: Archive
 };
 

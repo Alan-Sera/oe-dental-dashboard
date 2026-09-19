@@ -1,7 +1,10 @@
 {
   "name": "oe-dental-dashboard",
-  "version": "0.1.0",
+  "description": "Desktop management platform for dental practices",
+  "author": "Alan Serafin Colin",
+  "version": "0.1.4",
   "private": true,
+  "main": "electron/main.cjs",
   "packageManager": "pnpm@11.2.2",
   "scripts": {
     "dev": "next dev",
@@ -13,9 +16,17 @@
     "db:push": "node scripts/init-db.mjs",
     "db:prisma-push": "prisma db push",
     "db:studio": "prisma studio",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "electron": "electron electron/main.cjs",
+    "electron:dev": "node scripts/electron-dev.mjs",
+    "electron:prod": "pnpm build && node scripts/build-electron-win.mjs --stage-only && electron electron/main.cjs",
+    "db:electron:init": "node scripts/init-electron-db.mjs",
+    "electron:build": "node scripts/build-electron-win.mjs",
+    "electron:preview": "node scripts/preview-electron.mjs",
+    "electron:dist": "pnpm electron:build"
   },
   "dependencies": {
+    "@base-ui/react": "^1.8.0",
     "@hookform/resolvers": "^3.3.4",
     "@prisma/client": "^6.0.0",
     "@radix-ui/react-label": "^2.0.2",
@@ -23,12 +34,17 @@
     "@radix-ui/react-tabs": "^1.0.4",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
+    "date-fns": "^4.4.0",
+    "google-auth-library": "^11.0.2",
+    "googleapis": "^178.0.0",
     "lucide-react": "^1.27.0",
     "next": "15.5.22",
     "react": "^19.2.8",
+    "react-day-picker": "^10.0.1",
     "react-dom": "^19.2.8",
     "react-hook-form": "^7.51.4",
     "server-only": "^0.0.1",
+    "sharp": "^0.35.3",
     "tailwind-merge": "^2.3.0",
     "zod": "^3.23.6"
   },
@@ -37,6 +53,8 @@
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.0.0",
+    "electron": "^44.3.0",
+    "electron-builder": "^26.15.3",
     "eslint": "^8",
     "eslint-config-next": "15.5.22",
     "postcss": "^8",
@@ -46,5 +64,51 @@
     "tailwindcss-animate": "^1.0.7",
     "typescript": "^5",
     "vitest": "^3.0.0"
+  },
+  "build": {
+    "appId": "com.oe-dental.dashboard",
+    "productName": "OE Dental Dashboard",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      {
+        "from": ".",
+        "filter": [
+          "electron/main.cjs",
+          "electron/preload.cjs",
+          "package.json"
+        ]
+      },
+      "!node_modules/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": ".electron-build/next",
+        "to": "next",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": ".electron-build/runtime/node.exe",
+        "to": "node.exe"
+      }
+    ],
+    "npmRebuild": false,
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "artifactName": "OE Dental Dashboard Setup.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "runAfterFinish": true,
+      "shortcutName": "OE Dental Dashboard"
+    }
   }
 }

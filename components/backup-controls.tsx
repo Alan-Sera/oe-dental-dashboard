@@ -8,10 +8,12 @@ import {
   createLocalBackup,
   restoreLocalBackup
 } from "@/lib/actions/settings.actions";
+import { useGlobalLoading } from "@/components/loading-provider";
 import { Button } from "@/components/ui/button";
 
 export function BackupControls({ backups }: { backups: Array<{ name: string; createdAt: string }> }) {
   const router = useRouter();
+  const loading = useGlobalLoading();
   const [message, setMessage] = useState("");
   const [isPending, startTransition] = useTransition();
 
@@ -21,10 +23,15 @@ export function BackupControls({ backups }: { backups: Array<{ name: string; cre
         type="button"
         disabled={isPending}
         onClick={() => {
+          loading.show("Creando backup...");
           startTransition(async () => {
-            const name = await createLocalBackup();
-            setMessage(`Backup creado: ${name}`);
-            router.refresh();
+            try {
+              const name = await createLocalBackup();
+              setMessage(`Backup creado: ${name}`);
+              router.refresh();
+            } finally {
+              loading.hide();
+            }
           });
         }}
       >
@@ -50,10 +57,15 @@ export function BackupControls({ backups }: { backups: Array<{ name: string; cre
               size="sm"
               disabled={isPending}
               onClick={() => {
+                loading.show("Restaurando backup...");
                 startTransition(async () => {
-                  await restoreLocalBackup(backup.name);
-                  setMessage(`Backup restaurado: ${backup.name}`);
-                  router.refresh();
+                  try {
+                    await restoreLocalBackup(backup.name);
+                    setMessage(`Backup restaurado: ${backup.name}`);
+                    router.refresh();
+                  } finally {
+                    loading.hide();
+                  }
                 });
               }}
             >

@@ -30,6 +30,34 @@ describe("import classifier", () => {
     ).toBe("PAYMENT_RECEIPT");
   });
 
+  it("classifies payment history spreadsheets", () => {
+    expect(
+      classifyImportCandidate({
+        relativePath: "Ana Ruiz/historial pagos/estado-cuenta.xlsx",
+        fileName: "estado-cuenta.xlsx",
+        mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      }).category
+    ).toBe("PAYMENT_HISTORY");
+  });
+
+  it("does not classify generic photos or receipts as payment history", () => {
+    expect(
+      classifyImportCandidate({
+        relativePath: "Ana Ruiz/fotos/sonrisa.jpg",
+        fileName: "sonrisa.jpg",
+        mimeType: "image/jpeg"
+      }).category
+    ).toBe("PHOTO");
+
+    expect(
+      classifyImportCandidate({
+        relativePath: "Ana Ruiz/pagos/recibo-transferencia.pdf",
+        fileName: "recibo-transferencia.pdf",
+        mimeType: "application/pdf"
+      }).category
+    ).toBe("PAYMENT_RECEIPT");
+  });
+
   it("classifies clinical history documents", () => {
     expect(
       classifyImportCandidate({

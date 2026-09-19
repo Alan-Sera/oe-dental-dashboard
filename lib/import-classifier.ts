@@ -5,6 +5,7 @@ export const attachmentCategoryValues = [
   "RADIOGRAPH",
   "CLINICAL_HISTORY",
   "PAYMENT_RECEIPT",
+  "PAYMENT_HISTORY",
   "OTHER"
 ] as const;
 
@@ -32,6 +33,25 @@ export function classifyAttachment(input: ImportCandidateInput): AttachmentCateg
   const normalizedPath = normalizeRelativePath(input.relativePath).toLowerCase();
   const fileName = input.fileName.toLowerCase();
   const mimeType = input.mimeType?.toLowerCase() ?? "";
+  const isSpreadsheet =
+    fileName.endsWith(".xlsx") ||
+    mimeType === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+  if (
+    isSpreadsheet &&
+    includesAny(normalizedPath, [
+      "historial pagos",
+      "historial de pagos",
+      "payment history",
+      "estado cuenta",
+      "estado de cuenta",
+      "cuenta",
+      "pagos",
+      "payments"
+    ])
+  ) {
+    return "PAYMENT_HISTORY";
+  }
 
   if (
     includesAny(normalizedPath, [

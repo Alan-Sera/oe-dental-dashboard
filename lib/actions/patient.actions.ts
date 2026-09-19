@@ -1,10 +1,28 @@
 "use server";
 
+import { stat } from "node:fs/promises";
 import { revalidatePath } from "next/cache";
 
 import { recordAudit } from "@/lib/actions/audit.actions";
+import { getClinicSettings } from "@/lib/actions/settings.actions";
+import {
+  canReadImageCaptureMetadata,
+  extractImageCapturedAt
+} from "@/lib/image-capture-date";
+import { resolveLinkedAttachmentPath } from "@/lib/local-paths";
 import { prisma } from "@/lib/prisma";
 import { patientSchema, type PatientInput } from "@/lib/validation";
+
+type PatientWithTopLevelAttachments = {
+  localFolderRelativePath: string | null;
+  attachments: Array<{
+    id: string;
+    originalName: string;
+    localRelativePath: string;
+    mimeType: string | null;
+    capturedAt: Date | null;
+  }>;
+};
 
 export async function createPatient(input: PatientInput) {
   const parsed = patientSchema.parse(input);
@@ -14,7 +32,8 @@ export async function createPatient(input: PatientInput) {
       fullName: parsed.fullName,
       email: parsed.email || null,
       phone: parsed.phone || null,
-      birthDate: parsed.birthDate ? new Date(parsed.birthDate) : null,
+      birthDate: inputDateToUtcNoon(parsed.birthDate),
+      gender: parsed.gender || null,
       notes: parsed.notes || null,
       folderAliases: JSON.stringify([parsed.fullName])
     }
@@ -36,7 +55,8 @@ export async function updatePatient(patientId: string, input: PatientInput) {
       fullName: parsed.fullName,
       email: parsed.email || null,
       phone: parsed.phone || null,
-      birthDate: parsed.birthDate ? new Date(parsed.birthDate) : null,
+      birthDate: inputDateToUtcNoon(parsed.birthDate),
+      gender: parsed.gender || null,
       notes: parsed.notes || null
     }
   });
@@ -55,13 +75,78 @@ export async function getPatients() {
       attachments: true,
       clinicalEntries: true,
       charges: true,
-      payments: true
+      payments: true,
+      paymentHistorySheets: {
+        include: { attachment: true },
+        orderBy: { createdAt: "desc" }
+      }
     }
   });
 }
 
+export async function setPatientProfilePhoto(input: {
+  patientId: string;
+  attachmentId: string | null;
+}) {
+  const { patientId, attachmentId } = input;
+
+  const patient = await prisma.patient.findUnique({
+    where: { id: patientId }
+  });
+
+  if (!patient) {
+    throw new Error("Paciente no encontrado");
+  }
+
+  if (attachmentId) {
+    const attachment = await prisma.attachment.findUnique({
+      where: { id: attachmentId }
+    });
+
+    if (!attachment || attachment.patientId !== patientId) {
+      throw new Error("Adjunto no válido para este paciente");
+    }
+  }
+
+  await prisma.patient.update({
+    where: { id: patientId },
+    data: { profilePhotoId: attachmentId }
+  });
+
+  revalidatePath(`/patients/${patientId}`);
+  revalidatePath("/patients");
+  revalidatePath("/dashboard");
+
+  return true;
+}
+
+export async function ensureProfilePhotos() {
+  const patients = await prisma.patient.findMany({
+    where: { profilePhotoId: null },
+    include: {
+      attachments: {
+        orderBy: { importedAt: "asc" }
+      }
+    }
+  });
+
+  for (const patient of patients) {
+    const firstPhoto = patient.attachments.find(
+      (a) => a.category === "PHOTO"
+    );
+    if (firstPhoto) {
+      await prisma.patient.update({
+        where: { id: patient.id },
+        data: { profilePhotoId: firstPhoto.id }
+      });
+    }
+  }
+
+  return { updated: patients.length };
+}
+
 export async function getPatientById(patientId: string) {
-  return prisma.patient.findUnique({
+  const patient = await prisma.patient.findUnique({
     where: { id: patientId },
     include: {
       attachments: {
@@ -78,9 +163,19 @@ export async function getPatientById(patientId: string) {
       payments: {
         include: { attachments: true },
         orderBy: { paidAt: "desc" }
+      },
+      paymentHistorySheets: {
+        include: { attachment: true },
+        orderBy: [{ isActive: "desc" }, { createdAt: "desc" }]
       }
     }
   });
+
+  if (patient) {
+    await populateMissingAttachmentCaptureDates(patient);
+  }
+
+  return patient;
 }
 
 export async function findOrCreatePatientByName(patientName: string) {
@@ -105,4 +200,48 @@ export async function findOrCreatePatientByName(patientName: string) {
 
   await recordAudit("patient.created_from_import", "Patient", patient.id, { patientName });
   return patient;
+}
+
+function inputDateToUtcNoon(value: string | undefined) {
+  return value ? new Date(`${value}T12:00:00.000Z`) : null;
+}
+
+async function populateMissingAttachmentCaptureDates(patient: PatientWithTopLevelAttachments) {
+  const pendingAttachments = patient.attachments.filter(
+    (attachment) =>
+      !attachment.capturedAt &&
+      canReadImageCaptureMetadata(attachment.originalName, attachment.mimeType)
+  );
+
+  if (!pendingAttachments.length) return;
+
+  const settings = await getClinicSettings();
+  if (!settings.patientsRootPath) return;
+
+  for (const attachment of pendingAttachments) {
+    try {
+      const absolutePath = resolveLinkedAttachmentPath({
+        patientsRootPath: settings.patientsRootPath,
+        patientFolderRelativePath: patient.localFolderRelativePath,
+        localRelativePath: attachment.localRelativePath
+      });
+      const fileStats = await stat(absolutePath);
+      if (!fileStats.isFile()) continue;
+
+      const capturedAt = await extractImageCapturedAt(
+        absolutePath,
+        attachment.originalName,
+        attachment.mimeType
+      );
+      if (!capturedAt) continue;
+
+      await prisma.attachment.update({
+        where: { id: attachment.id },
+        data: { capturedAt }
+      });
+      attachment.capturedAt = capturedAt;
+    } catch {
+      // Missing or unreadable linked files are handled elsewhere in the patient view.
+    }
+  }
 }

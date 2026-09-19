@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  importCandidateSchema,
   paymentSchema,
   patientSchema,
   treatmentChargeSchema
@@ -9,6 +10,25 @@ import {
 describe("validation", () => {
   it("accepts a minimal patient", () => {
     expect(patientSchema.safeParse({ fullName: "María López" }).success).toBe(true);
+  });
+
+  it("accepts patient directory fields", () => {
+    expect(
+      patientSchema.safeParse({
+        fullName: "Ana Ruiz",
+        gender: "FEMENINO",
+        nextAppointmentDate: "2026-08-24"
+      }).success
+    ).toBe(true);
+  });
+
+  it("rejects unsupported patient gender values", () => {
+    expect(
+      patientSchema.safeParse({
+        fullName: "Carlos Núñez",
+        gender: "OTRO"
+      }).success
+    ).toBe(false);
   });
 
   it("requires payment amount and method", () => {
@@ -33,5 +53,20 @@ describe("validation", () => {
         status: "OPEN"
       }).success
     ).toBe(false);
+  });
+
+  it("accepts payment history import candidates", () => {
+    expect(
+      importCandidateSchema.safeParse({
+        candidateId: "c1",
+        patientName: "Ana Ruiz",
+        category: "PAYMENT_HISTORY",
+        originalName: "estado-cuenta.xlsx",
+        localRelativePath: "historial pagos/estado-cuenta.xlsx",
+        sourceRelativePath: "Ana Ruiz/historial pagos/estado-cuenta.xlsx",
+        sizeBytes: 1024,
+        mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      }).success
+    ).toBe(true);
   });
 });

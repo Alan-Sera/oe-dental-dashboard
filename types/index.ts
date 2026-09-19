@@ -1,16 +1,17 @@
 import type {
   AttachmentCategory,
   ChargeStatus,
+  PatientGender,
+  PaymentHistoryUploadStatus,
   PaymentStatus
 } from "@prisma/client";
 
 export type ImportPreviewFile = {
   id: string;
-  file: File;
   relativePath: string;
+  localRelativePath: string;
   patientName: string;
   category: AttachmentCategory;
-  sha256: string;
   sizeBytes: number;
   mimeType: string;
   duplicateInBatch: boolean;
@@ -23,10 +24,13 @@ export type SerializedAttachment = {
   id: string;
   category: AttachmentCategory;
   originalName: string;
+  localRelativePath: string;
   mimeType: string | null;
   sizeBytes: number;
   sourceRelativePath: string;
   importedAt: string;
+  capturedAt: string | null;
+  clinicalEntryId: string | null;
 };
 
 export type SerializedPatientDetail = {
@@ -35,7 +39,10 @@ export type SerializedPatientDetail = {
   email: string | null;
   phone: string | null;
   birthDate: string | null;
+  gender: PatientGender | null;
+  nextAppointmentDate: string | null;
   notes: string | null;
+  profilePhotoId: string | null;
   attachments: SerializedAttachment[];
   clinicalEntries: Array<{
     id: string;
@@ -65,5 +72,20 @@ export type SerializedPatientDetail = {
     status: PaymentStatus;
     notes: string | null;
     attachments: SerializedAttachment[];
+  }>;
+  paymentHistorySheets: Array<{
+    id: string;
+    patientId: string;
+    attachmentId: string;
+    googleFileId: string | null;
+    googleUrl: string | null;
+    googleFolderId: string | null;
+    uploadStatus: PaymentHistoryUploadStatus;
+    uploadedAt: string | null;
+    errorMessage: string | null;
+    isActive: boolean;
+    createdAt: string;
+    updatedAt: string;
+    attachment: SerializedAttachment;
   }>;
 };

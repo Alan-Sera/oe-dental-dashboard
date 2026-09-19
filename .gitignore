@@ -2,6 +2,11 @@ node_modules
 .next
 out
 dist
+release
+asar-check
+.electron-build
+electron/next-node_modules
+electron/runtime/
 coverage
 .env*.local
 data/app.db
@@ -11,7 +16,10 @@ data/app.db-wal
 data/vault/**
 data/backups/**
 data/imports/**
+data/cache/**
 !.gitkeep
+.pnpm-store/
 *.tsbuildinfo
 dev.log
 dev.err
+.env

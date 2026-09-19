@@ -2,14 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { createPortal } from "react-dom";
 import { Database, Menu, X } from "lucide-react";
 
-import { navigationItems } from "@/constants";
 import { BrandMark } from "@/components/brand-mark";
+import { LogoutButton } from "@/components/logout-button";
+import { SidebarNav } from "@/components/sidebar-nav";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 
 export function MobileNavDrawer({
   clinicName,
@@ -20,7 +19,6 @@ export function MobileNavDrawer({
   currency: string;
   networkMode: string;
 }) {
-  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -108,40 +106,25 @@ export function MobileNavDrawer({
               </Button>
             </div>
 
-            <nav className="mt-8 space-y-1" aria-label="Navegación principal">
-              {navigationItems.map((item) => {
-                const active =
-                  pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(`${item.href}/`));
+            <SidebarNav className="mt-8" itemClassName="h-12" onNavigate={() => setOpen(false)} />
 
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={() => setOpen(false)}
-                    className={cn(
-                      "flex h-12 items-center gap-3 rounded-md px-3 text-sm transition",
-                      active
-                        ? "bg-brand-700 text-white ring-1 ring-lavender-300/30"
-                        : "text-lavender-200/80 hover:bg-lavender-800/45 hover:text-lavender-50"
-                    )}
-                  >
-                    <item.icon className="size-4" aria-hidden="true" />
-                    {item.label}
-                  </Link>
-                );
-              })}
-            </nav>
-
-            <div className="mt-auto rounded-lg border border-lavender-500/45 bg-lavender-800/30 p-4">
-              <div className="flex items-center gap-3">
-                <Database className="size-5 text-lavender-200" aria-hidden="true" />
-                <div>
-                  <p className="text-sm font-medium text-ink-200">Datos locales</p>
-                  <p className="text-xs text-lavender-200/60">
-                    {currency} · {networkMode}
-                  </p>
+            <div className="mt-auto flex items-stretch gap-3">
+              <div className="min-w-0 flex-1 rounded-lg border border-lavender-500/45 bg-lavender-800/30 p-4">
+                <div className="flex items-center gap-3">
+                  <Database className="size-5 text-lavender-200" aria-hidden="true" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-ink-200">Datos locales</p>
+                    <p className="text-xs text-lavender-200/60">
+                      {currency} · {networkMode}
+                    </p>
+                  </div>
                 </div>
               </div>
+
+              <LogoutButton
+                formClassName="flex self-stretch"
+                className="h-auto min-w-[4.75rem] px-3"
+              />
             </div>
           </aside>
         </>,

@@ -1,4 +1,13 @@
 {
   "extends": ["next/core-web-vitals", "next/typescript"],
-  "ignorePatterns": ["next-env.d.ts"]
+  "ignorePatterns": [
+    "next-env.d.ts",
+    ".electron-build/**",
+    ".next/**",
+    ".pnpm-store/**",
+    "asar-check/**",
+    "electron/next-node_modules/**",
+    "electron/runtime/**",
+    "release/**"
+  ]
 }

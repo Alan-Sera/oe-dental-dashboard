@@ -1,12 +1,13 @@
 import Link from "next/link";
-import { Database, LogOut } from "lucide-react";
+import { Database } from "lucide-react";
 
-import { logout } from "@/lib/actions/auth.actions";
 import type { ClinicSettings } from "@/lib/actions/settings.actions";
-import { navigationItems } from "@/constants";
 import { BrandMark } from "@/components/brand-mark";
+import { LoadingProvider } from "@/components/loading-provider";
+import { LogoutButton } from "@/components/logout-button";
 import { MobileNavDrawer } from "@/components/mobile-nav-drawer";
-import { Button } from "@/components/ui/button";
+import { SidebarNav } from "@/components/sidebar-nav";
+import { ToastProviders } from "@/components/toast-providers";
 
 export function AppShell({
   settings,
@@ -16,67 +17,52 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen bg-ink-950 text-ink-100">
-      <aside className="fixed inset-y-0 left-0 hidden w-72 border-r border-lavender-600/60 bg-lavender-900/38 p-5 lg:block">
-        <div className="flex h-full flex-col">
-          <Link href="/dashboard" className="flex items-center gap-3">
-            <BrandMark size="md" priority />
-            <div>
-              <p className="text-base font-semibold text-white">{settings.clinicName}</p>
-              <p className="text-xs text-lavender-200/75">Odontología especializada</p>
-            </div>
-          </Link>
-
-          <nav className="mt-8 space-y-1">
-            {navigationItems.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="flex h-11 items-center gap-3 rounded-md px-3 text-sm text-lavender-200/75 transition hover:bg-lavender-800/45 hover:text-lavender-50"
-              >
-                <item.icon className="size-4" aria-hidden="true" />
-                {item.label}
-              </Link>
-            ))}
-          </nav>
-
-          <div className="mt-auto rounded-lg border border-lavender-500/45 bg-lavender-800/30 p-4">
-            <div className="flex items-center gap-3">
-              <Database className="size-5 text-lavender-200" aria-hidden="true" />
+    <ToastProviders>
+      <div className="min-h-screen bg-ink-950 text-ink-100">
+        <aside className="fixed inset-y-0 left-0 hidden w-64 border-r border-lavender-600/60 bg-lavender-900/38 p-2 lg:block">
+          <div className="flex h-full flex-col">
+            <Link href="/dashboard" className="flex items-center gap-3">
+              <BrandMark size="md" priority />
               <div>
-                <p className="text-sm font-medium text-ink-200">Datos locales</p>
-                <p className="text-xs text-lavender-200/60">{settings.currency} · {settings.networkMode}</p>
+                <p className="text-base font-semibold text-white">{settings.clinicName}</p>
+                <p className="text-xs text-lavender-200/75">Odontología especializada</p>
               </div>
+            </Link>
+
+            <SidebarNav className="mt-8" />
+
+            <div className="mt-auto flex items-stretch gap-3">
+              <div className="min-w-0 flex-1 rounded-lg border border-lavender-500/45 bg-lavender-800/30 p-4">
+                <div className="flex items-center gap-3">
+                  <Database className="size-5 text-lavender-200" aria-hidden="true" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-ink-200">Datos locales</p>
+                    <p className="text-xs text-lavender-200/60">{settings.currency} · {settings.networkMode}</p>
+                  </div>
+                </div>
+              </div>
+
+              <LogoutButton
+                formClassName="flex self-stretch"
+                className="h-auto min-w-[4.75rem] px-3"
+              />
             </div>
           </div>
-        </div>
-      </aside>
+        </aside>
 
-      <div className="lg:pl-72">
-        <header className="sticky top-0 z-30 border-b border-lavender-600/55 bg-lavender-950/55 px-4 py-3 backdrop-blur sm:px-6 lg:px-8">
-          <div className="mx-auto flex max-w-[1480px] items-center justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-3 lg:hidden">
+        <div className="lg:pl-60">
+          <LoadingProvider mode="content">
+            <div className="fixed left-4 top-4 z-30 lg:hidden">
               <MobileNavDrawer
                 clinicName={settings.clinicName}
                 currency={settings.currency}
                 networkMode={settings.networkMode}
               />
-              <Link href="/dashboard" className="flex min-w-0 items-center gap-2 font-semibold">
-                <BrandMark size="sm" />
-                <span className="truncate">{settings.clinicName}</span>
-              </Link>
             </div>
-            <div className="hidden text-sm text-lavender-200/60 lg:block">Bóveda local activa</div>
-            <form action={logout}>
-              <Button variant="secondary" size="sm" type="submit" aria-label="Salir">
-                <LogOut className="size-4" aria-hidden="true" />
-                <span className="hidden sm:inline">Salir</span>
-              </Button>
-            </form>
-          </div>
-        </header>
-        {children}
+            <main className="pt-16 lg:pt-0">{children}</main>
+          </LoadingProvider>
+        </div>
       </div>
-    </div>
+    </ToastProviders>
   );
 }
