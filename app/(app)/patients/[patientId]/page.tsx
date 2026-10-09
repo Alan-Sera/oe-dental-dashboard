@@ -4,6 +4,7 @@ import { ChevronLeft } from "lucide-react";
 
 import { PatientDetailTabs } from "@/components/patient-detail-tabs";
 import { PatientAvatar } from "@/components/patient-avatar";
+import { PatientProvisioningStatus } from "@/components/patient-provisioning-status";
 import { Button } from "@/components/ui/button";
 import { getPatientById } from "@/lib/actions/patient.actions";
 import { getPatientMissingAttachmentIds } from "@/lib/actions/settings.actions";
@@ -69,6 +70,8 @@ export default async function PatientDetailPage({
           </div>
         </div>
       </div>
+
+      <PatientProvisioningStatus patient={serializedPatient} />
 
       <PatientDetailTabs
         patient={serializedPatient}

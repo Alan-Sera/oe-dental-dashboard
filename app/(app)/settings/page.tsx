@@ -23,7 +23,7 @@ export default async function SettingsPage() {
 
       <Card
         size='sm'>
-        <h2 className="section-title mb-4">Google Calendar</h2>
+        <h2 className="section-title mb-4">Google Calendar y Drive</h2>
         <GoogleConnectionCard returnTo="/settings" />
       </Card>
 

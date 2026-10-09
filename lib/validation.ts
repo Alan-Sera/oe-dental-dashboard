@@ -29,15 +29,37 @@ export const loginSchema = z.object({
   password: z.string().min(1, "Ingresa tu contraseña"),
 });
 
-export const patientSchema = z.object({
-  fullName: z.string().min(2, "Escribe el nombre del paciente").max(120),
-  email: z.string().email("Correo inválido").optional().or(z.literal("")),
-  phone: z.string().max(30).optional().or(z.literal("")),
-  birthDate: z.string().optional().or(z.literal("")),
-  gender: z.enum(["MASCULINO", "FEMENINO"]).optional().or(z.literal("")),
-  nextAppointmentDate: z.string().optional().or(z.literal("")),
-  notes: z.string().max(2000).optional().or(z.literal("")),
-});
+export const patientSchema = z
+  .object({
+    fullName: z.string().trim().min(2, "Escribe el nombre del paciente").max(120),
+    email: z.string().trim().email("Correo inválido").optional().or(z.literal("")),
+    phone: z
+      .string()
+      .trim()
+      .max(30, "El teléfono no puede exceder 30 caracteres")
+      .refine((value) => !value || /^[0-9+().\s-]+$/.test(value), {
+        message: "El teléfono solo puede contener números y separadores comunes"
+      })
+      .refine((value) => !value || /[0-9]/.test(value), {
+        message: "Escribe al menos un número de teléfono"
+      })
+      .optional()
+      .or(z.literal("")),
+    phoneUnavailable: z.boolean().default(false),
+    birthDate: z.string().optional().or(z.literal("")),
+    gender: z.enum(["MASCULINO", "FEMENINO"]).optional().or(z.literal("")),
+    nextAppointmentDate: z.string().optional().or(z.literal("")),
+    notes: z.string().trim().max(2000).optional().or(z.literal("")),
+  })
+  .superRefine((value, context) => {
+    if (!value.phoneUnavailable && !value.phone?.trim()) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["phone"],
+        message: "Escribe el teléfono o confirma que no está disponible",
+      });
+    }
+  });
 
 export const clinicalEntrySchema = z.object({
   patientId: z.string().min(1),

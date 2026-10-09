@@ -1,48 +1,30 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
-import { createOAuthState, verifyOAuthState } from "@/lib/google-oauth";
+import { createPkcePair, hashOAuthState, normalizeOAuthReturnTo } from "@/lib/google-oauth";
 
-const TEST_KEY = "test-secret-for-oauth-state";
+describe("google oauth PKCE helpers", () => {
+  it("creates a verifier and its S256 challenge", () => {
+    const first = createPkcePair();
+    const second = createPkcePair();
 
-describe("google oauth stateless state", () => {
-  beforeEach(() => {
-    process.env.GOOGLE_TOKEN_ENCRYPTION_KEY = TEST_KEY;
+    expect(first.codeVerifier.length).toBeGreaterThanOrEqual(43);
+    expect(first.codeChallenge).toMatch(/^[A-Za-z0-9_-]+$/);
+    expect(first.codeChallenge).not.toBe(first.codeVerifier);
+    expect(second.codeVerifier).not.toBe(first.codeVerifier);
   });
 
-  afterEach(() => {
-    vi.restoreAllMocks();
+  it("hashes OAuth state without storing its raw value", () => {
+    expect(hashOAuthState("state-token")).toMatch(/^[a-f0-9]{64}$/);
+    expect(hashOAuthState("state-token")).not.toContain("state-token");
   });
 
-  it("signs and verifies a state token with returnTo", () => {
-    const token = createOAuthState("/import");
-    const result = verifyOAuthState(token);
-
-    expect(result?.state).toHaveLength(48);
-    expect(result?.returnTo).toBe("/import");
-  });
-
-  it("rejects tampered state tokens", () => {
-    const token = createOAuthState("/import");
-    const [encoded, signature] = token.split(".");
-
-    expect(verifyOAuthState(`${encoded}x.${signature}`)).toBeNull();
-    expect(verifyOAuthState(`${encoded}.${signature}x`)).toBeNull();
-  });
-
-  it("rejects state signed with a different secret", () => {
-    const token = createOAuthState("/import");
-    process.env.GOOGLE_TOKEN_ENCRYPTION_KEY = "another-secret";
-    expect(verifyOAuthState(token)).toBeNull();
-  });
-
-  it("rejects expired state tokens", () => {
-    const now = Date.now();
-    const token = createOAuthState("/import", now - 21 * 60 * 1000);
-    expect(verifyOAuthState(token, now)).toBeNull();
-  });
-
-  it("rejects open-redirect style returnTo values", () => {
-    expect(verifyOAuthState(createOAuthState("//evil.example"))).toBeNull();
-    expect(verifyOAuthState(createOAuthState("https://evil.example"))).toBeNull();
+  it("only accepts local return paths", () => {
+    expect(normalizeOAuthReturnTo("/settings")).toBe("/settings");
+    expect(normalizeOAuthReturnTo("/settings?tab=google#drive")).toBe("/settings?tab=google#drive");
+    expect(normalizeOAuthReturnTo("//evil.example")).toBe("/settings");
+    expect(normalizeOAuthReturnTo("///evil.example")).toBe("/settings");
+    expect(normalizeOAuthReturnTo("/\\\\evil.example")).toBe("/settings");
+    expect(normalizeOAuthReturnTo("/\\\\@evil.example")).toBe("/settings");
+    expect(normalizeOAuthReturnTo("https://evil.example")).toBe("/settings");
   });
 });

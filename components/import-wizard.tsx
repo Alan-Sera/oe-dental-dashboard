@@ -155,7 +155,7 @@ export function ImportWizard({
       <div className="panel space-y-5 p-5">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="flex size-11 items-center justify-center rounded-md bg-lavender-800/80 text-lavender-100 ring-1 ring-lavender-300/35">
+            <div className="flex size-10 items-center justify-center rounded-md bg-amber-950/40 text-lavender-100 ring-1 ring-lavender-300/35">
               <FolderDown className="size-5" aria-hidden="true" />
             </div>
             <div>
@@ -226,8 +226,8 @@ export function ImportWizard({
 
       <div className="surface grid gap-4 p-4 md:grid-cols-[1fr_auto]">
         <div className="flex items-start gap-3">
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-lavender-800/80 text-lavender-100 ring-1 ring-lavender-300/35">
-            <Table2 className="size-5" aria-hidden="true" />
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-lime-950/30 text-lavender-100 ring-1 ring-lavender-300/35">
+            <Table2 className="size-5 text-green-400" aria-hidden="true" />
           </div>
           <div className="min-w-0 space-y-1">
             <p className="text-sm font-medium text-lavender-50">Historiales de pago .xlsx</p>
@@ -238,7 +238,7 @@ export function ImportWizard({
         </div>
         <div className="flex flex-col justify-center gap-1">
           <Badge
-            tone={googleStatus?.connected ? "brand" : googleStatus?.needsReconnect ? "coral" : "neutral"}
+            tone={googleStatus?.connected ? "green" : googleStatus?.needsReconnect ? "coral" : "neutral"}
           >
             {googleStatus?.connected
               ? "Google conectado"

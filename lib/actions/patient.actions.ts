@@ -5,12 +5,21 @@ import { revalidatePath } from "next/cache";
 
 import { recordAudit } from "@/lib/actions/audit.actions";
 import { getClinicSettings } from "@/lib/actions/settings.actions";
+import { requireSession } from "@/lib/auth";
 import {
   canReadImageCaptureMetadata,
   extractImageCapturedAt
 } from "@/lib/image-capture-date";
 import { resolveLinkedAttachmentPath } from "@/lib/local-paths";
+import { normalizePatientIdentity, normalizePhone, isProvisioningInProgress } from "@/lib/patient-provisioning";
 import { prisma } from "@/lib/prisma";
+import {
+  PatientProvisioningAlreadyRunningError,
+  PatientProvisioningPreflightError,
+  inspectPatientProvisioningReadiness,
+  preflightPatientProvisioning,
+  provisionPatient
+} from "@/lib/services/patient-provisioning";
 import { patientSchema, type PatientInput } from "@/lib/validation";
 
 type PatientWithTopLevelAttachments = {
@@ -24,29 +33,210 @@ type PatientWithTopLevelAttachments = {
   }>;
 };
 
-export async function createPatient(input: PatientInput) {
-  const parsed = patientSchema.parse(input);
-
-  const patient = await prisma.patient.create({
-    data: {
-      fullName: parsed.fullName,
-      email: parsed.email || null,
-      phone: parsed.phone || null,
-      birthDate: inputDateToUtcNoon(parsed.birthDate),
-      gender: parsed.gender || null,
-      notes: parsed.notes || null,
-      folderAliases: JSON.stringify([parsed.fullName])
+export type CreatePatientResult =
+  | {
+      kind: "created";
+      patientId: string;
+      provisioningStatus: "READY" | "PARTIAL" | "FAILED";
+      provisioningError: string | null;
+      googleFolderUrl: string | null;
     }
-  });
+  | {
+      kind: "duplicates";
+      candidates: Array<{
+        id: string;
+        fullName: string;
+        phone: string | null;
+        birthDate: string | null;
+      }>;
+    }
+  | {
+      kind: "error";
+      code: "VALIDATION" | "LOCAL_ROOT_MISSING" | "LOCAL_ROOT_UNWRITABLE" | "TEMPLATE_MISSING" | "UNKNOWN";
+      message: string;
+      recoverable: boolean;
+      patientId?: string;
+    };
 
-  await recordAudit("patient.created", "Patient", patient.id, { fullName: patient.fullName });
+export async function getPatientProvisioningReadiness() {
+  await requireSession();
+  return inspectPatientProvisioningReadiness();
+}
+
+export async function createPatient(
+  input: PatientInput,
+  options?: { creationRequestId?: string; confirmedDuplicateIds?: string[] }
+): Promise<CreatePatientResult> {
+  await requireSession();
+  const validation = patientSchema.safeParse(input);
+  if (!validation.success) {
+    return {
+      kind: "error",
+      code: "VALIDATION",
+      message: validation.error.issues[0]?.message ?? "Revisa los datos del paciente.",
+      recoverable: false
+    };
+  }
+  const parsed = validation.data;
+
+  if (options?.creationRequestId) {
+    const existingRequest = await prisma.patient.findUnique({
+      where: { creationRequestId: options.creationRequestId },
+      select: {
+        id: true,
+        provisioningStatus: true,
+        provisioningError: true,
+        googleFolderUrl: true
+      }
+    });
+    if (existingRequest) return toCreateResult(existingRequest);
+  }
+
+  const duplicates = await findDuplicatePatients(parsed);
+  const confirmedIds = new Set(options?.confirmedDuplicateIds ?? []);
+  if (duplicates.some((candidate) => !confirmedIds.has(candidate.id))) {
+    return {
+      kind: "duplicates",
+      candidates: duplicates.map((candidate) => ({
+        id: candidate.id,
+        fullName: candidate.fullName,
+        phone: candidate.phone,
+        birthDate: candidate.birthDate?.toISOString().slice(0, 10) ?? null
+      }))
+    };
+  }
+
+  try {
+    await preflightPatientProvisioning();
+  } catch (error) {
+    if (error instanceof PatientProvisioningPreflightError) {
+      return {
+        kind: "error",
+        code: error.code,
+        message: error.message,
+        recoverable: false
+      };
+    }
+    return {
+      kind: "error",
+      code: "UNKNOWN",
+      message: "No se pudo validar la preparación del expediente.",
+      recoverable: false
+    };
+  }
+
+  let patient;
+  try {
+    patient = await prisma.patient.create({
+      data: {
+        fullName: parsed.fullName,
+        email: parsed.email || null,
+        phone: parsed.phoneUnavailable ? null : normalizePhone(parsed.phone) || null,
+        phoneUnavailable: parsed.phoneUnavailable,
+        birthDate: inputDateToUtcNoon(parsed.birthDate),
+        gender: parsed.gender || null,
+        notes: parsed.notes || null,
+        folderAliases: JSON.stringify([parsed.fullName]),
+        provisioningStatus: "PENDING",
+        creationRequestId: options?.creationRequestId || null
+      }
+    });
+  } catch (error) {
+    if (options?.creationRequestId && isUniqueConstraintError(error)) {
+      const existingRequest = await prisma.patient.findUnique({
+        where: { creationRequestId: options.creationRequestId },
+        select: {
+          id: true,
+          provisioningStatus: true,
+          provisioningError: true,
+          googleFolderUrl: true
+        }
+      });
+      if (existingRequest) return toCreateResult(existingRequest);
+    }
+    throw error;
+  }
+
+  await recordAudit("patient.created", "Patient", patient.id);
+  let provisioned: Awaited<ReturnType<typeof provisionPatient>>;
+  try {
+    provisioned = await provisionPatient(patient.id);
+  } catch (error) {
+    if (error instanceof PatientProvisioningAlreadyRunningError) {
+      return {
+        kind: "error",
+        code: "UNKNOWN",
+        message: error.message,
+        recoverable: true,
+        patientId: patient.id
+      };
+    }
+    throw error;
+  }
   revalidatePath("/patients");
   revalidatePath("/dashboard");
+  revalidatePath(`/patients/${patient.id}`);
 
-  return patient;
+  return toCreateResult(provisioned);
+}
+
+export async function retryPatientProvisioning(patientId: string): Promise<CreatePatientResult> {
+  await requireSession();
+  if (!patientId) {
+    return { kind: "error", code: "VALIDATION", message: "Paciente inválido.", recoverable: false };
+  }
+
+  const patient = await prisma.patient.findUnique({
+    where: { id: patientId },
+    select: { provisioningStatus: true, provisioningStartedAt: true, createdAt: true }
+  });
+  if (!patient) {
+    return { kind: "error", code: "VALIDATION", message: "Paciente no encontrado.", recoverable: false };
+  }
+  if (patient.provisioningStatus === "UNMANAGED") {
+    return {
+      kind: "error",
+      code: "VALIDATION",
+      message: "Este expediente fue importado y no está administrado por el aprovisionamiento automático.",
+      recoverable: false
+    };
+  }
+  if (
+    isProvisioningInProgress(
+      patient.provisioningStatus,
+      patient.provisioningStartedAt,
+      patient.createdAt
+    )
+  ) {
+    return {
+      kind: "error",
+      code: "VALIDATION",
+      message: "La preparación ya está en curso. Espera a que termine e intenta de nuevo.",
+      recoverable: true
+    };
+  }
+
+  let provisioned: Awaited<ReturnType<typeof provisionPatient>>;
+  try {
+    provisioned = await provisionPatient(patientId);
+  } catch (error) {
+    if (error instanceof PatientProvisioningAlreadyRunningError) {
+      return {
+        kind: "error",
+        code: "UNKNOWN",
+        message: error.message,
+        recoverable: true,
+        patientId
+      };
+    }
+    throw error;
+  }
+  revalidatePath(`/patients/${patientId}`);
+  return toCreateResult(provisioned);
 }
 
 export async function updatePatient(patientId: string, input: PatientInput) {
+  await requireSession();
   const parsed = patientSchema.parse(input);
 
   const patient = await prisma.patient.update({
@@ -54,7 +244,8 @@ export async function updatePatient(patientId: string, input: PatientInput) {
     data: {
       fullName: parsed.fullName,
       email: parsed.email || null,
-      phone: parsed.phone || null,
+      phone: parsed.phoneUnavailable ? null : normalizePhone(parsed.phone) || null,
+      phoneUnavailable: parsed.phoneUnavailable,
       birthDate: inputDateToUtcNoon(parsed.birthDate),
       gender: parsed.gender || null,
       notes: parsed.notes || null
@@ -66,6 +257,46 @@ export async function updatePatient(patientId: string, input: PatientInput) {
   revalidatePath(`/patients/${patient.id}`);
 
   return patient;
+}
+
+async function findDuplicatePatients(input: PatientInput) {
+  const patients = await prisma.patient.findMany({
+    select: { id: true, fullName: true, phone: true, birthDate: true }
+  });
+  const normalizedName = normalizePatientIdentity(input.fullName);
+  const normalizedInputPhone = normalizePhone(input.phone);
+  const birthDate = input.birthDate || null;
+
+  return patients.filter((patient) => {
+    const sameName = normalizePatientIdentity(patient.fullName) === normalizedName;
+    const samePhone = normalizedInputPhone.length > 0 && normalizePhone(patient.phone) === normalizedInputPhone;
+    const sameNameAndBirthDate = sameName
+      && Boolean(birthDate)
+      && patient.birthDate?.toISOString().slice(0, 10) === birthDate;
+    return sameName || samePhone || sameNameAndBirthDate;
+  });
+}
+
+function toCreateResult(patient: {
+  id: string;
+  provisioningStatus: string;
+  provisioningError: string | null;
+  googleFolderUrl: string | null;
+}): CreatePatientResult {
+  const status = ["READY", "PARTIAL", "FAILED"].includes(patient.provisioningStatus)
+    ? patient.provisioningStatus as "READY" | "PARTIAL" | "FAILED"
+    : "PARTIAL";
+  return {
+    kind: "created",
+    patientId: patient.id,
+    provisioningStatus: status,
+    provisioningError: patient.provisioningError,
+    googleFolderUrl: patient.googleFolderUrl
+  };
+}
+
+function isUniqueConstraintError(error: unknown) {
+  return typeof error === "object" && error !== null && "code" in error && error.code === "P2002";
 }
 
 export async function getPatients() {

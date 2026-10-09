@@ -48,6 +48,7 @@ enum PatientGender {
 
 enum PaymentHistoryUploadStatus {
   LOCAL_ONLY
+  UPLOADING
   UPLOADED
   FAILED
 }
@@ -58,6 +59,15 @@ enum AppointmentStatus {
   COMPLETED
   CANCELLED
   NO_SHOW
+}
+
+enum PatientProvisioningStatus {
+  UNMANAGED
+  PENDING
+  IN_PROGRESS
+  PARTIAL
+  READY
+  FAILED
 }
 
 model Setting {
@@ -73,26 +83,49 @@ model Session {
   createdAt DateTime @default(now())
 }
 
+model GoogleOAuthAttempt {
+  id                    String    @id @default(cuid())
+  stateHash             String    @unique
+  codeVerifierEncrypted String
+  redirectUri           String
+  returnTo              String
+  purpose               String    @default("GOOGLE_CONNECT")
+  expiresAt             DateTime
+  consumedAt            DateTime?
+  createdAt             DateTime  @default(now())
+
+  @@index([expiresAt])
+}
+
 model Patient {
-  id                   String                @id @default(cuid())
-  fullName             String
-  email                String?
-  phone                String?
-  birthDate            DateTime?
-  gender               PatientGender?
-  nextAppointmentDate  DateTime?
-  notes                String?
-  folderAliases        String?
-  localFolderRelativePath String?             @unique
-  profilePhotoId       String?
-  createdAt            DateTime              @default(now())
-  updatedAt            DateTime              @updatedAt
-  attachments          Attachment[]
-  clinicalEntries      ClinicalEntry[]
-  charges              TreatmentCharge[]
-  payments             Payment[]
-  paymentHistorySheets PaymentHistorySheet[]
-  appointments         Appointment[]
+  id                      String                    @id @default(cuid())
+  fullName                String
+  email                   String?
+  phone                   String?
+  phoneUnavailable        Boolean                   @default(false)
+  birthDate               DateTime?
+  gender                  PatientGender?
+  nextAppointmentDate     DateTime?
+  notes                   String?
+  folderAliases           String?
+  localFolderRelativePath String?                   @unique
+  googleFolderId          String?
+  googleFolderUrl         String?
+  provisioningStatus      PatientProvisioningStatus @default(UNMANAGED)
+  provisioningError       String?
+  provisioningStartedAt   DateTime?
+  provisionedAt           DateTime?
+  provisioningAttempts    Int                       @default(0)
+  creationRequestId       String?                   @unique
+  profilePhotoId          String?
+  createdAt               DateTime                  @default(now())
+  updatedAt               DateTime                  @updatedAt
+  attachments             Attachment[]
+  clinicalEntries         ClinicalEntry[]
+  charges                 TreatmentCharge[]
+  payments                Payment[]
+  paymentHistorySheets    PaymentHistorySheet[]
+  appointments            Appointment[]
 
   @@index([fullName])
 }
@@ -121,9 +154,9 @@ model Attachment {
   importItems         ImportItem[]
   paymentHistorySheet PaymentHistorySheet?
 
+  @@unique([patientId, localRelativePath])
   @@index([patientId, category])
   @@index([importBatchId])
-  @@unique([patientId, localRelativePath])
 }
 
 model ClinicalEntry {
@@ -177,20 +210,21 @@ model Payment {
 }
 
 model PaymentHistorySheet {
-  id             String                     @id @default(cuid())
-  patientId      String
-  attachmentId   String                     @unique
-  googleFileId   String?
-  googleUrl      String?
-  googleFolderId String?
-  uploadStatus   PaymentHistoryUploadStatus @default(LOCAL_ONLY)
-  uploadedAt     DateTime?
-  errorMessage   String?
-  isActive       Boolean                    @default(false)
-  createdAt      DateTime                   @default(now())
-  updatedAt      DateTime                   @updatedAt
-  patient        Patient                    @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  attachment     Attachment                 @relation(fields: [attachmentId], references: [id], onDelete: Cascade)
+  id              String                     @id @default(cuid())
+  patientId       String
+  attachmentId    String                     @unique
+  googleFileId    String?
+  googleUrl       String?
+  googleFolderId  String?
+  uploadStatus    PaymentHistoryUploadStatus @default(LOCAL_ONLY)
+  uploadStartedAt DateTime?
+  uploadedAt      DateTime?
+  errorMessage    String?
+  isActive        Boolean                    @default(false)
+  createdAt       DateTime                   @default(now())
+  updatedAt       DateTime                   @updatedAt
+  patient         Patient                    @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  attachment      Attachment                 @relation(fields: [attachmentId], references: [id], onDelete: Cascade)
 
   @@index([patientId, isActive])
   @@index([patientId, createdAt])
