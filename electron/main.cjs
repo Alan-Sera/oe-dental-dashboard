@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 
-const { app, BrowserWindow, dialog } = require("electron");
+const { app, BrowserWindow, dialog, safeStorage, shell } = require("electron");
+const crypto = require("node:crypto");
 const fs = require("node:fs");
 const http = require("node:http");
 const net = require("node:net");
@@ -14,6 +15,8 @@ let logFilePath = null;
 let mainWindow = null;
 let nextProcess = null;
 let nextStartupError = "";
+let googleTokenEncryptionKey = "";
+let packagedGoogleOAuthConfig = {};
 
 app.setName("OE Dental");
 
@@ -89,6 +92,44 @@ function setupFileLogging() {
   fs.mkdirSync(userDataPath, { recursive: true });
   logFilePath = path.join(userDataPath, "electron.log");
   logInfo("Log listo:", logFilePath);
+}
+
+function ensureGoogleTokenEncryptionKey() {
+  const keyPath = path.join(app.getPath("userData"), "google-token-key.bin");
+
+  if (fs.existsSync(keyPath)) {
+    if (!safeStorage.isEncryptionAvailable()) {
+      throw new Error("Windows no permitió descifrar la clave local de Google.");
+    }
+    googleTokenEncryptionKey = safeStorage.decryptString(fs.readFileSync(keyPath));
+    return;
+  }
+
+  if (!safeStorage.isEncryptionAvailable()) {
+    throw new Error("Windows no ofrece almacenamiento seguro para proteger la conexión con Google.");
+  }
+
+  googleTokenEncryptionKey = crypto.randomBytes(32).toString("base64");
+  fs.writeFileSync(keyPath, safeStorage.encryptString(googleTokenEncryptionKey), { flag: "wx" });
+}
+
+function loadPackagedGoogleOAuthConfig() {
+  const configPath = app.isPackaged
+    ? path.join(process.resourcesPath, "google-oauth.json")
+    : path.join(getProjectRoot(), ".electron-build", "google-oauth.json");
+  if (!fs.existsSync(configPath)) return;
+
+  try {
+    const parsed = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    if (typeof parsed.clientId === "string" && typeof parsed.clientSecret === "string") {
+      packagedGoogleOAuthConfig = {
+        GOOGLE_CLIENT_ID: parsed.clientId,
+        GOOGLE_CLIENT_SECRET: parsed.clientSecret,
+      };
+    }
+  } catch (error) {
+    logWarn("[Electron] No se pudo leer la configuración OAuth empaquetada:", error);
+  }
 }
 
 function getProjectRoot() {
@@ -236,6 +277,8 @@ function startNextServer(port) {
       DATABASE_URL: databaseUrl,
       PORT: String(port),
       HOSTNAME: HOST,
+      GOOGLE_TOKEN_ENCRYPTION_KEY: googleTokenEncryptionKey,
+      ...packagedGoogleOAuthConfig,
     },
     windowsHide: true,
     stdio: ["ignore", "pipe", "pipe"],
@@ -339,6 +382,7 @@ function waitForNext(targetUrl, spawnedProcess) {
 }
 
 function createWindow(targetUrl) {
+  const localOrigin = new URL(targetUrl).origin;
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -352,14 +396,59 @@ function createWindow(targetUrl) {
     },
   });
 
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (isAllowedExternalUrl(url)) {
+      void shell.openExternal(url);
+    }
+    return { action: "deny" };
+  });
+  mainWindow.webContents.on("will-navigate", (event, url) => {
+    if (isSameLocalOrigin(url, localOrigin)) return;
+    event.preventDefault();
+    if (isAllowedExternalUrl(url)) void shell.openExternal(url);
+  });
+
   mainWindow.loadURL(targetUrl);
   mainWindow.on("closed", () => {
     mainWindow = null;
   });
 }
 
+function isSameLocalOrigin(value, localOrigin) {
+  try {
+    const destination = new URL(value);
+    const local = new URL(localOrigin);
+    const loopbackHosts = new Set(["127.0.0.1", "localhost"]);
+
+    return destination.protocol === "http:"
+      && local.protocol === "http:"
+      && loopbackHosts.has(destination.hostname)
+      && loopbackHosts.has(local.hostname)
+      && destination.port === local.port
+      && !destination.username
+      && !destination.password;
+  } catch {
+    return false;
+  }
+}
+
+function isAllowedExternalUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && [
+      "accounts.google.com",
+      "drive.google.com",
+      "docs.google.com",
+    ].includes(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
 async function startApplication() {
   setupFileLogging();
+  ensureGoogleTokenEncryptionKey();
+  loadPackagedGoogleOAuthConfig();
   logInfo("[Electron] App ready. packaged=", app.isPackaged);
 
   const developmentUrl = getDevelopmentUrl();

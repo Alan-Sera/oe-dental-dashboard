@@ -7,11 +7,12 @@
   "main": "electron/main.cjs",
   "packageManager": "pnpm@11.2.2",
   "scripts": {
+    "predev": "node scripts/init-db.mjs",
     "dev": "next dev",
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint . --ext .ts,.tsx",
-    "test": "vitest run",
+    "test": "vitest run --configLoader runner",
     "db:init": "node scripts/init-db.mjs",
     "db:push": "node scripts/init-db.mjs",
     "db:prisma-push": "prisma db push",
@@ -93,6 +94,10 @@
       {
         "from": ".electron-build/runtime/node.exe",
         "to": "node.exe"
+      },
+      {
+        "from": ".electron-build/google-oauth.json",
+        "to": "google-oauth.json"
       }
     ],
     "npmRebuild": false,
