@@ -23,6 +23,8 @@ export type GoogleCalendarStatus = {
   connected: boolean;
   needsReconnect: boolean;
   calendarScope: boolean;
+  driveConnected: boolean;
+  driveNeedsReconnect: boolean;
 };
 
 export type OrphanGoogleEvent = {
