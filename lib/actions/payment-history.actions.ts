@@ -12,10 +12,13 @@ import {
   extractGoogleDriveFolderId,
   getGoogleOAuthConfig,
   isGoogleReconnectRequiredError,
-  refreshGoogleAccessToken,
-  uploadXlsxAsGoogleSheet
+  refreshGoogleAccessToken
 } from "@/lib/google-drive";
-import { getGoogleRefreshToken } from "@/lib/google-settings";
+import { getGoogleDriveRefreshToken } from "@/lib/google-settings";
+import {
+  ensurePaymentHistorySheetUploaded,
+  PaymentHistoryUploadAlreadyRunningError
+} from "@/lib/services/payment-history-upload";
 
 export async function createPaymentHistorySheetForAttachment({
   patientId,
@@ -133,7 +136,7 @@ async function uploadPaymentHistorySheet({
   if (!sheetWithFile) throw new Error("Historial no encontrado");
 
   const config = getGoogleOAuthConfig();
-  const refreshToken = await getGoogleRefreshToken();
+  const refreshToken = await getGoogleDriveRefreshToken();
 
   if (!config || !refreshToken) {
     const sheet = await prisma.paymentHistorySheet.update({
@@ -148,6 +151,7 @@ async function uploadPaymentHistorySheet({
     return sheet;
   }
 
+  let uploadServiceStarted = false;
   try {
     const settings = await getClinicSettings();
     const absolutePath = resolveLinkedAttachmentPath({
@@ -156,23 +160,14 @@ async function uploadPaymentHistorySheet({
       localRelativePath: sheetWithFile.attachment.localRelativePath
     });
     const accessToken = await refreshGoogleAccessToken(config, refreshToken);
-    const upload = await uploadXlsxAsGoogleSheet({
+    uploadServiceStarted = true;
+    const upload = await ensurePaymentHistorySheetUploaded({
+      sheetId,
+      patientId: sheetWithFile.patientId,
       accessToken,
+      targetFolderId: googleFolderId,
       fileName: sheetWithFile.attachment.originalName,
-      fileBuffer: await readFile(absolutePath),
-      folderId: googleFolderId
-    });
-
-    const sheet = await prisma.paymentHistorySheet.update({
-      where: { id: sheetId },
-      data: {
-        googleFileId: upload.id,
-        googleUrl: upload.webViewLink,
-        googleFolderId,
-        uploadStatus: "UPLOADED",
-        uploadedAt: new Date(),
-        errorMessage: null
-      }
+      loadFileBuffer: () => readFile(absolutePath),
     });
 
     await recordAudit("payment_history.uploaded", "PaymentHistorySheet", sheetId, {
@@ -181,25 +176,30 @@ async function uploadPaymentHistorySheet({
       googleFileId: upload.id
     });
     revalidatePath(`/patients/${sheetWithFile.patientId}`);
-    return sheet;
+    return prisma.paymentHistorySheet.findUnique({ where: { id: sheetId } });
   } catch (error) {
-    const sheet = await prisma.paymentHistorySheet.update({
-      where: { id: sheetId },
-      data: {
-        googleFolderId,
-        uploadStatus: "FAILED",
-        errorMessage: isGoogleReconnectRequiredError(error)
-          ? "El acceso a Google expiró o fue revocado. Reconecta Google en la pestaña Importar."
-          : error instanceof Error
-            ? error.message
-            : "No se pudo subir a Google Sheets"
-      }
-    });
+    if (error instanceof PaymentHistoryUploadAlreadyRunningError) {
+      revalidatePath(`/patients/${sheetWithFile.patientId}`);
+      return prisma.paymentHistorySheet.findUnique({ where: { id: sheetId } });
+    }
+    const failureMessage = isGoogleReconnectRequiredError(error)
+      ? "El acceso a Google expiró o fue revocado. Reconecta Google en la pestaña Importar."
+      : error instanceof Error ? error.message : "No se pudo subir a Google Sheets";
+    const sheet = uploadServiceStarted
+      ? await prisma.paymentHistorySheet.findUnique({ where: { id: sheetId } })
+      : await prisma.paymentHistorySheet.update({
+        where: { id: sheetId },
+        data: {
+          googleFolderId,
+          uploadStatus: "FAILED",
+          errorMessage: failureMessage
+        }
+      });
 
     await recordAudit("payment_history.upload_failed", "PaymentHistorySheet", sheetId, {
       patientId: sheetWithFile.patientId,
       attachmentId: sheetWithFile.attachmentId,
-      message: sheet.errorMessage
+      message: sheet?.errorMessage ?? failureMessage
     });
     revalidatePath(`/patients/${sheetWithFile.patientId}`);
     return sheet;
