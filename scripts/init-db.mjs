@@ -1,12 +1,12 @@
 import { spawn } from "node:child_process";
-import { mkdir, readFile, readdir, rm, stat } from "node:fs/promises";
+import { mkdir, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const dataDir = path.join(root, "data");
+const rootDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+const dataDir = path.join(rootDir, "data");
 const dbPath = path.join(dataDir, "app.db");
-const migrationsRoot = path.join(root, "prisma", "migrations");
+const migrationsDir = path.join(rootDir, "prisma", "migrations");
 
 await mkdir(dataDir, { recursive: true });
 
@@ -17,37 +17,15 @@ if ((await pathExists(dbPath)) && (await databaseNeedsReset(dbPath))) {
 
 await Promise.all([
   mkdir(path.join(dataDir, "backups"), { recursive: true }),
-  mkdir(path.join(dataDir, "imports"), { recursive: true })
+  mkdir(path.join(dataDir, "imports"), { recursive: true }),
+  mkdir(path.join(dataDir, "cache"), { recursive: true })
 ]);
 
-const migrationDirs = (await readdir(migrationsRoot, { withFileTypes: true }))
-  .filter((entry) => entry.isDirectory())
-  .map((entry) => entry.name)
-  .sort();
-
-const sql = (
-  await Promise.all(
-    migrationDirs.map(async (directory) => readFile(path.join(migrationsRoot, directory, "migration.sql"), "utf8"))
-  )
-).join("\n\n");
-
-await new Promise((resolve, reject) => {
-  const child = spawn("sqlite3", [dbPath], {
-    stdio: ["pipe", "inherit", "inherit"],
-    windowsHide: true
-  });
-
-  child.on("error", reject);
-  child.on("close", (code) => {
-    if (code === 0) resolve(undefined);
-    else reject(new Error(`sqlite3 exited with code ${code}`));
-  });
-
-  child.stdin.end(sql);
+await runNode(path.join(rootDir, "electron", "init-db.cjs"), {
+  APP_DATA_DIR: dataDir,
+  DATABASE_URL: `file:${dbPath.replace(/\\/g, "/")}`,
+  MIGRATIONS_DIR: migrationsDir
 });
-
-await ensureColumn(dbPath, "Patient", "gender", "TEXT");
-await ensureColumn(dbPath, "Patient", "nextAppointmentDate", "DATETIME");
 
 console.log(`SQLite database ready at ${dbPath}`);
 
@@ -56,42 +34,41 @@ async function databaseNeedsReset(databasePath) {
     databasePath,
     "SELECT name FROM pragma_table_info('Attachment') WHERE name IN ('vaultPath','localRelativePath');"
   );
-
   return columns.includes("vaultPath") || !columns.includes("localRelativePath");
+}
+
+async function runNode(scriptPath, environment) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [scriptPath], {
+      cwd: rootDir,
+      env: { ...process.env, ...environment },
+      stdio: "inherit",
+      windowsHide: true
+    });
+    child.once("error", reject);
+    child.once("exit", (code) => {
+      if (code === 0) resolve(undefined);
+      else reject(new Error(`Database initialization exited with code ${code}`));
+    });
+  });
 }
 
 async function runSqlite(databasePath, sql) {
   return new Promise((resolve, reject) => {
     let output = "";
-    const child = spawn("sqlite3", [databasePath], {
-      stdio: ["pipe", "pipe", "inherit"],
+    const child = spawn("sqlite3", [databasePath, sql], {
+      stdio: ["ignore", "pipe", "inherit"],
       windowsHide: true
     });
-
     child.stdout.on("data", (chunk) => {
       output += chunk.toString("utf8");
     });
-    child.on("error", reject);
-    child.on("close", (code) => {
+    child.once("error", reject);
+    child.once("exit", (code) => {
       if (code === 0) resolve(output);
       else reject(new Error(`sqlite3 exited with code ${code}`));
     });
-
-    child.stdin.end(sql);
   });
-}
-
-async function ensureColumn(databasePath, tableName, columnName, definition) {
-  const escapedTableName = tableName.replace(/'/g, "''");
-  const escapedColumnName = columnName.replace(/'/g, "''");
-  const existingColumn = await runSqlite(
-    databasePath,
-    `SELECT name FROM pragma_table_info('${escapedTableName}') WHERE name = '${escapedColumnName}';`
-  );
-
-  if (!existingColumn.split(/\s+/).includes(columnName)) {
-    await runSqlite(databasePath, `ALTER TABLE "${tableName}" ADD COLUMN "${columnName}" ${definition};`);
-  }
 }
 
 async function pathExists(filePath) {

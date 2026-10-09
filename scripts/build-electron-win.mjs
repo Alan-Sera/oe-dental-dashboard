@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import fs from "node:fs";
-import { copyFile, cp, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { copyFile, cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -8,6 +8,11 @@ const rootDir = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   ".."
 );
+
+if (typeof process.loadEnvFile === "function") {
+  const envPath = path.join(rootDir, ".env");
+  if (fs.existsSync(envPath)) process.loadEnvFile(envPath);
+}
 
 const pnpmBin = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 const stageDir = path.join(rootDir, ".electron-build");
@@ -52,31 +57,46 @@ async function copyIfExists(from, to) {
 
 function findGeneratedPrismaClient() {
   const directClient = path.join(rootDir, "node_modules", ".prisma", "client");
+  const schemaPath = path.join(rootDir, "prisma", "schema.prisma");
+  const sourceSchema = fs.existsSync(schemaPath)
+    ? fs.readFileSync(schemaPath, "utf8").replace(/\r\n/g, "\n")
+    : null;
+  const candidates = [];
 
   if (fs.existsSync(path.join(directClient, "default.js"))) {
-    return directClient;
+    candidates.push(directClient);
   }
 
   const pnpmDir = path.join(rootDir, "node_modules", ".pnpm");
 
-  if (!fs.existsSync(pnpmDir)) {
-    return null;
+  if (fs.existsSync(pnpmDir)) {
+    for (const entry of fs.readdirSync(pnpmDir)) {
+      if (!entry.startsWith("@prisma+client@")) {
+        continue;
+      }
+
+      const candidate = path.join(
+        pnpmDir,
+        entry,
+        "node_modules",
+        ".prisma",
+        "client"
+      );
+
+      if (fs.existsSync(path.join(candidate, "default.js"))) {
+        candidates.push(candidate);
+      }
+    }
   }
 
-  for (const entry of fs.readdirSync(pnpmDir)) {
-    if (!entry.startsWith("@prisma+client@")) {
-      continue;
-    }
+  for (const candidate of candidates) {
+    const generatedSchemaPath = path.join(candidate, "schema.prisma");
 
-    const candidate = path.join(
-      pnpmDir,
-      entry,
-      "node_modules",
-      ".prisma",
-      "client"
-    );
-
-    if (fs.existsSync(path.join(candidate, "default.js"))) {
+    if (
+      sourceSchema &&
+      fs.existsSync(generatedSchemaPath) &&
+      fs.readFileSync(generatedSchemaPath, "utf8").replace(/\r\n/g, "\n") === sourceSchema
+    ) {
       return candidate;
     }
   }
@@ -93,7 +113,7 @@ async function preparePrismaClient() {
 
   const targetClient = path.join(
     stageNextDir,
-    "node_modules",
+    "server_modules",
     "@prisma",
     "client"
   );
@@ -141,6 +161,49 @@ async function prepareNodeRuntime() {
   await copyFile(process.execPath, runtimePath);
 
   console.log(`[electron-build] Node ${process.version} copiado al staging temporal`);
+}
+
+async function readElectronGoogleOAuthConfig() {
+  const localConfigPath = path.join(rootDir, "electron", "google-oauth.local.json");
+
+  if (!fs.existsSync(localConfigPath)) {
+    throw new Error(
+      "Falta electron/google-oauth.local.json. Copia electron/google-oauth.example.json y configura ahí el cliente OAuth Desktop antes de empaquetar."
+    );
+  }
+
+  let localConfig;
+  try {
+    localConfig = JSON.parse(await readFile(localConfigPath, "utf8"));
+  } catch {
+    throw new Error(
+      "electron/google-oauth.local.json no contiene JSON válido. Usa el formato de electron/google-oauth.example.json."
+    );
+  }
+
+  if (!localConfig || typeof localConfig !== "object" || Array.isArray(localConfig)) {
+    throw new Error(
+      "electron/google-oauth.local.json debe ser un objeto con clientId y clientSecret. Usa el formato de electron/google-oauth.example.json."
+    );
+  }
+
+  const clientId = typeof localConfig.clientId === "string" ? localConfig.clientId.trim() : "";
+  const clientSecret = typeof localConfig.clientSecret === "string" ? localConfig.clientSecret.trim() : "";
+
+  if (!clientId || !clientSecret) {
+    throw new Error(
+      "Faltan clientId o clientSecret en electron/google-oauth.local.json. El instalador requiere las credenciales OAuth Desktop."
+    );
+  }
+
+  return { clientId, clientSecret };
+}
+
+async function prepareGoogleOAuthConfig(config) {
+  const configPath = path.join(stageDir, "google-oauth.json");
+
+  await writeFile(configPath, JSON.stringify(config), "utf8");
+  console.log("[electron-build] Credenciales OAuth Desktop locales preparadas");
 }
 
 function findPnpmPackage(packageName) {
@@ -220,6 +283,7 @@ async function copyRequiredRuntimePackages() {
   }
 
   const runtimeRoots = [
+    "next",
     ...Object.keys(nextPackage.dependencies ?? {}),
     "@prisma/client",
     "react",
@@ -254,7 +318,7 @@ async function copyRequiredRuntimePackages() {
   }
 
   for (const [packageName, source] of packagesToCopy) {
-    const target = path.join(stageNextDir, "node_modules", ...packageName.split("/"));
+    const target = path.join(stageNextDir, "server_modules", ...packageName.split("/"));
 
     await rm(target, { recursive: true, force: true });
     await cp(source, target, {
@@ -299,13 +363,15 @@ async function patchPrismaEntrypoints(prismaClientDir) {
   }
 }
 
-async function prepareStandalone() {
+async function prepareStandalone(electronOAuthConfig) {
   const standaloneDir = path.join(rootDir, ".next", "standalone");
   const staticDir = path.join(rootDir, ".next", "static");
   const publicDir = path.join(rootDir, "public");
+  const templatesDir = path.join(rootDir, "assets", "templates");
   const migrationsDir = path.join(rootDir, "prisma", "migrations");
   const electronInitDb = path.join(rootDir, "electron", "init-db.cjs");
   const standaloneNodeModulesDir = path.join(standaloneDir, "node_modules");
+  const stageServerModulesDir = path.join(stageNextDir, "server_modules");
 
   if (!fs.existsSync(path.join(standaloneDir, "server.js"))) {
     throw new Error("No existe .next/standalone/server.js. Ejecuta next build.");
@@ -313,38 +379,46 @@ async function prepareStandalone() {
 
   await rm(stageDir, { recursive: true, force: true });
   await mkdir(stageDir, { recursive: true });
+  await prepareGoogleOAuthConfig(electronOAuthConfig);
 
   await cp(standaloneDir, stageNextDir, {
     recursive: true,
     dereference: true,
-    filter: (source) =>
-      !path.basename(source).includes(".tmp") &&
-      path.resolve(source) !== standaloneNodeModulesDir,
+    filter: (source) => {
+      const name = path.basename(source);
+
+      return (
+        !name.includes(".tmp") &&
+        !/^\.env(?:\.|$)/i.test(name) &&
+        path.resolve(source) !== standaloneNodeModulesDir
+      );
+    },
   });
 
   await copyIfExists(staticDir, path.join(stageNextDir, ".next", "static"));
   await copyIfExists(publicDir, path.join(stageNextDir, "public"));
+  await copyIfExists(templatesDir, path.join(stageNextDir, "assets", "templates"));
   await copyIfExists(migrationsDir, path.join(stageNextDir, "prisma", "migrations"));
   await copyIfExists(electronInitDb, path.join(stageNextDir, "init-db.cjs"));
-  await mkdir(path.join(stageNextDir, "node_modules"), { recursive: true });
+  await mkdir(stageServerModulesDir, { recursive: true });
   await copyRequiredRuntimePackages();
   await preparePrismaClient();
   await prepareNodeRuntime();
 
-  const stageNodeModulesDir = path.join(stageNextDir, "node_modules");
-  const stageServerModulesDir = path.join(stageNextDir, "server_modules");
-
-  await rm(stageServerModulesDir, { recursive: true, force: true });
-  await rename(stageNodeModulesDir, stageServerModulesDir);
+  if (!fs.existsSync(path.join(stageServerModulesDir, "next", "package.json"))) {
+    throw new Error("No se preparó el paquete Next.js requerido por server.js.");
+  }
 
   console.log("[electron-build] Standalone preparado en .electron-build/next");
 }
+
+const electronOAuthConfig = await readElectronGoogleOAuthConfig();
 
 if (!stageOnly) {
   await run(pnpmBin, ["build"]);
 }
 
-await prepareStandalone();
+await prepareStandalone(electronOAuthConfig);
 
 if (!stageOnly) {
   await run(pnpmBin, ["exec", "electron-builder"]);
