@@ -10,6 +10,7 @@ import {
   useTransition,
   type PointerEvent,
 } from "react";
+import { useFormStatus } from "react-dom";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -42,6 +43,7 @@ import {
 
 import { categoryLabels } from "@/constants";
 import type { SerializedAttachment, SerializedPatientDetail } from "@/types";
+import { isPatientPhotoOrRadiograph } from "@/lib/patient-media";
 import {
   linkTextAttachmentAsClinicalHistory,
   updateLinkedTextClinicalHistory,
@@ -73,6 +75,7 @@ import {
   getTextHistorySearchSummary,
 } from "@/lib/text-history-search";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
+import { isPaymentHistoryUploadInProgress } from "@/lib/payment-history-upload-state";
 import { toDateKey } from "@/lib/date-utils";
 import { appointmentStatusLabels } from "@/components/schedule/constants";
 import type { AgendaAppointment } from "@/components/schedule/types";
@@ -86,10 +89,19 @@ import {
   type PendingEditItem,
 } from "@/components/pending-edits-modal";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   PaymentForm,
   TreatmentChargeForm,
@@ -173,9 +185,7 @@ export function PatientDetailTabs({
   const toastedMissingRef = useRef(new Set<string>());
   const photos = useMemo(
     () =>
-      patient.attachments.filter((attachment) =>
-        ["PHOTO", "RADIOGRAPH"].includes(attachment.category),
-      ),
+      patient.attachments.filter(isPatientPhotoOrRadiograph),
     [patient.attachments],
   );
   const activePaymentHistory = patient.paymentHistorySheets.find(
@@ -380,6 +390,7 @@ export function PatientDetailTabs({
                   fullName: patient.fullName,
                   email: patient.email ?? "",
                   phone: patient.phone ?? "",
+                  phoneUnavailable: patient.phoneUnavailable,
                   birthDate: patient.birthDate?.slice(0, 10) ?? "",
                   gender: patient.gender ?? "",
                   nextAppointmentDate:
@@ -557,6 +568,7 @@ export function PatientDetailTabs({
               {activePaymentHistory ? (
                 <PaymentHistoryStatusBadge
                   status={activePaymentHistory.uploadStatus}
+                  uploadStartedAt={activePaymentHistory.uploadStartedAt}
                 />
               ) : null}
             </div>
@@ -574,30 +586,6 @@ export function PatientDetailTabs({
               <EmptyState text="Sin historial activo. Importa un .xlsx o elige uno de la lista como historial activo." />
             )}
           </Card>
-
-          {/* <Card className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="section-title">Historiales importados</h2>
-              <Badge tone="neutral">
-                {patient.paymentHistorySheets.length} archivo(s)
-              </Badge>
-            </div>
-
-            {patient.paymentHistorySheets.length > 0 ? (
-              <div className="space-y-3">
-                {patient.paymentHistorySheets.map((sheet) => (
-                  <PaymentHistoryPanel
-                    key={sheet.id}
-                    patientId={patient.id}
-                    sheet={sheet}
-                    missing={missingAttachmentIdSet.has(sheet.attachment.id)}
-                  />
-                ))}
-              </div>
-            ) : (
-              <EmptyState text="Aún no hay archivos .xlsx de historial de pagos para este paciente" />
-            )}
-          </Card> */}
         </Tabs.Content>
 
         <Tabs.Content value="files" className="space-y-3">
@@ -619,6 +607,12 @@ export function PatientDetailTabs({
                 attachment.mimeType,
               );
               const linkedToHistory = Boolean(attachment.clinicalEntryId);
+              const categoryBadgeTone =
+                attachment.category === "CLINICAL_HISTORY"
+                  ? "mint"
+                  : attachment.category === "PAYMENT_HISTORY"
+                    ? "green"
+                    : "neutral";
               const linkingThisHistory =
                 pendingTextHistoryAttachmentId === attachment.id;
 
@@ -644,7 +638,7 @@ export function PatientDetailTabs({
                         className={cn(
                           !linkedToHistory
                             ? "border-brand-300/45 bg-brand-700/60 text-white hover:border-brand-200/60 hover:bg-brand-600"
-                            : undefined,
+                            : "border-emerald-300/45 bg-emerald-700/70",
                         )}
                         disabled={
                           missing || linkedToHistory || isLinkingTextHistory
@@ -668,7 +662,9 @@ export function PatientDetailTabs({
                             : "Vincular historia"}
                       </Button>
                     ) : null}
-                    <Badge>{categoryLabels[attachment.category]}</Badge>
+                    <Badge tone={categoryBadgeTone}>
+                      {categoryLabels[attachment.category]}
+                    </Badge>
                     {missing ? <Badge tone="coral">Faltante</Badge> : null}
                     {missing ? (
                       <span className="text-sm text-lavender-200/35">
@@ -1062,7 +1058,7 @@ function LinkedTextHistoryBlocks({
               }}
               onChange={(event) => requestSearchChange(event.target.value)}
               placeholder="Buscar en historia"
-              className="h-10 rounded-full pl-10 pr-10"
+              className="h-10 rounded-full pl-10 pr-10 hover:border-lavender-300/60 hover:bg-lavender-800/50"
               aria-label="Buscar palabras en historia"
               disabled={disabled}
             />
@@ -2055,13 +2051,39 @@ function PaymentHistoryPanel({
   missing?: boolean;
   featured?: boolean;
 }) {
+  const [editingFolder, setEditingFolder] = useState<{
+    sheetId: string;
+    originalFolderId: string;
+    value: string;
+  } | null>(null);
+  const [confirmFolderEditOpen, setConfirmFolderEditOpen] = useState(false);
+  const storedFolderId = sheet.googleFolderId ?? "";
+  const hasGoogleFolderId = Boolean(sheet.googleFolderId);
+  const isEditingCurrentFolder =
+    editingFolder?.sheetId === sheet.id && editingFolder.originalFolderId === storedFolderId;
+  const isFolderEditable =
+    !hasGoogleFolderId ||
+    isEditingCurrentFolder;
+  const folderInputValue = isEditingCurrentFolder ? editingFolder.value : storedFolderId;
+  const uploadIsInProgress = isPaymentHistoryUploadInProgress(sheet.uploadStartedAt);
+  const folderWasChanged = folderInputValue.trim() !== storedFolderId.trim();
+  const canRetryUpload = Boolean(folderInputValue.trim()) && !uploadIsInProgress &&
+    (folderWasChanged || sheet.uploadStatus !== "UPLOADED");
+
+  function cancelFolderEdit() {
+    setEditingFolder(null);
+  }
+
   return (
     <div className="surface space-y-4 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
             {sheet.isActive ? <Badge tone="brand">Activo</Badge> : null}
-            <PaymentHistoryStatusBadge status={sheet.uploadStatus} />
+            <PaymentHistoryStatusBadge
+              status={sheet.uploadStatus}
+              uploadStartedAt={sheet.uploadStartedAt}
+            />
             {missing ? <Badge tone="coral">Faltante</Badge> : null}
           </div>
           <p className="truncate font-medium text-ink-100">
@@ -2083,7 +2105,11 @@ function PaymentHistoryPanel({
 
         <div className="flex flex-wrap gap-2">
           {sheet.googleUrl ? (
-            <Button asChild size="sm">
+            <Button asChild
+              className={cn(
+                buttonVariants({ variant: "secondary", size: "md" }),
+                "min-w-32 border-emerald-300/45 bg-emerald-700/70 px-5 text-white shadow-sm shadow-emerald-950/30 hover:border-emerald-200/70 hover:bg-emerald-600"
+              )}>
               <Link href={sheet.googleUrl} target="_blank" rel="noreferrer">
                 <ExternalLink className="size-4" aria-hidden="true" />
                 Abrir en Google Sheets
@@ -2091,12 +2117,12 @@ function PaymentHistoryPanel({
             </Button>
           ) : null}
           {missing ? (
-            <Button type="button" variant="secondary" size="sm" disabled>
+            <Button type="button" variant="secondary" size="md" disabled>
               <FileText className="size-4" aria-hidden="true" />
               Abrir local
             </Button>
           ) : (
-            <Button asChild variant="secondary" size="sm">
+            <Button asChild variant="secondary" size="md">
               <Link href={`/api/files/${sheet.attachment.id}`} target="_blank">
                 <FileText className="size-4" aria-hidden="true" />
                 Abrir local
@@ -2112,16 +2138,100 @@ function PaymentHistoryPanel({
           className="grid gap-2 sm:grid-cols-[1fr_auto]"
         >
           <input type="hidden" name="sheetId" value={sheet.id} />
-          <Input
-            name="googleFolderId"
-            defaultValue={sheet.googleFolderId ?? ""}
-            placeholder="Link o ID de carpeta compartida de Google Drive"
-          />
-          <Button type="submit" variant="secondary" size="sm">
-            <UploadCloud className="size-4" aria-hidden="true" />
-            Subir/Reintentar
-          </Button>
+          <div className="flex min-w-0 gap-2">
+            <Input
+              name="googleFolderId"
+              value={folderInputValue}
+              onChange={(event) =>
+                setEditingFolder({
+                  sheetId: sheet.id,
+                  originalFolderId: storedFolderId,
+                  value: event.currentTarget.value,
+                })
+              }
+              placeholder="Link o ID de carpeta compartida de Google Drive"
+              readOnly={!isFolderEditable}
+              className="min-w-0 flex-1 read-only:cursor-default read-only:bg-lavender-950/45"
+              aria-label="Carpeta de destino del historial de Google Sheets"
+            />
+            {hasGoogleFolderId ? (
+              isFolderEditable ? (
+                <Button type="button" variant="danger" size="md" onClick={cancelFolderEdit}>
+                  Cancelar edición
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="md"
+                  onClick={() => setConfirmFolderEditOpen(true)}
+                >
+                  <Pencil className="size-4" aria-hidden="true" />
+                  Modificar
+                </Button>
+              )
+            ) : null}
+          </div>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <span
+                  tabIndex={canRetryUpload ? undefined : 0}
+                  aria-label={canRetryUpload ? undefined : uploadIsInProgress
+                    ? "La subida de este historial está en curso"
+                    : "Modifica la liga o conecta Google para habilitar Subir/Reintentar"}
+                  className="inline-flex rounded-md"
+                >
+                  <PaymentHistoryUploadSubmitButton
+                    disabled={!canRetryUpload}
+                    uploadIsInProgress={uploadIsInProgress}
+                  />
+                </span>
+              }
+            />
+            <TooltipContent>
+              {canRetryUpload
+                ? "Puedes subir/reintentar en la carpeta indicada."
+                : uploadIsInProgress
+                  ? "La subida de este historial ya está en curso."
+                  : sheet.uploadStatus === "UPLOADED" && !folderWasChanged
+                    ? "Para subir a otra carpeta, primero modifica la liga."
+                    : "No hay una carpeta de Drive válida para subir este historial."}
+            </TooltipContent>
+          </Tooltip>
         </form>
+
+        <Dialog open={confirmFolderEditOpen} onOpenChange={setConfirmFolderEditOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>¿Seguro que quieres modificar la liga?</DialogTitle>
+              <DialogDescription>
+                Al confirmar se habilitará el campo. El nuevo destino se aplicará al pulsar
+                “Subir/Reintentar”, lo que creará una hoja en la carpeta indicada. La hoja actual
+                permanecerá en Google Drive.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="mt-4">
+              <Button type="button" variant="secondary" onClick={() => setConfirmFolderEditOpen(false)}>
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                onClick={() => {
+                  setEditingFolder({
+                    sheetId: sheet.id,
+                    originalFolderId: storedFolderId,
+                    value: storedFolderId,
+                  });
+                  setConfirmFolderEditOpen(false);
+                }}
+              >
+                Sí, modificar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {!sheet.isActive && !featured ? (
           <form action={setActivePaymentHistorySheet}>
@@ -2140,12 +2250,23 @@ function PaymentHistoryPanel({
 
 function PaymentHistoryStatusBadge({
   status,
+  uploadStartedAt,
 }: {
   status: SerializedPatientDetail["paymentHistorySheets"][number]["uploadStatus"];
+  uploadStartedAt: string | null;
 }) {
-  if (status === "UPLOADED") {
+  if (status === "UPLOADING" && isPaymentHistoryUploadInProgress(uploadStartedAt)) {
     return (
       <Badge tone="brand">
+        <LoaderCircle className="mr-1 size-3 animate-spin" aria-hidden="true" />
+        Subiendo
+      </Badge>
+    );
+  }
+
+  if (status === "UPLOADED") {
+    return (
+      <Badge tone="green">
         <CheckCircle2 className="mr-1 size-3" aria-hidden="true" />
         Google Sheets
       </Badge>
@@ -2156,11 +2277,37 @@ function PaymentHistoryStatusBadge({
     return <Badge tone="coral">Falló subida</Badge>;
   }
 
+  if (status === "UPLOADING") {
+    return <Badge tone="coral">Reintento disponible</Badge>;
+  }
+
   return (
     <Badge tone="neutral">
       <LoaderCircle className="mr-1 size-3" aria-hidden="true" />
       Local solamente
     </Badge>
+  );
+}
+
+function PaymentHistoryUploadSubmitButton({
+  disabled,
+  uploadIsInProgress,
+}: {
+  disabled: boolean;
+  uploadIsInProgress: boolean;
+}) {
+  const { pending } = useFormStatus();
+  const isBusy = pending || uploadIsInProgress;
+
+  return (
+    <Button type="submit" variant="secondary" size="md" disabled={disabled || pending}>
+      {isBusy ? (
+        <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
+      ) : (
+        <UploadCloud className="size-4" aria-hidden="true" />
+      )}
+      {isBusy ? "Subiendo…" : "Subir/Reintentar"}
+    </Button>
   );
 }
 
@@ -2290,7 +2437,7 @@ function AttachmentTile({
       </p>
       <Button
         type="button"
-        variant={isProfilePhoto ? "secondary" : "ghost"}
+        variant="secondary"
         size="sm"
         className={cn(
           isProfilePhoto

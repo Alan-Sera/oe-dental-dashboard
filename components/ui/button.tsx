@@ -15,6 +15,7 @@ const buttonVariants = cva(
         danger: "bg-coral-500 text-white hover:bg-coral-400"
       },
       size: {
+        xs: "h-6 px-2 text-xs",
         sm: "h-8 px-3 text-xs",
         md: "h-10 px-4",
         icon: "size-10 px-0"
@@ -29,7 +30,7 @@ const buttonVariants = cva(
 
 export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>,
-    VariantProps<typeof buttonVariants> {
+  VariantProps<typeof buttonVariants> {
   asChild?: boolean;
 }
 

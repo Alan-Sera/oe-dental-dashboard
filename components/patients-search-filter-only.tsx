@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowUpAZ, ArrowUpZA, BadgeDollarSign, CalendarDays, Search, X } from "lucide-react";
+import { ArrowUpAZ, ArrowUpZA, BadgeDollarSign, Search, X } from "lucide-react";
 
 import { PatientCreateModal } from "@/components/patient-create-modal";
 import { PatientAvatar } from "@/components/patient-avatar";
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   filterPatientDirectory,
   type PatientDirectoryRecord,
@@ -60,20 +61,20 @@ export function PatientsSearchFilterOnly({ patients }: { patients: PatientListIt
           <p className="muted">{patients.length} expediente(s)</p>
         </div>
         <div className="relative mx-auto w-full max-w-xl">
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-lavender-200/55" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-white" />
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Buscar por nombre o teléfono"
-            className="h-11 rounded-full pl-10 pr-10"
+            className="h-11 rounded-full pl-10 pr-10 hover:border-lavender-300/60 hover:bg-lavender-800/50 placeholder:hover:text-white"
             aria-label="Buscar pacientes por nombre o teléfono"
           />
           {hasQuery ? (
             <Button
               type="button"
-              variant="ghost"
+              variant="danger"
               size="icon"
-              className="absolute right-1 top-1/2 size-9 -translate-y-1/2"
+              className="absolute right-3 top-1/2 size-7 -translate-y-1/2"
               aria-label="Limpiar búsqueda"
               onClick={() => setQuery("")}
             >
@@ -95,69 +96,117 @@ export function PatientsSearchFilterOnly({ patients }: { patients: PatientListIt
 
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex overflow-hidden rounded-md border border-lavender-600/55 bg-lavender-950/20">
-              <Button
-                type="button"
-                variant={sortOrder === "asc" ? "secondary" : "ghost"}
-                size="sm"
-                className="rounded-none border-0"
-                onClick={() => setSortOrder("asc")}
-                aria-pressed={sortOrder === "asc"}
-              >
-                <ArrowUpAZ className="size-4" aria-hidden="true" />
-                A-Z
-              </Button>
-              <Button
-                type="button"
-                variant={sortOrder === "desc" ? "secondary" : "ghost"}
-                size="sm"
-                className="rounded-none border-0"
-                onClick={() => setSortOrder("desc")}
-                aria-pressed={sortOrder === "desc"}
-              >
-                <ArrowUpZA className="size-4" aria-hidden="true" />
-                Z-A
-              </Button>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant={sortOrder === "asc" ? "primary" : "ghost"}
+                      size="sm"
+                      className="rounded-none border-0"
+                      onClick={() => setSortOrder("asc")}
+                      aria-pressed={sortOrder === "asc"}
+                    >
+                      <ArrowUpAZ className="size-4" aria-hidden="true" />
+                      A-Z
+                    </Button>
+                  }
+                />
+                <TooltipContent>Ordena pacientes por nombre de A a Z.</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant={sortOrder === "desc" ? "primary" : "ghost"}
+                      size="sm"
+                      className="rounded-none border-0"
+                      onClick={() => setSortOrder("desc")}
+                      aria-pressed={sortOrder === "desc"}
+                    >
+                      <ArrowUpZA className="size-4" aria-hidden="true" />
+                      Z-A
+                    </Button>
+                  }
+                />
+                <TooltipContent>Ordena pacientes por nombre de Z a A.</TooltipContent>
+              </Tooltip>
             </div>
 
-            <Select
-              value={genderFilter}
-              onChange={(event) => setGenderFilter(event.target.value as PatientGenderFilter)}
-              className="h-8 w-[150px]"
-              aria-label="Filtrar por género"
-            >
-              <option value="ALL">Todos</option>
-              <option value="MASCULINO">Masculino</option>
-              <option value="FEMENINO">Femenino</option>
-            </Select>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Select
+                    value={genderFilter}
+                    onChange={(event) => setGenderFilter(event.target.value as PatientGenderFilter)}
+                    className="h-8 w-[120px] hover:border-lavender-300/60 hover:bg-lavender-800/50"
+                    aria-label="Filtrar por género"
+                  >
+                    <option value="ALL">Todos</option>
+                    <option value="MASCULINO">Masculino</option>
+                    <option value="FEMENINO">Femenino</option>
+                  </Select>
+                }
+              />
+              <TooltipContent>Filtra pacientes por género.</TooltipContent>
+            </Tooltip>
 
-            <Button
-              type="button"
-              variant={debtorsOnly ? "secondary" : "ghost"}
-              size="sm"
-              onClick={() => setDebtorsOnly((current) => !current)}
-              aria-pressed={debtorsOnly}
-              disabled
-            >
-              <BadgeDollarSign className="size-4" aria-hidden="true" />
-              Deudores
-            </Button>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <span
+                    role="group"
+                    tabIndex={0}
+                    aria-label="Filtro de deudores no disponible"
+                    className="inline-flex rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lavender-200/60"
+                  >
+                    <Button
+                      type="button"
+                      variant={debtorsOnly ? "secondary" : "ghost"}
+                      size="sm"
+                      onClick={() => setDebtorsOnly((current) => !current)}
+                      aria-pressed={debtorsOnly}
+                      disabled
+                    >
+                      <BadgeDollarSign className="size-4" aria-hidden="true" />
+                      Deudores
+                    </Button>
+                  </span>
+                }
+              />
+              <TooltipContent>Filtro no disponible.</TooltipContent>
+            </Tooltip>
 
             <div className="relative w-full sm:w-auto">
-              <CalendarDays className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-lavender-200/55" />
-              <Input
-                type="date"
-                value={appointmentDate}
-                onChange={(event) => setAppointmentDate(event.target.value)}
-                className="h-8 w-full pl-9 sm:w-[165px]"
-                aria-label="Filtrar por fecha de cita"
-              />
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Input
+                      type="date"
+                      value={appointmentDate}
+                      onChange={(event) => setAppointmentDate(event.target.value)}
+                      className="h-8 w-full pl-9 sm:max-w-[173px] px-3"
+                      aria-label="Filtrar por fecha de cita"
+                    />
+                  }
+                />
+                <TooltipContent>Filtrar por fecha de cita.</TooltipContent>
+              </Tooltip>
             </div>
 
             {hasActiveFilters ? (
-              <Button type="button" variant="ghost" size="sm" onClick={resetFilters}>
-                <X className="size-4" aria-hidden="true" />
-                Limpiar
-              </Button>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button type="button" variant="danger" size="sm" onClick={resetFilters}>
+                      <X className="size-4" aria-hidden="true" />
+                      Limpiar
+                    </Button>
+                  }
+                />
+                <TooltipContent>Quitar los filtros</TooltipContent>
+              </Tooltip>
             ) : null}
           </div>
         </div>

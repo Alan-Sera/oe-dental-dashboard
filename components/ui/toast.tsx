@@ -29,7 +29,7 @@ function ToastRoot({
   return (
     <ToastPrimitive.Root
       className={cn(
-        "oe-toast-root group rounded-lg border border-lavender-500/30 bg-lavender-950/90 shadow-xl shadow-ink-950/40 backdrop-blur-md",
+        "oe-toast-root group rounded-lg border border-lavender-500/30 bg-lavender-950/90 shadow-xl shadow-ink-950/40 backdrop-blur-md hover:border-lavender-200",
         className,
       )}
       {...props}

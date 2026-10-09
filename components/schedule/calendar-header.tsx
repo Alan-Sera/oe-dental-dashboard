@@ -57,7 +57,7 @@ export function CalendarHeader({
   return (
     <div className="flex flex-col gap-1 lg:flex-row lg:items-center lg:justify-between">
       <div className="flex items-center gap-1">
-        <h1 className="section-title text-xl capitalize">{title}</h1>
+        <h1 className="section-title text-xl capitalize lg:text-sm text-white">{title}</h1>
         <div className="flex items-center gap-1">
           <Button type="button" variant="ghost" size="icon" aria-label="Anterior" onClick={() => onNavigate(-1)}>
             <ChevronLeft className="size-4" aria-hidden="true" />
