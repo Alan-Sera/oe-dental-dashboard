@@ -35,14 +35,23 @@ export type SerializedAttachment = {
 
 export type SerializedPatientDetail = {
   id: string;
+  createdAt: string;
   fullName: string;
   email: string | null;
   phone: string | null;
+  phoneUnavailable: boolean;
   birthDate: string | null;
   gender: PatientGender | null;
   nextAppointmentDate: string | null;
   notes: string | null;
   profilePhotoId: string | null;
+  googleFolderId: string | null;
+  googleFolderUrl: string | null;
+  provisioningStatus: "UNMANAGED" | "PENDING" | "IN_PROGRESS" | "PARTIAL" | "READY" | "FAILED";
+  provisioningError: string | null;
+  provisioningStartedAt: string | null;
+  provisionedAt: string | null;
+  provisioningAttempts: number;
   attachments: SerializedAttachment[];
   clinicalEntries: Array<{
     id: string;
@@ -81,6 +90,7 @@ export type SerializedPatientDetail = {
     googleUrl: string | null;
     googleFolderId: string | null;
     uploadStatus: PaymentHistoryUploadStatus;
+    uploadStartedAt: string | null;
     uploadedAt: string | null;
     errorMessage: string | null;
     isActive: boolean;

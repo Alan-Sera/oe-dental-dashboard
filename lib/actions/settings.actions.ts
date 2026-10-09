@@ -4,6 +4,14 @@ import { copyFile, mkdir, readdir, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { revalidatePath } from "next/cache";
 
+import { requireSession } from "@/lib/auth";
+import {
+  GoogleDriveRequestError,
+  getGoogleOAuthConfig,
+  refreshGoogleAccessToken,
+  verifyGoogleDriveFolder
+} from "@/lib/google-drive";
+import { getGoogleDriveRefreshToken } from "@/lib/google-settings";
 import {
   ensureDataDirectories,
   getAppDataDir,
@@ -15,15 +23,19 @@ import {
 } from "@/lib/local-paths";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/actions/audit.actions";
+import { GOOGLE_PATIENTS_ROOT_ID, GOOGLE_PATIENTS_ROOT_URL } from "@/lib/google-constants";
+import { resolveLocalBackupDatabasePath } from "@/lib/local-backups";
 
 export type ClinicSettings = {
   clinicName: string;
   currency: string;
   networkMode: "single" | "lan-ready";
   patientsRootPath: string;
+  googlePatientsRootId: string;
+  googlePatientsRootUrl: string;
 };
 
-type ClinicSettingsInput = Omit<ClinicSettings, "patientsRootPath"> & {
+type ClinicSettingsInput = Pick<ClinicSettings, "clinicName" | "currency" | "networkMode"> & {
   patientsRootPath?: string;
 };
 
@@ -50,7 +62,12 @@ export async function getClinicSettings(): Promise<ClinicSettings> {
   const settings = await prisma.setting.findMany({
     where: {
       key: {
-        in: ["clinic.name", "clinic.currency", "app.networkMode", "files.patientsRootPath"]
+        in: [
+          "clinic.name",
+          "clinic.currency",
+          "app.networkMode",
+          "files.patientsRootPath"
+        ]
       }
     }
   });
@@ -61,16 +78,19 @@ export async function getClinicSettings(): Promise<ClinicSettings> {
     clinicName: map.get("clinic.name") ?? "OE Dental",
     currency: map.get("clinic.currency") ?? "MXN",
     networkMode: (map.get("app.networkMode") as ClinicSettings["networkMode"]) ?? "single",
-    patientsRootPath: map.get("files.patientsRootPath") ?? process.env.PATIENTS_ROOT_PATH ?? ""
+    patientsRootPath: map.get("files.patientsRootPath") ?? process.env.PATIENTS_ROOT_PATH ?? "",
+    googlePatientsRootId: GOOGLE_PATIENTS_ROOT_ID,
+    googlePatientsRootUrl: GOOGLE_PATIENTS_ROOT_URL
   };
 }
 
 export async function updateClinicSettings(settings: ClinicSettingsInput) {
+  await requireSession();
   const patientsRootPath = settings.patientsRootPath?.trim()
     ? normalizePatientsRootPath(settings.patientsRootPath)
     : "";
 
-  await prisma.$transaction([
+  const updates = [
     prisma.setting.upsert({
       where: { key: "clinic.name" },
       create: { key: "clinic.name", value: settings.clinicName },
@@ -91,7 +111,9 @@ export async function updateClinicSettings(settings: ClinicSettingsInput) {
       create: { key: "files.patientsRootPath", value: patientsRootPath },
       update: { value: patientsRootPath }
     })
-  ]);
+  ];
+
+  await prisma.$transaction(updates);
 
   await recordAudit("settings.updated", "Setting", undefined, {
     ...settings,
@@ -100,6 +122,39 @@ export async function updateClinicSettings(settings: ClinicSettingsInput) {
   revalidatePath("/settings");
   revalidatePath("/dashboard");
   revalidatePath("/import");
+}
+
+export async function verifyGooglePatientsRoot() {
+  await requireSession();
+  const config = getGoogleOAuthConfig();
+  if (!config) {
+    return { ok: false as const, needsReconnect: true, message: "Conecta Google para verificar la carpeta." };
+  }
+
+  try {
+    const refreshToken = await getGoogleDriveRefreshToken();
+    if (!refreshToken) {
+      return { ok: false as const, needsReconnect: true, message: "Conecta Google para verificar la carpeta." };
+    }
+    const accessToken = await refreshGoogleAccessToken(config, refreshToken);
+    const folder = await verifyGoogleDriveFolder(accessToken, GOOGLE_PATIENTS_ROOT_ID);
+    return {
+      ok: true as const,
+      name: folder.name,
+      url: folder.webViewLink ?? GOOGLE_PATIENTS_ROOT_URL
+    };
+  } catch (error) {
+    if (error instanceof GoogleDriveRequestError && error.status === 404) {
+      return {
+        ok: false as const,
+        message: "Google aún no permite a OE Dental acceder a esta carpeta. Autoriza Pacientes Chetumal desde Ajustes e inténtalo de nuevo."
+      };
+    }
+    return {
+      ok: false as const,
+      message: error instanceof Error ? error.message : "No se pudo verificar la carpeta de Drive."
+    };
+  }
 }
 
 export async function getLinkedFilesReport(): Promise<LinkedFilesReport> {
@@ -304,16 +359,7 @@ export async function listLocalBackups() {
 export async function restoreLocalBackup(backupName: string) {
   await ensureDataDirectories();
 
-  const backupRoot = path.resolve(getBackupDir(), backupName);
-  if (!backupRoot.startsWith(path.resolve(getBackupDir()))) {
-    throw new Error("Invalid backup path");
-  }
-
-  const dbBackupPath = path.join(backupRoot, "app.db");
-
-  if (!(await pathExists(dbBackupPath))) {
-    throw new Error("Backup does not include a database file");
-  }
+  const dbBackupPath = await resolveLocalBackupDatabasePath(getBackupDir(), backupName);
 
   await prisma.$disconnect();
   await copyFile(dbBackupPath, path.join(getAppDataDir(), "app.db"));

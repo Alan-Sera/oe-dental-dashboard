@@ -23,6 +23,7 @@ export async function setupClinic(input: SetupInput) {
   }
 
   await setAdminPassword(parsed.password);
+  await createSession();
   await updateClinicSettings({
     clinicName: parsed.clinicName,
     currency: parsed.currency,
@@ -30,7 +31,6 @@ export async function setupClinic(input: SetupInput) {
   });
 
   await recordAudit("auth.setup", "Setting", undefined, { clinicName: parsed.clinicName });
-  await createSession();
   redirect("/dashboard");
 }
 
