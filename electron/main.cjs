@@ -6,13 +6,14 @@ const fs = require("node:fs");
 const http = require("node:http");
 const net = require("node:net");
 const path = require("node:path");
-const { spawn, spawnSync } = require("node:child_process");
+const { spawn } = require("node:child_process");
 
 const HOST = "127.0.0.1";
 
 let isQuitting = false;
 let logFilePath = null;
 let mainWindow = null;
+let allowedLocalOrigin = null;
 let nextProcess = null;
 let nextStartupError = "";
 let googleTokenEncryptionKey = "";
@@ -211,38 +212,35 @@ function runDatabaseInit(nodePath, dataDir, databaseUrl) {
     throw new Error(`No existe el inicializador de base de datos: ${initPath}`);
   }
 
-  const result = spawnSync(nodePath, [initPath], {
-    cwd: getStandaloneDir(),
-    env: {
-      ...process.env,
-      NODE_ENV: "production",
-      NODE_PATH: path.join(getStandaloneDir(), "server_modules"),
-      APP_DATA_DIR: dataDir,
-      DATABASE_URL: databaseUrl,
-      MIGRATIONS_DIR: path.join(getStandaloneDir(), "prisma", "migrations"),
-    },
-    encoding: "utf8",
-    windowsHide: true,
+  return new Promise((resolve, reject) => {
+    const child = spawn(nodePath, [initPath], {
+      cwd: getStandaloneDir(),
+      env: {
+        ...process.env,
+        NODE_ENV: "production",
+        NODE_PATH: path.join(getStandaloneDir(), "server_modules"),
+        APP_DATA_DIR: dataDir,
+        DATABASE_URL: databaseUrl,
+        MIGRATIONS_DIR: path.join(getStandaloneDir(), "prisma", "migrations"),
+      },
+      windowsHide: true,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    child.stdout.on("data", (data) => logInfo(data.toString().trim()));
+    child.stderr.on("data", (data) => logError(data.toString().trim()));
+    child.once("error", reject);
+    child.once("exit", (code, signal) => {
+      if (code === 0) {
+        resolve();
+        return;
+      }
+      reject(new Error(`No se pudo inicializar la base de datos. code=${code}, signal=${signal}`));
+    });
   });
-
-  if (result.stdout) {
-    logInfo(result.stdout.trim());
-  }
-
-  if (result.stderr) {
-    logError(result.stderr.trim());
-  }
-
-  if (result.error) {
-    throw result.error;
-  }
-
-  if (result.status !== 0) {
-    throw new Error(`No se pudo inicializar la base de datos. code=${result.status}`);
-  }
 }
 
-function startNextServer(port) {
+async function startNextServer(port) {
   const serverPath = getNextServerPath();
   const nodePath = getNodeRuntimePath();
 
@@ -264,7 +262,7 @@ function startNextServer(port) {
   logInfo("[Electron] Node runtime:", nodePath);
   logInfo("[Electron] Next server:", serverPath);
 
-  runDatabaseInit(nodePath, dataDir, databaseUrl);
+  await runDatabaseInit(nodePath, dataDir, databaseUrl);
 
   nextStartupError = "";
   nextProcess = spawn(nodePath, [serverPath], {
@@ -350,8 +348,8 @@ function waitForNext(targetUrl, spawnedProcess) {
     };
 
     const timeout = setTimeout(() => {
-      finish(reject, new Error("Next.js no estuvo disponible después de 30 segundos"));
-    }, 30000);
+      finish(reject, new Error("Next.js no estuvo disponible después de 90 segundos"));
+    }, 90000);
 
     if (spawnedProcess) {
       spawnedProcess.once("exit", handleEarlyExit);
@@ -381,21 +379,8 @@ function waitForNext(targetUrl, spawnedProcess) {
   });
 }
 
-function createWindow(targetUrl) {
-  const localOrigin = new URL(targetUrl).origin;
-  mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
-    minWidth: 960,
-    minHeight: 640,
-    webPreferences: {
-      preload: path.join(__dirname, "preload.cjs"),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-    },
-  });
-
+function createBrowserWindow(options) {
+  mainWindow = new BrowserWindow(options);
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (isAllowedExternalUrl(url)) {
       void shell.openExternal(url);
@@ -403,15 +388,79 @@ function createWindow(targetUrl) {
     return { action: "deny" };
   });
   mainWindow.webContents.on("will-navigate", (event, url) => {
-    if (isSameLocalOrigin(url, localOrigin)) return;
+    if (allowedLocalOrigin && isSameLocalOrigin(url, allowedLocalOrigin)) return;
     event.preventDefault();
     if (isAllowedExternalUrl(url)) void shell.openExternal(url);
   });
-
-  mainWindow.loadURL(targetUrl);
   mainWindow.on("closed", () => {
     mainWindow = null;
+    allowedLocalOrigin = null;
   });
+  return mainWindow;
+}
+
+function createStartupWindow() {
+  const stagedLogoPath = path.join(getStandaloneDir(), "public", "assets", "brand", "muelita-oe.svg");
+  const sourceLogoPath = path.join(getProjectRoot(), "public", "assets", "brand", "muelita-oe.svg");
+  let logoDataUrl = "";
+  try {
+    const logoPath = fs.existsSync(stagedLogoPath) ? stagedLogoPath : sourceLogoPath;
+    const logoSvg = fs.readFileSync(logoPath, "utf8");
+    logoDataUrl = `data:image/svg+xml;base64,${Buffer.from(logoSvg).toString("base64")}`;
+  } catch (error) {
+    logWarn("[Electron] No se pudo cargar el logo del loader inicial:", error);
+  }
+  const logoMarkup = logoDataUrl
+    ? `<img class="tooth" src="${logoDataUrl}" alt="">`
+    : `<div class="tooth-fallback" aria-hidden="true">OE</div>`;
+  const splashHtml = `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>
+    *{box-sizing:border-box}html,body{width:100%;height:100%;margin:0}body{display:grid;place-items:center;background:#f7f9fc;color:#172033;font-family:Segoe UI,system-ui,sans-serif}.loader{text-align:center}.frame{position:relative;display:grid;width:228px;height:228px;place-items:center;margin:0 auto 24px}.ring,.ring:before{position:absolute;inset:8px;border:1px solid rgba(116,157,229,.32);border-radius:50%;content:""}.ring:after{position:absolute;inset:0;border:2px solid transparent;border-top-color:#78baff;border-right-color:rgba(173,157,226,.8);border-radius:50%;content:"";animation:spin 1.7s linear infinite}.tooth{width:128px;height:90px;object-fit:contain;filter:drop-shadow(0 12px 22px rgba(48,63,94,.12))}.label{font-size:16px;font-weight:600;letter-spacing:.01em;color:#34415a}@keyframes spin{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){.ring:after{animation:none}}
+    .tooth-fallback{display:grid;width:112px;height:112px;place-items:center;border:4px solid #9f8fd2;border-radius:48% 48% 45% 45%;color:#6f61a2;font-size:30px;font-weight:700;letter-spacing:.08em}.tooth-fallback:after{position:absolute;content:"";width:70px;height:2px;background:#e5a0bd;transform:translateY(12px)}
+    </style></head><body><main class="loader" role="status" aria-live="polite"><div class="frame"><div class="ring" aria-hidden="true"></div>${logoMarkup}</div><div class="label">Iniciando OE Dental…</div></main></body></html>`;
+  const window = createBrowserWindow({
+    width: 460,
+    height: 360,
+    minWidth: 460,
+    minHeight: 360,
+    resizable: false,
+    show: false,
+    backgroundColor: "#f7f9fc",
+    webPreferences: {
+      preload: path.join(__dirname, "preload.cjs"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  });
+  window.once("ready-to-show", () => window.show());
+  void window.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(splashHtml)}`);
+}
+
+function createWindow(targetUrl) {
+  const localOrigin = new URL(targetUrl).origin;
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    createBrowserWindow({
+      width: 1200,
+      height: 800,
+      minWidth: 960,
+      minHeight: 640,
+      webPreferences: {
+        preload: path.join(__dirname, "preload.cjs"),
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+      },
+    });
+  }
+  allowedLocalOrigin = localOrigin;
+  mainWindow.setResizable(true);
+  mainWindow.setMinimumSize(960, 640);
+  mainWindow.setSize(1200, 800);
+  mainWindow.center();
+  mainWindow.setTitle("OE Dental");
+  mainWindow.show();
+  mainWindow.focus();
+  mainWindow.loadURL(targetUrl);
 }
 
 function isSameLocalOrigin(value, localOrigin) {
@@ -447,6 +496,7 @@ function isAllowedExternalUrl(value) {
 
 async function startApplication() {
   setupFileLogging();
+  createStartupWindow();
   ensureGoogleTokenEncryptionKey();
   loadPackagedGoogleOAuthConfig();
   logInfo("[Electron] App ready. packaged=", app.isPackaged);
@@ -461,7 +511,7 @@ async function startApplication() {
 
   const port = await findAvailablePort();
   const targetUrl = `http://${HOST}:${port}`;
-  const spawnedProcess = startNextServer(port);
+  const spawnedProcess = await startNextServer(port);
 
   await waitForNext(targetUrl, spawnedProcess);
   createWindow(targetUrl);

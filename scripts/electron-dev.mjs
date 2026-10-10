@@ -155,6 +155,22 @@ async function main() {
     PORT: String(port),
   };
 
+  electronProcess = spawn(electronExecutable, [path.join(rootDir, "electron", "main.cjs")], {
+    cwd: rootDir,
+    env: sharedEnv,
+    stdio: "inherit",
+    windowsHide: true,
+  });
+
+  electronProcess.once("error", (error) => {
+    console.error("[electron-dev] No se pudo iniciar Electron:", error);
+    shutdown(1);
+  });
+
+  electronProcess.once("exit", (code) => {
+    shutdown(code ?? 0);
+  });
+
   await run(process.execPath, [path.join(rootDir, "scripts", "init-electron-db.mjs")], sharedEnv);
 
   nextProcess = spawn(
@@ -183,21 +199,6 @@ async function main() {
   await waitForUrl(developmentUrl, nextProcess);
   console.log(`[electron-dev] Next.js listo en ${developmentUrl}`);
 
-  electronProcess = spawn(electronExecutable, [path.join(rootDir, "electron", "main.cjs")], {
-    cwd: rootDir,
-    env: sharedEnv,
-    stdio: "inherit",
-    windowsHide: true,
-  });
-
-  electronProcess.once("error", (error) => {
-    console.error("[electron-dev] No se pudo iniciar Electron:", error);
-    shutdown(1);
-  });
-
-  electronProcess.once("exit", (code) => {
-    shutdown(code ?? 0);
-  });
 }
 
 process.once("SIGINT", () => shutdown(0));
