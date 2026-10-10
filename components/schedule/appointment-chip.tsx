@@ -11,9 +11,9 @@ import type { AgendaAppointment } from "@/components/schedule/types";
 
 const statusColors: Record<string, string> = {
   SCHEDULED: "border-lavender-400/30 bg-lavender-700/40 text-lavender-50 hover:bg-lavender-600/45",
-  CONFIRMED: "border-brand-400/40 bg-brand-700/60 text-white hover:bg-brand-600/70",
-  COMPLETED: "border-mint-500/40 bg-mint-900/50 text-mint-200 hover:bg-mint-800/60",
-  CANCELLED: "border-coral-500/40 bg-coral-900/50 text-coral-300 hover:bg-coral-800/60",
+  CONFIRMED: "border-brand-400/40 bg-brand-50 text-brand-700 hover:bg-brand-100 dark:bg-brand-700/60 dark:text-white dark:hover:bg-brand-600/70",
+  COMPLETED: "border-mint-500/40 bg-mint-900/50 text-mint-600 hover:bg-mint-800/60 dark:text-ink-200",
+  CANCELLED: "border-coral-500/40 bg-coral-900/50 text-coral-400 hover:bg-coral-800/60 dark:text-ink-100",
   NO_SHOW: "border-amber-600/40 bg-amber-950/60 text-amber-300 hover:bg-amber-900/60"
 };
 

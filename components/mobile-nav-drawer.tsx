@@ -1,14 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { createPortal } from "react-dom";
 import { Database, Menu, X } from "lucide-react";
 
 import { BrandMark } from "@/components/brand-mark";
+import { LoadingLink } from "@/components/loading-link";
 import { LogoutButton } from "@/components/logout-button";
 import { SidebarNav } from "@/components/sidebar-nav";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export function MobileNavDrawer({
   clinicName,
@@ -73,7 +74,7 @@ export function MobileNavDrawer({
       ? createPortal(
         <>
           <div
-            className="fixed inset-0 z-40 bg-ink-950/70 backdrop-blur-sm lg:hidden"
+            className="fixed inset-0 z-40 bg-black/35 backdrop-blur-sm lg:hidden dark:bg-ink-950/70"
             aria-hidden="true"
             onClick={() => setOpen(false)}
           />
@@ -83,16 +84,16 @@ export function MobileNavDrawer({
             role="dialog"
             aria-modal="true"
             aria-label="Menú de navegación"
-            className="fixed inset-y-0 left-0 z-50 flex w-[min(22rem,calc(100vw-2rem))] flex-col border-r border-lavender-500/45 bg-lavender-950 p-5 shadow-panel lg:hidden"
+            className="fixed inset-y-0 left-0 z-50 flex w-[min(22rem,calc(100vw-2rem))] flex-col overflow-y-auto border-r border-lavender-500/45 bg-lavender-950 p-5 shadow-panel lg:hidden"
           >
             <div className="flex items-start justify-between gap-3">
-              <Link href="/dashboard" className="flex min-w-0 items-center gap-3" onClick={() => setOpen(false)}>
+              <LoadingLink href="/dashboard" className="flex min-w-0 items-center gap-3" onNavigate={() => setOpen(false)} loadingLabel="Cargando inicio...">
                 <BrandMark size="md" priority />
                 <div className="min-w-0">
-                  <p className="truncate text-base font-semibold text-white">{clinicName}</p>
+                  <p className="truncate text-base font-semibold text-theme-strong">{clinicName}</p>
                   <p className="text-xs text-lavender-200/75">Odontología especializada</p>
                 </div>
-              </Link>
+              </LoadingLink>
 
               <Button
                 ref={closeButtonRef}
@@ -108,23 +109,26 @@ export function MobileNavDrawer({
 
             <SidebarNav className="mt-8" itemClassName="h-12" onNavigate={() => setOpen(false)} />
 
-            <div className="mt-auto flex items-stretch gap-3">
-              <div className="min-w-0 flex-1 rounded-lg border border-lavender-500/45 bg-lavender-800/30 p-4">
-                <div className="flex items-center gap-3">
-                  <Database className="size-5 text-lavender-200" aria-hidden="true" />
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-ink-200">Datos locales</p>
-                    <p className="text-xs text-lavender-200/60">
-                      {currency} · {networkMode}
-                    </p>
+            <div className="mt-auto">
+              <ThemeToggle className="mb-3 w-full justify-start" />
+              <div className="flex items-stretch gap-3">
+                <div className="min-w-0 flex-1 rounded-lg border border-lavender-500/45 bg-lavender-800/30 p-4">
+                  <div className="flex items-center gap-3">
+                    <Database className="size-5 text-lavender-200" aria-hidden="true" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-ink-200">Datos locales</p>
+                      <p className="text-xs text-lavender-200/60">
+                        {currency} · {networkMode}
+                      </p>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <LogoutButton
-                formClassName="flex self-stretch"
-                className="h-auto min-w-[4.75rem] px-3"
-              />
+                <LogoutButton
+                  formClassName="flex self-stretch"
+                  className="h-auto min-w-[4.75rem] px-3"
+                />
+              </div>
             </div>
           </aside>
         </>,

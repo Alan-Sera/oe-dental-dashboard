@@ -43,7 +43,7 @@ export function SetupForm() {
       <div className="space-y-3">
         <BrandMark size="lg" priority />
         <p className="text-sm font-medium text-lavender-200">Primer acceso</p>
-        <h1 className="text-2xl font-semibold text-white">Configura la clínica</h1>
+        <h1 className="text-2xl font-semibold text-theme-strong">Configura la clínica</h1>
       </div>
 
       <Field label="Clínica" error={form.formState.errors.clinicName?.message}>

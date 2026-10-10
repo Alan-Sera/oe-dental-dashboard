@@ -57,15 +57,15 @@ export function PatientProvisioningStatus({
     <section className={`surface flex flex-wrap items-center justify-between gap-3 p-4 ${ready ? "border-emerald-400/35" : "border-amber-400/40"}`}>
       <div className="flex min-w-0 items-start gap-3">
         {ready ? (
-          <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-300" aria-hidden="true" />
+          <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-700 dark:text-emerald-300" aria-hidden="true" />
         ) : working || isPending ? (
           <LoaderCircle className="mt-0.5 size-5 shrink-0 animate-spin text-lavender-200" aria-hidden="true" />
         ) : (
-          <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-300" aria-hidden="true" />
+          <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-800 dark:text-amber-300" aria-hidden="true" />
         )}
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <p className="font-medium text-white">{title}</p>
+            <p className="font-medium text-theme-strong">{title}</p>
             <Badge tone={ready ? "mint" : patient.provisioningStatus === "FAILED" ? "coral" : "amber"}>
               {ready
                 ? "Listo"

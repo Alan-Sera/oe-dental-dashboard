@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 const deleteButtonClass =
   "border-coral-400/55 bg-coral-900/60 text-coral-400 backdrop-blur-md hover:bg-coral-500 hover:text-white";
 const cancelButtonClass =
-  "bg-lavender-700/40 text-lavender-50 hover:bg-lavender-700/55 hover:text-white";
+  "bg-lavender-700/40 text-lavender-50 hover:bg-lavender-700/55 hover:text-theme-strong";
 
 export function ConfirmDeleteModal({
   open,
@@ -66,7 +66,7 @@ export function ConfirmDeleteModal({
     <div className="fixed inset-0 z-[90] flex min-h-[100dvh] w-screen items-center justify-center p-4">
       <button
         type="button"
-        className="fixed inset-0 min-h-[100dvh] w-screen bg-ink-950/76 backdrop-blur-md"
+        className="fixed inset-0 min-h-[100dvh] w-screen bg-black/35 backdrop-blur-md dark:bg-ink-950/76"
         aria-label={cancelLabel}
         disabled={isDeleting}
         onClick={onCancel}
@@ -80,14 +80,14 @@ export function ConfirmDeleteModal({
       >
         <div className="flex items-start justify-between gap-4 border-b border-lavender-500/30 px-5 py-4">
           <div className="flex min-w-0 gap-3">
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-md border border-coral-400/35 bg-coral-950/45 text-coral-200">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-md border border-coral-400/35 bg-coral-900/10 text-coral-400 dark:bg-transparent dark:text-ink-100">
               <AlertTriangle
                 className="size-5 text-red-600"
                 aria-hidden="true"
               />
             </div>
             <div className="min-w-0">
-              <h2 id={titleId} className="text-base font-semibold text-white">
+              <h2 id={titleId} className="text-base font-semibold text-theme-strong">
                 {title}
               </h2>
               <p

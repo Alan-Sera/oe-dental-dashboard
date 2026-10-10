@@ -1,19 +1,20 @@
 "use client";
 
-import Link from "next/link";
 
 import { Cloud } from "lucide-react";
 import { CloudOff } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import type { GoogleCalendarStatus } from "@/components/schedule/types";
+import { LoadingLink } from "@/components/loading-link";
 
 export function GoogleSyncBadge({ status }: { status: GoogleCalendarStatus }) {
   const presentation = presentStatus(status);
 
   return (
-    <Link
+    <LoadingLink
       href="/settings"
+      loadingLabel="Cargando ajustes..."
       title={presentation.title}
       className={cn(
         "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition hover:brightness-110",
@@ -22,7 +23,7 @@ export function GoogleSyncBadge({ status }: { status: GoogleCalendarStatus }) {
     >
       {presentation.icon}
       <span className="whitespace-nowrap">{presentation.label}</span>
-    </Link>
+    </LoadingLink>
   );
 }
 
@@ -43,7 +44,7 @@ function presentStatus(status: GoogleCalendarStatus) {
       icon: <Cloud className="size-3.5" aria-hidden="true" />,
       label: "Google sincronizado",
       title: "Las citas se sincronizan con Google Calendar",
-      className: cn(base, "border-mint-500/40 bg-mint-900/50 text-mint-200")
+      className: cn(base, "border-mint-500/40 bg-mint-900/50 text-mint-600 dark:text-ink-100")
     };
   }
 
@@ -61,7 +62,7 @@ function presentStatus(status: GoogleCalendarStatus) {
       icon: <CloudOff className="size-3.5" aria-hidden="true" />,
       label: "Google desconectado",
       title: "El acceso a Google expiró o fue revocado. Reconecta desde Ajustes",
-      className: cn(base, "border-coral-500/40 bg-coral-950/50 text-coral-300")
+      className: cn(base, "border-coral-500/40 bg-coral-900/10 text-coral-400 dark:bg-transparent dark:text-ink-100")
     };
   }
 

@@ -114,9 +114,9 @@ const historyDeleteButtonClass =
 const historyEditButtonClass =
   "border-brand-400/55 bg-brand-900/60 text-brand-200 backdrop-blur-md hover:bg-brand-500 hover:text-white";
 const historyNoShowButtonClass =
-  "w-fit border-transparent bg-coral-950/30 text-red-400 backdrop-blur-md hover:border-transparent hover:bg-coral-900/55 hover:text-red-200";
+  "w-fit border-transparent bg-coral-900/10 text-coral-400 backdrop-blur-md hover:border-transparent hover:bg-coral-900/55 hover:text-red-700 dark:bg-transparent dark:text-red-400 dark:hover:text-red-200";
 const historyCancelButtonClass =
-  "bg-lavender-700/40 text-lavender-50 hover:bg-lavender-700/55 hover:text-white";
+  "bg-lavender-700/40 text-lavender-50 hover:bg-lavender-700/55 hover:text-theme-strong";
 const filterLinkedTextHistorySearchResults = true;
 
 function formatAppointmentTime(value: string) {
@@ -134,9 +134,9 @@ function appointmentStatusToneClass(status: string) {
     case "CONFIRMED":
       return "border-brand-400/40 bg-brand-900/60 text-brand-200";
     case "COMPLETED":
-      return "border-emerald-400/40 bg-emerald-950/50 text-emerald-300";
+      return "border-emerald-400/40 bg-emerald-950/50 text-emerald-700 dark:text-emerald-300";
     case "CANCELLED":
-      return "border-coral-500/40 bg-coral-950/50 text-coral-300";
+      return "border-coral-500/40 bg-coral-900/10 text-coral-400 dark:bg-transparent dark:text-ink-100";
     case "NO_SHOW":
       return "border-amber-500/40 bg-amber-950/50 text-amber-300";
     default:
@@ -154,6 +154,7 @@ export function PatientDetailTabs({
   upcomingAppointments?: AgendaAppointment[];
 }) {
   const router = useRouter();
+  const { show: showLoading, hide: hideLoading, startNavigation } = useGlobalLoading();
   const [activeTab, setActiveTab] = useState("summary");
   const [selectedPhotoId, setSelectedPhotoId] = useState<string | null>(null);
 
@@ -161,11 +162,15 @@ export function PatientDetailTabs({
     const date = upcomingAppointments[0]
       ? toDateKey(new Date(upcomingAppointments[0].startTime))
       : toDateKey(new Date());
-    router.push(`/agenda?view=day&date=${date}&paciente=${patient.id}`);
+    const agendaUrl = `/agenda?view=day&date=${date}&paciente=${patient.id}`;
+    startNavigation("Cargando agenda...", agendaUrl);
+    router.push(agendaUrl);
   }
 
   function openAppointmentOnAgenda(appointment: AgendaAppointment) {
-    router.push(`/agenda?view=day&date=${toDateKey(new Date(appointment.startTime))}&cita=${appointment.id}`);
+    const agendaUrl = `/agenda?view=day&date=${toDateKey(new Date(appointment.startTime))}&cita=${appointment.id}`;
+    startNavigation("Cargando agenda...", agendaUrl);
+    router.push(agendaUrl);
   }
   const [pendingInitialImageIds, setPendingInitialImageIds] = useState<
     Set<string>
@@ -177,7 +182,6 @@ export function PatientDetailTabs({
     useState<string | null>(null);
   const [isLinkingTextHistory, startLinkingTextHistoryTransition] =
     useTransition();
-  const { show: showLoading, hide: hideLoading } = useGlobalLoading();
   const mediaLoadTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
@@ -255,7 +259,11 @@ export function PatientDetailTabs({
   const startMediaLoading = useCallback(() => {
     if (!initialMediaImageIds.length) {
       setPendingInitialImageIds(new Set());
-      stopMediaLoading();
+      if (!mediaOverlayVisibleRef.current) {
+        mediaOverlayVisibleRef.current = true;
+        showLoading("Cargando fotos...");
+      }
+      window.requestAnimationFrame(stopMediaLoading);
       return;
     }
 
@@ -289,15 +297,25 @@ export function PatientDetailTabs({
 
   const handleTabChange = useCallback(
     (value: string) => {
+      if (value === activeTab) return;
+
       if (value === "media") {
         startMediaLoading();
       } else {
         stopMediaLoading();
+        const labels: Record<string, string> = {
+          summary: "Cargando resumen...",
+          clinical: "Cargando historia clínica...",
+          "payment-history": "Cargando historial de pagos...",
+          files: "Cargando archivos...",
+        };
+        showLoading(labels[value] ?? "Cargando expediente...");
+        window.requestAnimationFrame(() => hideLoading());
       }
 
       setActiveTab(value);
     },
-    [startMediaLoading, stopMediaLoading],
+    [activeTab, hideLoading, showLoading, startMediaLoading, stopMediaLoading],
   );
 
   const handleViewNext = useCallback(
@@ -440,11 +458,11 @@ export function PatientDetailTabs({
                             className="flex w-full items-center justify-between gap-3 rounded-md border border-lavender-500/25 bg-lavender-950/18 px-3 py-2 text-left transition hover:border-brand-400/50 hover:bg-lavender-800/30"
                           >
                             <div className="min-w-0">
-                              <p className="truncate text-sm font-semibold text-white">
+                              <p className="truncate text-sm font-semibold text-theme-strong">
                                 {appointment.title}
                                 {!appointment.googleEventId ? (
                                   <CloudOff
-                                    className="ml-1.5 inline size-3.5 text-amber-300/90"
+                                    className="ml-1.5 inline size-3.5 text-amber-800/90 dark:text-amber-300/90"
                                     aria-label="Sin sincronizar con Google Calendar"
                                   />
                                 ) : null}
@@ -590,7 +608,7 @@ export function PatientDetailTabs({
 
         <Tabs.Content value="files" className="space-y-3">
           {textHistoryLinkError ? (
-            <div className="surface flex gap-3 p-4 text-sm text-coral-300">
+            <div className="surface flex gap-3 p-4 text-sm text-coral-400 dark:text-ink-100">
               <AlertTriangle
                 className="mt-0.5 size-4 shrink-0"
                 aria-hidden="true"
@@ -674,7 +692,7 @@ export function PatientDetailTabs({
                       <Link
                         href={`/api/files/${attachment.id}`}
                         target="_blank"
-                        className="text-sm text-lavender-200 hover:text-white"
+                        className="text-sm text-lavender-200 hover:text-theme-strong"
                       >
                         Abrir
                       </Link>
@@ -830,7 +848,7 @@ function ClinicalEntryCard({
       ) : null}
 
       {error ? (
-        <div className="surface flex gap-3 p-3 text-sm text-coral-300">
+        <div className="surface flex gap-3 p-3 text-sm text-coral-400 dark:text-ink-100">
           <AlertTriangle
             className="mt-0.5 size-4 shrink-0"
             aria-hidden="true"
@@ -1396,7 +1414,7 @@ function LinkedTextAppointmentBlock({
               disabled={disabled || isSaving}
             />
           ) : (
-            <p className="rounded-md border border-brand-300/35 bg-brand-900/45 px-3 py-2 text-sm font-semibold text-white">
+            <p className="rounded-md border border-brand-300/35 bg-brand-900/45 px-3 py-2 text-sm font-semibold text-theme-strong">
               <HighlightedHistoryText
                 text={appointment.dateText}
                 query={searchQuery}
@@ -1617,7 +1635,7 @@ function LinkedTextNextBlock({
         type="button"
         variant="ghost"
         size="sm"
-        className="w-fit text-amber-200/80 hover:bg-amber-950/25 hover:text-amber-100"
+        className="w-fit text-amber-800/90 hover:bg-amber-950/10 hover:text-amber-900 dark:text-amber-200/80 dark:hover:bg-amber-950/25 dark:hover:text-amber-100"
         disabled={disabled}
         onClick={() => {
           setDraft("");
@@ -1641,7 +1659,7 @@ function LinkedTextNextBlock({
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
           <label
             htmlFor={nextId}
-            className="text-xs font-semibold uppercase tracking-wide text-amber-300/80"
+            className="text-xs font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-300/80"
           >
             NEXT
           </label>
@@ -1920,22 +1938,22 @@ function PatientPhotoViewer({
     >
       <button
         type="button"
-        className="absolute inset-0 bg-ink-950/72 backdrop-blur-xl"
+        className="absolute inset-0 bg-black/72 backdrop-blur-xl dark:bg-ink-950/72"
         aria-label="Cerrar imagen"
         onClick={onClose}
       />
 
       <section className="relative z-10 grid h-full w-full max-w-7xl grid-rows-[auto_minmax(0,1fr)] gap-3 rounded-xl border border-lavender-200/20 bg-lavender-950/22 p-2 shadow-[0_28px_90px_rgba(0,0,0,0.58)] ring-1 ring-white/5 sm:p-3">
-        <div className="grid gap-3 rounded-lg border border-lavender-500/30 bg-ink-950 px-3 py-2 shadow-panel backdrop-blur-md sm:grid-cols-[minmax(0,1fr)_minmax(0,auto)_minmax(0,1fr)] sm:items-center sm:px-4">
+        <div className="grid gap-3 rounded-lg bg-ink-950 px-3 py-2 shadow-panel backdrop-blur-md sm:grid-cols-[minmax(0,1fr)_minmax(0,auto)_minmax(0,1fr)] sm:items-center sm:px-4">
           <div className="min-w-0 sm:order-1">
-            <p className="truncate text-sm font-semibold text-white">
+            <p className="truncate text-sm font-semibold text-theme-strong">
               {currentPhoto.originalName}
             </p>
           </div>
           <div className="min-w-0 text-center sm:order-2">
             <h2
               id={titleId}
-              className="truncate text-sm font-semibold text-white sm:text-base"
+              className="truncate text-sm font-semibold text-theme-strong sm:text-base"
             >
               {patientName}
             </h2>
@@ -1947,7 +1965,7 @@ function PatientPhotoViewer({
           </div>
           <div className="flex shrink-0 items-center justify-end gap-2 sm:order-3">
             <p
-              className="text-sm font-semibold text-white sm:text-base"
+              className="text-sm font-semibold text-theme-strong sm:text-base"
               aria-label={`Imagen ${currentIndex + 1} de ${photos.length}`}
             >
               {currentIndex + 1} / {photos.length}
@@ -1967,7 +1985,7 @@ function PatientPhotoViewer({
 
         <div
           className={cn(
-            "relative min-h-0 overflow-hidden rounded-lg bg-ink-950 shadow-2xl shadow-ink-950/60",
+            "relative min-h-0 overflow-hidden rounded-lg bg-ink-950 shadow-ink-950/60 dark:bg-ink-950",
             isZoomed ? "cursor-zoom-out" : "cursor-zoom-in",
           )}
           onPointerMove={handleImagePointerMove}
@@ -2099,7 +2117,7 @@ function PaymentHistoryPanel({
               : ""}
           </p>
           {sheet.errorMessage ? (
-            <p className="text-sm text-coral-300">{sheet.errorMessage}</p>
+            <p className="text-sm text-coral-400 dark:text-ink-100">{sheet.errorMessage}</p>
           ) : null}
         </div>
 
@@ -2408,7 +2426,7 @@ function AttachmentTile({
             onLoad={markPreviewSettled}
             onError={markPreviewSettled}
           />
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-ink-950/0 opacity-0 transition group-hover:bg-ink-950/32 group-hover:opacity-100 group-focus-visible:bg-ink-950/32 group-focus-visible:opacity-100">
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition group-hover:bg-black/20 group-hover:opacity-100 group-focus-visible:bg-black/20 group-focus-visible:opacity-100 dark:bg-ink-950/0 dark:group-hover:bg-ink-950/32 dark:group-focus-visible:bg-ink-950/32">
             <span className="inline-flex size-11 items-center justify-center rounded-full border border-lavender-100/40 bg-lavender-950/70 text-lavender-50 shadow-panel backdrop-blur-sm">
               <Maximize2 className="size-5" aria-hidden="true" />
             </span>
@@ -2442,7 +2460,7 @@ function AttachmentTile({
         className={cn(
           isProfilePhoto
             ? "border-emerald-300/45 bg-emerald-700/60 text-white"
-            : "text-lavender-200 hover:text-white",
+            : "text-lavender-200 hover:text-theme-strong",
           "h-7 text-xs",
         )}
         disabled={isProfilePhoto || isSettingProfile}
@@ -2516,7 +2534,7 @@ function LedgerList({
               <p className="text-sm font-medium text-ink-100">{row.primary}</p>
               <p className="text-xs text-lavender-200/55">{row.secondary}</p>
             </div>
-            <p className="text-sm font-semibold text-white">{row.amount}</p>
+            <p className="text-sm font-semibold text-theme-strong">{row.amount}</p>
           </div>
         ))
       ) : (

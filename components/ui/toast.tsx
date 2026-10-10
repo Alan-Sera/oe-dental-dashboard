@@ -58,7 +58,7 @@ function ToastTitle({
 }: React.ComponentProps<typeof ToastPrimitive.Title>) {
   return (
     <ToastPrimitive.Title
-      className={cn("text-sm font-semibold text-white", className)}
+      className={cn("text-sm font-semibold text-theme-strong", className)}
       {...props}
     />
   );

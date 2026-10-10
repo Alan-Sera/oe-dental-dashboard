@@ -26,7 +26,7 @@ function DialogBackdrop({
 }: React.ComponentProps<typeof DialogPrimitive.Backdrop>) {
   return (
     <DialogPrimitive.Backdrop
-      className={cn("fixed inset-0 z-50 bg-ink-950/75 backdrop-blur-sm", className)}
+      className={cn("fixed inset-0 z-50 bg-black/35 backdrop-blur-sm dark:bg-ink-950/75", className)}
       {...props}
     />
   );

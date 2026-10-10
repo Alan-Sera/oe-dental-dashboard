@@ -1,24 +1,26 @@
 "use client";
 
 import {
+  Suspense,
   createContext,
   useCallback,
   useContext,
   useEffect,
   useMemo,
   useRef,
-  useState
+  useState,
 } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 
-import { MuelitaLoader } from "@/components/muelita-loader";
-import { cn } from "@/lib/utils";
+import { ScreenLoadingOverlay } from "@/components/screen-loading-overlay";
 
 type LoadingMode = "content" | "fullscreen";
 
 type LoadingContextValue = {
   show: (label?: string) => void;
   hide: () => void;
+  startNavigation: (label?: string, target?: string) => void;
+  startRouteFallback: (label: string) => () => void;
   isLoading: boolean;
 };
 
@@ -30,16 +32,19 @@ const LoadingContext = createContext<LoadingContextValue | null>(null);
 
 export function LoadingProvider({
   children,
-  mode = "content"
+  mode = "content",
 }: {
   children: React.ReactNode;
   mode?: LoadingMode;
 }) {
-  const pathname = usePathname();
   const [isLoading, setIsLoading] = useState(false);
   const [isFadingOut, setIsFadingOut] = useState(false);
   const [label, setLabel] = useState(DEFAULT_LABEL);
   const activeRequestsRef = useRef(0);
+  const navigationPendingRef = useRef(false);
+  const routeFallbackCountRef = useRef(0);
+  const navigationCommittedRef = useRef(false);
+  const loadingVisibleRef = useRef(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const showTimeRef = useRef<number>(0);
   const fadeOutTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -55,106 +60,190 @@ export function LoadingProvider({
     }
   }, []);
 
+  const hasPendingWork = useCallback(
+    () => activeRequestsRef.current > 0 || navigationPendingRef.current,
+    [],
+  );
+
   const forceHide = useCallback(() => {
     activeRequestsRef.current = 0;
+    navigationPendingRef.current = false;
+    routeFallbackCountRef.current = 0;
+    navigationCommittedRef.current = false;
+    loadingVisibleRef.current = false;
     clearAllTimeouts();
     setIsFadingOut(false);
     setIsLoading(false);
   }, [clearAllTimeouts]);
 
   const startFadeOut = useCallback(() => {
+    if (hasPendingWork()) return;
     setIsFadingOut(true);
     fadeOutTimeoutRef.current = setTimeout(() => {
+      loadingVisibleRef.current = false;
       setIsFadingOut(false);
       setIsLoading(false);
     }, FADE_OUT_MS);
+  }, [hasPendingWork]);
+
+  const scheduleHideWhenIdle = useCallback(() => {
+    if (hasPendingWork()) return;
+
+    clearAllTimeouts();
+    const elapsed = Date.now() - showTimeRef.current;
+    if (elapsed < MIN_DISPLAY_MS) {
+      fadeOutTimeoutRef.current = setTimeout(
+        startFadeOut,
+        MIN_DISPLAY_MS - elapsed,
+      );
+    } else {
+      startFadeOut();
+    }
+  }, [clearAllTimeouts, hasPendingWork, startFadeOut]);
+
+  const beginVisibleState = useCallback((nextLabel: string) => {
+    setLabel(nextLabel);
+    setIsFadingOut(false);
+    if (!loadingVisibleRef.current) showTimeRef.current = Date.now();
+    loadingVisibleRef.current = true;
+    setIsLoading(true);
   }, []);
 
   const show = useCallback(
     (nextLabel = DEFAULT_LABEL) => {
       activeRequestsRef.current += 1;
-      setLabel(nextLabel);
-      setIsFadingOut(false);
-      setIsLoading(true);
-      showTimeRef.current = Date.now();
       clearAllTimeouts();
+      beginVisibleState(nextLabel);
       timeoutRef.current = setTimeout(forceHide, SAFETY_TIMEOUT_MS);
     },
-    [clearAllTimeouts, forceHide]
+    [beginVisibleState, clearAllTimeouts, forceHide],
   );
 
   const hide = useCallback(() => {
     activeRequestsRef.current = Math.max(0, activeRequestsRef.current - 1);
 
-    if (activeRequestsRef.current === 0) {
+    scheduleHideWhenIdle();
+  }, [scheduleHideWhenIdle]);
+
+  const startNavigation = useCallback(
+    (nextLabel = "Cargando página...", targetUrl?: string) => {
+      if (targetUrl && isCurrentRoute(targetUrl)) return;
+      navigationPendingRef.current = true;
+      navigationCommittedRef.current = false;
       clearAllTimeouts();
-      const elapsed = Date.now() - showTimeRef.current;
-      if (elapsed < MIN_DISPLAY_MS) {
-        setTimeout(startFadeOut, MIN_DISPLAY_MS - elapsed);
-      } else {
-        startFadeOut();
-      }
-    }
-  }, [clearAllTimeouts, startFadeOut]);
+      beginVisibleState(nextLabel);
+      timeoutRef.current = setTimeout(forceHide, SAFETY_TIMEOUT_MS);
+    },
+    [beginVisibleState, clearAllTimeouts, forceHide],
+  );
+
+  const startRouteFallback = useCallback(
+    (nextLabel: string) => {
+      const wasNavigationPending = navigationPendingRef.current;
+      routeFallbackCountRef.current += 1;
+      navigationPendingRef.current = true;
+      if (!wasNavigationPending) navigationCommittedRef.current = true;
+      clearAllTimeouts();
+      beginVisibleState(nextLabel);
+      timeoutRef.current = setTimeout(forceHide, SAFETY_TIMEOUT_MS);
+
+      return () => {
+        routeFallbackCountRef.current = Math.max(
+          0,
+          routeFallbackCountRef.current - 1,
+        );
+        if (
+          routeFallbackCountRef.current === 0 &&
+          navigationCommittedRef.current
+        ) {
+          navigationPendingRef.current = false;
+          navigationCommittedRef.current = false;
+          scheduleHideWhenIdle();
+        }
+      };
+    },
+    [beginVisibleState, clearAllTimeouts, forceHide, scheduleHideWhenIdle],
+  );
+
+  const completeNavigation = useCallback(() => {
+    if (!navigationPendingRef.current) return;
+    navigationCommittedRef.current = true;
+    if (routeFallbackCountRef.current > 0) return;
+
+    navigationPendingRef.current = false;
+    navigationCommittedRef.current = false;
+    scheduleHideWhenIdle();
+  }, [scheduleHideWhenIdle]);
 
   useEffect(() => {
-    forceHide();
-  }, [forceHide, pathname]);
+    const handlePopState = () => startNavigation();
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [startNavigation]);
 
-  useEffect(() => {
-    function handleDocumentClick(event: MouseEvent) {
-      if (!shouldShowNavigationLoader(event)) return;
-      show("Cargando página...");
-    }
-
-    document.addEventListener("click", handleDocumentClick, true);
-
-    return () => {
-      document.removeEventListener("click", handleDocumentClick, true);
-      clearAllTimeouts();
-    };
-  }, [clearAllTimeouts, show]);
+  useEffect(() => () => clearAllTimeouts(), [clearAllTimeouts]);
 
   const value = useMemo(
     () => ({
       show,
       hide,
-      isLoading
+      startNavigation,
+      startRouteFallback,
+      isLoading,
     }),
-    [hide, isLoading, show]
+    [hide, isLoading, show, startNavigation, startRouteFallback],
   );
 
   return (
     <LoadingContext.Provider value={value}>
       <div className="relative min-h-screen">
+        <Suspense fallback={null}>
+          <LoadingRouteObserver onRouteChange={completeNavigation} />
+        </Suspense>
         {children}
         {isLoading ? (
-          <>
-            <div
-              className={cn(
-                "z-40 bg-ink-950/55 backdrop-blur-sm transition-opacity duration-250",
-                isFadingOut ? "opacity-0" : "opacity-100",
-                mode === "content"
-                  ? "fixed inset-0 lg:left-64"
-                  : "fixed inset-0"
-              )}
-              aria-hidden="true"
-            />
-            <div
-              className={cn(
-                "pointer-events-none fixed inset-0 z-50 flex items-center justify-center px-4 transition-opacity duration-250",
-                isFadingOut ? "opacity-0" : "opacity-100"
-              )}
-            >
-              <div className="pointer-events-auto rounded-lg border border-lavender-500/35 bg-lavender-950/82 px-8 py-8 shadow-panel backdrop-blur-md sm:px-10">
-                <MuelitaLoader label={label} />
-              </div>
-            </div>
-          </>
+          <ScreenLoadingOverlay
+            label={label}
+            mode={mode}
+            fading={isFadingOut}
+          />
         ) : null}
       </div>
     </LoadingContext.Provider>
   );
+}
+
+function LoadingRouteObserver({
+  onRouteChange,
+}: {
+  onRouteChange: () => void;
+}) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const routeKey = `${pathname}?${searchParams?.toString() ?? ""}`;
+  const previousRouteKeyRef = useRef(routeKey);
+
+  useEffect(() => {
+    if (previousRouteKeyRef.current === routeKey) return;
+    previousRouteKeyRef.current = routeKey;
+    onRouteChange();
+  }, [onRouteChange, routeKey]);
+
+  return null;
+}
+
+function isCurrentRoute(targetUrl: string) {
+  try {
+    const target = new URL(targetUrl, window.location.href);
+    return (
+      target.origin === window.location.origin &&
+      target.pathname === window.location.pathname &&
+      target.search === window.location.search &&
+      target.hash === window.location.hash
+    );
+  } catch {
+    return false;
+  }
 }
 
 export function useGlobalLoading() {
@@ -164,41 +253,11 @@ export function useGlobalLoading() {
     return {
       show: () => undefined,
       hide: () => undefined,
-      isLoading: false
+      startNavigation: () => undefined,
+      startRouteFallback: () => () => undefined,
+      isLoading: false,
     };
   }
 
   return context;
-}
-
-function shouldShowNavigationLoader(event: MouseEvent) {
-  if (
-    event.defaultPrevented ||
-    event.button !== 0 ||
-    event.metaKey ||
-    event.ctrlKey ||
-    event.shiftKey ||
-    event.altKey
-  ) {
-    return false;
-  }
-
-  const target = event.target instanceof Element ? event.target : null;
-  const anchor = target?.closest("a[href]") as HTMLAnchorElement | null;
-  if (!anchor) return false;
-
-  const rawHref = anchor.getAttribute("href");
-  if (!rawHref || rawHref.startsWith("#")) return false;
-  if (anchor.target && anchor.target !== "_self") return false;
-  if (anchor.hasAttribute("download")) return false;
-
-  const nextUrl = new URL(anchor.href, window.location.href);
-  if (nextUrl.origin !== window.location.origin) return false;
-  if (!["http:", "https:"].includes(nextUrl.protocol)) return false;
-
-  const currentUrl = new URL(window.location.href);
-  const sameRoute =
-    nextUrl.pathname === currentUrl.pathname && nextUrl.search === currentUrl.search;
-
-  return !sameRoute;
 }

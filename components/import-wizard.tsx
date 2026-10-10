@@ -285,7 +285,7 @@ function ImportMetric({ label, value }: { label: string; value: number }) {
   return (
     <div className="surface p-4">
       <p className="text-sm text-lavender-200/55">{label}</p>
-      <p className="mt-1 text-2xl font-semibold text-white">{value}</p>
+      <p className="mt-1 text-2xl font-semibold text-theme-strong">{value}</p>
     </div>
   );
 }

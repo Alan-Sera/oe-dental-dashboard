@@ -1,8 +1,8 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 
 import { PatientDetailTabs } from "@/components/patient-detail-tabs";
+import { LoadingLink } from "@/components/loading-link";
 import { PatientAvatar } from "@/components/patient-avatar";
 import { PatientProvisioningStatus } from "@/components/patient-provisioning-status";
 import { Button } from "@/components/ui/button";
@@ -52,10 +52,10 @@ export default async function PatientDetailPage({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <Button asChild variant="ghost" size="sm">
-            <Link href="/patients">
+            <LoadingLink href="/patients" loadingLabel="Cargando pacientes...">
               <ChevronLeft className="size-4" aria-hidden="true" />
               Pacientes
-            </Link>
+            </LoadingLink>
           </Button>
           <div className="mt-2 flex items-center gap-3">
             <PatientAvatar
@@ -64,7 +64,7 @@ export default async function PatientDetailPage({
               size="lg"
             />
             <div>
-              <h1 className="text-2xl font-semibold text-white">{patient.fullName}</h1>
+              <h1 className="text-2xl font-semibold text-theme-strong">{patient.fullName}</h1>
               <p className="muted">{patient.phone ?? "Sin teléfono"} · {patient.email ?? "Sin correo"}</p>
             </div>
           </div>

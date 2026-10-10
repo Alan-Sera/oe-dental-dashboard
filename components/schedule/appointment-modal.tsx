@@ -443,7 +443,7 @@ export function AppointmentModal({
                 </div>
               </div>
               <div className="grid place-items-center">
-                <FieldDescription className="text-white">{summary}</FieldDescription>
+                <FieldDescription className="text-theme-strong">{summary}</FieldDescription>
               </div>
               <span id={dateErrorId}>
                 <FieldError>{dateError}</FieldError>

@@ -18,7 +18,7 @@ export default async function SettingsPage() {
   return (
     <main className="page-shell">
       <div>
-        <h1 className="text-2xl font-semibold text-white">Ajustes</h1>
+        <h1 className="text-2xl font-semibold text-theme-strong">Ajustes</h1>
       </div>
 
       <Card

@@ -52,7 +52,7 @@ export function PatientNextAppointment({
       </div>
       <div className="min-w-0">
         <Badge tone="mint">Próxima cita</Badge>
-        <p className="mt-1 truncate text-sm font-semibold text-white">
+        <p className="mt-1 truncate text-sm font-semibold text-theme-strong">
           {next.weekday ? `${next.weekday} · ` : null}
           {next.label}
         </p>
@@ -96,7 +96,7 @@ export function PatientAttendanceSummary({
                     <p className="text-[0.68rem] font-semibold uppercase tracking-wide text-lavender-200/45">
                       Cita {item.appointmentNumber}
                     </p>
-                    <p className="truncate font-mono text-sm font-semibold text-white">
+                    <p className="truncate font-mono text-sm font-semibold text-theme-strong">
                       {item.dateText}
                     </p>
                     <p className="truncate text-xs text-lavender-200/55">
@@ -109,7 +109,7 @@ export function PatientAttendanceSummary({
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="w-fit text-amber-200/80 hover:bg-amber-950/25 hover:text-amber-100"
+                        className="w-fit text-amber-800/90 hover:bg-amber-950/10 hover:text-amber-900 dark:text-amber-200/80 dark:hover:bg-amber-950/25 dark:hover:text-amber-100"
                         aria-label={`Ver NEXT de cita ${item.appointmentNumber} ${item.dateText}`}
                         onClick={() => onViewNext?.(item)}
                       >

@@ -57,7 +57,7 @@ export function PatientCreateModal() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <button
             type="button"
-            className="absolute inset-0 bg-ink-950/75 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/35 backdrop-blur-sm dark:bg-ink-950/75"
             aria-label="Cerrar formulario"
             onClick={() => setOpen(false)}
           />
@@ -119,11 +119,11 @@ function ReadinessItem({
 }) {
   return (
     <div className="surface p-3">
-      <div className="flex items-center gap-2 text-sm font-medium text-white">
+      <div className="flex items-center gap-2 text-sm font-medium text-theme-strong">
         {state.ready ? (
-          <CheckCircle2 className="size-4 text-emerald-300" aria-hidden="true" />
+          <CheckCircle2 className="size-4 text-emerald-700 dark:text-emerald-300" aria-hidden="true" />
         ) : (
-          <CircleAlert className={`size-4 ${optional ? "text-amber-300" : "text-coral-300"}`} aria-hidden="true" />
+          <CircleAlert className={`size-4 ${optional ? "text-amber-800 dark:text-amber-300" : "text-coral-400 dark:text-ink-100"}`} aria-hidden="true" />
         )}
         {label}
       </div>

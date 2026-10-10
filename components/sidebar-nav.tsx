@@ -1,9 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { navigationItems } from "@/constants";
+import { LoadingLink } from "@/components/loading-link";
 import { cn } from "@/lib/utils";
 
 export function SidebarNav({
@@ -24,11 +24,12 @@ export function SidebarNav({
           pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(`${item.href}/`));
 
         return (
-          <Link
+          <LoadingLink
             key={item.href}
             href={item.href}
             aria-current={active ? "page" : undefined}
             onClick={onNavigate}
+            loadingLabel={`Cargando ${item.label.toLocaleLowerCase("es")}...`}
             className={cn(
               "relative flex h-11 items-center gap-3 overflow-hidden rounded-md border border-transparent px-3 text-sm transition",
               active
@@ -45,11 +46,11 @@ export function SidebarNav({
               aria-hidden="true"
             />
             <item.icon
-              className={cn("size-4 transition", active ? "text-brand-200" : undefined)}
+              className={cn("size-4 transition", active ? "text-white dark:text-brand-200" : undefined)}
               aria-hidden="true"
             />
             <span className="truncate">{item.label}</span>
-          </Link>
+          </LoadingLink>
         );
       })}
     </nav>

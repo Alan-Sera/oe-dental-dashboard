@@ -67,9 +67,9 @@ export function SettingsForm({ settings }: { settings: ClinicSettings }) {
       >
         <Input placeholder="D:\Pacientes" {...form.register("patientsRootPath")} />
       </Field>
-      <div className="md:col-span-3 rounded-xl border border-white/10 bg-white/[0.03] p-4">
+      <div className="theme-settings-card md:col-span-3 rounded-xl border border-white/10 bg-white/[0.03] p-4">
         <div className="flex items-center gap-2">
-          <p className="text-sm font-medium text-white">Carpeta de Drive para pacientes</p>
+          <p className="text-sm font-medium text-theme-strong">Carpeta de Drive para pacientes</p>
           <Tooltip>
             <TooltipTrigger
               aria-label="Información sobre la carpeta de Drive"
@@ -98,7 +98,7 @@ export function SettingsForm({ settings }: { settings: ClinicSettings }) {
         </a>
       </div>
       {driveVerification ? (
-        <p className={driveVerification.ok ? "md:col-span-3 text-sm text-emerald-300" : "md:col-span-3 text-sm text-coral-300"}>
+        <p className={driveVerification.ok ? "md:col-span-3 text-sm text-emerald-700 dark:text-emerald-300" : "md:col-span-3 text-sm text-coral-400 dark:text-lavender-100"}>
           {driveVerification.message}
           {driveVerification.url ? (
             <a className="ml-2 underline" href={driveVerification.url} target="_blank" rel="noreferrer">Abrir carpeta</a>

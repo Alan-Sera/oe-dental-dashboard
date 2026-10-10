@@ -1,6 +1,8 @@
 import type { Config } from "tailwindcss";
 import animate from "tailwindcss-animate";
 
+const themeColor = (name: string) => `rgb(var(--${name}) / <alpha-value>)`;
+
 const config = {
   darkMode: ["class"],
   content: [
@@ -13,63 +15,70 @@ const config = {
     extend: {
       colors: {
         ink: {
-          950: "#070916",
-          900: "#0B1024",
-          850: "#10172D",
-          800: "#151D34",
-          700: "#24304A",
-          600: "#3C4965",
-          500: "#68738D",
-          400: "#9CA5BA",
-          300: "#CBD1E0",
-          200: "#E8EAF2",
-          100: "#F7F5FB"
+          950: themeColor("ink-950"),
+          900: themeColor("ink-900"),
+          850: themeColor("ink-850"),
+          800: themeColor("ink-800"),
+          700: themeColor("ink-700"),
+          600: themeColor("ink-600"),
+          500: themeColor("ink-500"),
+          400: themeColor("ink-400"),
+          300: themeColor("ink-300"),
+          200: themeColor("ink-200"),
+          100: themeColor("ink-100")
         },
         brand: {
-          50: "#EEF2FF",
-          100: "#DDE5FF",
-          200: "#B8C8FF",
-          300: "#86A2F2",
-          400: "#4F70D6",
-          500: "#183F9A",
-          600: "#103080",
-          700: "#0C276A",
-          800: "#081E52",
-          900: "#06183F",
-          950: "#040D24"
+          50: themeColor("brand-50"),
+          100: themeColor("brand-100"),
+          200: themeColor("brand-200"),
+          300: themeColor("brand-300"),
+          400: themeColor("brand-400"),
+          500: themeColor("brand-500"),
+          600: themeColor("brand-600"),
+          700: themeColor("brand-700"),
+          800: themeColor("brand-800"),
+          900: themeColor("brand-900"),
+          950: themeColor("brand-950")
         },
         lavender: {
-          50: "#FAF7FF",
-          100: "#EFE7F7",
-          200: "#D0C0E0",
-          300: "#B79FCD",
-          400: "#9C7EBA",
-          500: "#785B9B",
-          600: "#5F467D",
-          700: "#49345F",
-          800: "#332342",
-          900: "#24172F",
-          950: "#140B1D"
+          50: themeColor("lavender-50"),
+          100: themeColor("lavender-100"),
+          200: themeColor("lavender-200"),
+          300: themeColor("lavender-300"),
+          400: themeColor("lavender-400"),
+          500: themeColor("lavender-500"),
+          600: themeColor("lavender-600"),
+          700: themeColor("lavender-700"),
+          800: themeColor("lavender-800"),
+          900: themeColor("lavender-900"),
+          950: themeColor("lavender-950")
         },
         mint: {
-          500: "#183F9A",
-          600: "#103080",
-          900: "#081E52"
+          500: themeColor("mint-500"),
+          600: themeColor("mint-600"),
+          900: themeColor("mint-900")
         },
         coral: {
-          400: "#FF8A7A",
-          500: "#F05F4D",
-          900: "#351713"
+          400: themeColor("coral-400"),
+          500: themeColor("coral-500"),
+          900: themeColor("coral-900")
         },
         amber: {
-          400: "#F3C96B",
-          500: "#D9A737",
-          900: "#312611"
+          400: themeColor("amber-400"),
+          500: themeColor("amber-500"),
+          900: themeColor("amber-900")
         },
         skyline: {
-          400: "#77B7EE",
-          500: "#4A9FE5",
-          900: "#10283E"
+          400: themeColor("skyline-400"),
+          500: themeColor("skyline-500"),
+          900: themeColor("skyline-900")
+        },
+        theme: {
+          strong: themeColor("theme-strong"),
+          canvas: themeColor("theme-canvas"),
+          surface: themeColor("theme-surface"),
+          border: themeColor("theme-border"),
+          muted: themeColor("theme-muted")
         }
       },
       boxShadow: {

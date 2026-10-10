@@ -46,7 +46,7 @@ export function LoginForm() {
       <div className="space-y-3">
         <BrandMark size="lg" priority />
         <p className="text-sm font-medium text-lavender-200">Odontología Especializada Chetumal</p>
-        <h1 className="text-2xl font-semibold text-white">Acceso local</h1>
+        <h1 className="text-2xl font-semibold text-theme-strong">Acceso local</h1>
       </div>
 
       <Field label="Contraseña" error={form.formState.errors.password?.message}>

@@ -13,7 +13,7 @@ export default async function ImportPage() {
   return (
     <main className="page-shell">
       <div>
-        <h1 className="text-2xl font-semibold text-white">Importar</h1>
+        <h1 className="text-2xl font-semibold text-theme-strong">Importar</h1>
         <p className="muted">Carpetas locales vinculadas sin duplicar archivos</p>
       </div>
 
@@ -28,7 +28,7 @@ export default async function ImportPage() {
               className="grid gap-3 border-b border-lavender-600/45 px-4 py-3 transition last:border-0 hover:bg-lavender-800/30 md:grid-cols-[1fr_auto_auto]"
             >
               <div>
-                <p className="font-medium text-white">{batch.sourceRootName}</p>
+                <p className="font-medium text-theme-strong">{batch.sourceRootName}</p>
                 <p className="text-sm text-lavender-200/55">
                   {batch.importedCount} importado(s) · {batch.duplicateCount} duplicado(s) · {batch.errorCount} error(es)
                 </p>

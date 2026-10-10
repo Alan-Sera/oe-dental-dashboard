@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { BadgeDollarSign, FileStack, FolderClock, UsersRound } from "lucide-react";
 
 import { getRecentImportBatches } from "@/lib/actions/import.actions";
@@ -10,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/stat-card";
+import { LoadingLink } from "@/components/loading-link";
 
 export const dynamic = "force-dynamic";
 
@@ -30,11 +30,11 @@ export default async function DashboardPage() {
     <main className="page-shell">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-white">Dashboard</h1>
+          <h1 className="text-2xl font-semibold text-theme-strong">Dashboard</h1>
           <p className="muted">{formatDate(new Date())}</p>
         </div>
         <Button asChild>
-          <Link href="/import">Importar carpeta</Link>
+          <LoadingLink href="/import" loadingLabel="Cargando importación...">Importar carpeta</LoadingLink>
         </Button>
       </div>
 
@@ -49,21 +49,22 @@ export default async function DashboardPage() {
         <Card>
           <div className="mb-4 flex items-center justify-between">
             <h2 className="section-title">Pacientes recientes</h2>
-            <Link href="/patients" className="text-sm text-lavender-200 hover:text-white">
+            <LoadingLink href="/patients" className="text-sm text-lavender-200 hover:text-theme-strong" loadingLabel="Cargando pacientes...">
               Ver todos
-            </Link>
+            </LoadingLink>
           </div>
           <div className="surface overflow-hidden">
             {patients.slice(0, 8).map((patient) => {
               const patientTotals = calculateLedgerTotals(patient.charges, patient.payments);
               return (
-                <Link
+                <LoadingLink
                   key={patient.id}
                   href={`/patients/${patient.id}`}
+                  loadingLabel="Cargando expediente..."
                   className="grid grid-cols-[1fr_auto] gap-3 border-b border-lavender-600/45 px-4 py-3 transition last:border-0 hover:bg-lavender-800/30"
                 >
                   <div>
-                    <p className="font-medium text-white">{patient.fullName}</p>
+                    <p className="font-medium text-theme-strong">{patient.fullName}</p>
                     <p className="text-sm text-lavender-200/55">
                       {patient.attachments.length} archivo(s) · {patient.clinicalEntries?.length ?? 0} nota(s)
                     </p>
@@ -71,7 +72,7 @@ export default async function DashboardPage() {
                   <p className="text-sm font-semibold text-lavender-100">
                     {formatCurrency(patientTotals.balanceCents, settings.currency)}
                   </p>
-                </Link>
+                </LoadingLink>
               );
             })}
             {patients.length === 0 ? <p className="px-4 py-8 text-sm text-lavender-200/55">Sin pacientes</p> : null}

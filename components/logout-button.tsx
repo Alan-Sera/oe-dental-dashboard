@@ -41,7 +41,7 @@ export function LogoutButton({
         aria-label="Salir"
         disabled={isPending}
         className={cn(
-          "border-coral-400/55 bg-coral-900/60 text-coral-300 shadow-[0_0_18px_rgba(244,114,99,0.14)] backdrop-blur-md hover:border-coral-300/70 hover:bg-coral-500 hover:text-white focus-visible:ring-coral-300/60",
+          "border-coral-400/55 bg-coral-900/60 text-coral-400 dark:text-lavender-100 shadow-[0_0_18px_rgba(244,114,99,0.14)] backdrop-blur-md hover:border-coral-300/70 hover:bg-coral-500 hover:text-white focus-visible:ring-coral-300/60",
           className
         )}
       >

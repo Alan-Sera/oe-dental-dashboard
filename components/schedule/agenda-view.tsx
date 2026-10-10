@@ -12,6 +12,7 @@ import { MonthView } from "@/components/schedule/month-view";
 import { WeekView } from "@/components/schedule/week-view";
 import { DayView } from "@/components/schedule/day-view";
 import { AppointmentModal } from "@/components/schedule/appointment-modal";
+import { LoadingLink } from "@/components/loading-link";
 import type { TimelineCreatePoint } from "@/components/schedule/day-column";
 import type {
   AgendaAppointment,
@@ -23,6 +24,7 @@ import type {
 import { toastManager } from "@/components/toast-providers";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useGlobalLoading } from "@/components/loading-provider";
 
 type ModalState =
   | {
@@ -59,6 +61,7 @@ export function AgendaView({
   initialOrphans?: OrphanGoogleEvent[];
 }) {
   const router = useRouter();
+  const { startNavigation } = useGlobalLoading();
   const [modal, setModal] = useState<ModalState>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<GoogleSyncSummary | null>(null);
@@ -164,9 +167,12 @@ export function AgendaView({
   }, []);
 
   const buildUrl = useCallback(
-    (nextView: ScheduleView, nextDateKey: string) =>
-      router.push(`/agenda?view=${nextView}&date=${nextDateKey}`),
-    [router]
+    (nextView: ScheduleView, nextDateKey: string) => {
+      const agendaUrl = `/agenda?view=${nextView}&date=${nextDateKey}`;
+      startNavigation("Cargando agenda...", agendaUrl);
+      router.push(agendaUrl);
+    },
+    [router, startNavigation]
   );
 
   function handleNavigate(direction: 1 | -1) {
@@ -297,10 +303,12 @@ export function AgendaView({
 function SyncResultBanner({ result, syncing }: { result: GoogleSyncSummary; syncing: boolean }) {
   if (!result.connected) {
     return (
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-coral-500/40 bg-coral-950/50 px-3 py-2 text-sm text-coral-300">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-coral-500/40 bg-coral-900/10 px-3 py-2 text-sm text-coral-400 dark:bg-transparent dark:text-ink-100">
         <span>{result.message ?? "No se pudo sincronizar con Google Calendar."}</span>
         <Button asChild variant="secondary" size="sm">
-          <a href="/settings">Ir a Ajustes y reconectar</a>
+          <LoadingLink href="/settings" loadingLabel="Cargando ajustes...">
+            Ir a Ajustes y reconectar
+          </LoadingLink>
         </Button>
       </div>
     );
@@ -321,7 +329,7 @@ function SyncResultBanner({ result, syncing }: { result: GoogleSyncSummary; sync
         "flex flex-wrap items-center gap-3 rounded-md border px-3 py-2 text-sm",
         failed
           ? "border-amber-500/40 bg-amber-950/50 text-amber-300"
-          : "border-mint-500/40 bg-mint-900/50 text-mint-200"
+          : "border-mint-500/40 bg-mint-900/50 text-mint-600 dark:text-ink-100"
       )}
     >
       <span>{syncing ? "Sincronizando..." : parts.length > 0 ? `Sincronización: ${parts.join(", ")}.` : "Sincronización al día."}</span>

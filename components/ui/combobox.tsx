@@ -72,7 +72,7 @@ function ComboboxItem({
   return (
     <ComboboxPrimitive.Item
       className={cn(
-        "flex cursor-default items-center gap-2 rounded px-2.5 py-2 text-sm text-ink-100 outline-none data-[highlighted]:bg-lavender-800/60 data-[highlighted]:text-white",
+        "flex cursor-default items-center gap-2 rounded px-2.5 py-2 text-sm text-ink-100 outline-none data-[highlighted]:bg-lavender-800/60 data-[highlighted]:text-theme-strong",
         className
       )}
       {...props}

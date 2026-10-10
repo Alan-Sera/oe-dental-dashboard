@@ -14,6 +14,7 @@ import {
 import { patientSchema, type PatientInput } from "@/lib/validation";
 import { resolveInitialPhoneUnavailable } from "@/lib/patient-provisioning";
 import { useGlobalLoading } from "@/components/loading-provider";
+import { LoadingLink } from "@/components/loading-link";
 import { PatientNextAppointment } from "@/components/patient-attendance-summary";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
@@ -93,7 +94,9 @@ export function PatientForm({
           setSubmissionError(result.message);
           return;
         }
-        router.push(`/patients/${result.patientId}`);
+        const patientUrl = `/patients/${result.patientId}`;
+        loading.startNavigation("Cargando expediente...", patientUrl);
+        router.push(patientUrl);
       } catch (error) {
         setSubmissionError(error instanceof Error ? error.message : "No se pudo crear el paciente.");
       } finally {
@@ -116,7 +119,9 @@ export function PatientForm({
         startTransition(async () => {
           try {
             const patient = await updatePatient(patientId, values);
-            router.push(`/patients/${patient.id}`);
+            const patientUrl = `/patients/${patient.id}`;
+            loading.startNavigation("Cargando expediente...", patientUrl);
+            router.push(patientUrl);
           } catch (error) {
             setSubmissionError(error instanceof Error ? error.message : "No se pudo actualizar el paciente.");
           } finally {
@@ -217,10 +222,10 @@ export function PatientForm({
         </div>
       ) : null}
       {submissionError ? (
-        <div className="md:col-span-2 rounded-lg border border-coral-400/45 bg-coral-950/35 p-3 text-sm text-coral-200">
+        <div className="md:col-span-2 rounded-lg border border-coral-400/45 bg-coral-900/10 p-3 text-sm text-coral-400 dark:bg-transparent dark:text-ink-100">
           {submissionError}{" "}
           {submissionError.includes("Ajustes") || submissionError.includes("carpeta maestra") ? (
-            <Link href="/settings" className="font-medium underline">Abrir Ajustes</Link>
+            <LoadingLink href="/settings" className="font-medium underline" loadingLabel="Cargando ajustes...">Abrir Ajustes</LoadingLink>
           ) : null}
         </div>
       ) : null}

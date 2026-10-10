@@ -45,14 +45,14 @@ export function LinkedFilesControls({ report }: { report: LinkedFilesReport }) {
       {report.error ? (
         <div
           role="alert"
-          className="flex items-start gap-3 rounded-lg border border-coral-400/40 bg-coral-950/55 p-4 text-sm text-coral-200 shadow-[0_8px_24px_rgba(240,95,77,0.08)]"
+          className="flex items-start gap-3 rounded-lg border border-coral-400/40 bg-coral-900/10 p-4 text-sm text-coral-400 shadow-[0_8px_24px_rgba(240,95,77,0.08)] dark:bg-transparent dark:text-ink-100"
         >
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-md border border-coral-400/35 bg-coral-900/70 text-coral-300">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-md border border-coral-400/35 bg-coral-900/70 text-coral-400 dark:text-ink-100">
             <AlertTriangle className="size-4" aria-hidden="true" />
           </span>
           <div className="min-w-0 space-y-1">
-            <p className="font-semibold text-coral-100">No se pudo revisar los archivos</p>
-            <p className="leading-relaxed text-coral-200/90">{report.error}</p>
+            <p className="font-semibold text-coral-400 dark:text-ink-100">No se pudo revisar los archivos</p>
+            <p className="leading-relaxed text-coral-400 dark:text-ink-100">{report.error}</p>
           </div>
         </div>
       ) : null}

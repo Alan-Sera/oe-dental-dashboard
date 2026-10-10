@@ -70,7 +70,7 @@ export function MonthView({
                     event.stopPropagation();
                     onCreateInDay(dayKey);
                   }}
-                  className="mr-0.5 rounded px-1.5 text-xs font-medium text-brand-300 opacity-0 transition hover:bg-brand-900 hover:text-white group-hover:opacity-100"
+                  className="mr-0.5 rounded px-1.5 text-xs font-medium text-brand-300 opacity-0 transition hover:bg-brand-900 hover:text-theme-strong group-hover:opacity-100"
                 >
                   +
                 </button>

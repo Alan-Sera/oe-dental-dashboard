@@ -53,7 +53,7 @@ export function PendingEditsModal({
     <div className="fixed inset-0 z-[90] flex min-h-[100dvh] w-screen items-center justify-center p-4">
       <button
         type="button"
-        className="fixed inset-0 min-h-[100dvh] w-screen bg-ink-950/74 backdrop-blur-md"
+        className="fixed inset-0 min-h-[100dvh] w-screen bg-black/35 backdrop-blur-md dark:bg-ink-950/74"
         aria-label="Cerrar aviso"
         onClick={onClose}
       />
@@ -70,7 +70,7 @@ export function PendingEditsModal({
               <AlertTriangle className="size-5" aria-hidden="true" />
             </div>
             <div className="min-w-0">
-              <h2 id={titleId} className="text-base font-semibold text-white">
+              <h2 id={titleId} className="text-base font-semibold text-theme-strong">
                 Primero guarda o cancela tus cambios
               </h2>
               <p

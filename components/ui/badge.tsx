@@ -15,7 +15,7 @@ export function Badge({
     mint: "border-brand-400/35 bg-brand-900 text-lavender-100",
     amber: "border-amber-500/30 bg-amber-900 text-amber-400",
     coral: "border-coral-500/30 bg-coral-900 text-coral-400",
-    green: "border-emerald-300/45 bg-emerald-700/70 text-lavender-100",
+    green: "border-emerald-300/45 bg-emerald-700/70 text-white dark:text-lavender-100",
     sky: "border-lavender-300/40 bg-lavender-800/70 text-lavender-100"
 
   };
