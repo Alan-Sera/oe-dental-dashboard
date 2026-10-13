@@ -31,6 +31,7 @@ const AUTO_SYNC_IDLE_MS = 5 * 60 * 1000;
 const AUTO_SYNC_RETRY_MIN_MS = 60 * 1000;
 const LAST_BULK_SYNC_KEY = "agenda.lastBulkSyncAt";
 const LAST_ORPHANS_KEY = "agenda.lastOrphanEvents";
+const GOOGLE_GUEST_CLEANUP_KEY = "agenda.googleGuestCleanupDone";
 const NEXT_APPOINTMENT_EXCLUDED_STATUSES: AppointmentStatus[] = ["CANCELLED", "NO_SHOW"];
 
 const patientInclude = {
@@ -143,8 +144,7 @@ export async function createAppointment(input: AppointmentInput): Promise<Appoin
       description,
       startTime,
       endTime,
-      colorId: color,
-      patientEmail: patient.email
+      colorId: color
     });
 
     synced = sync.synced;
@@ -157,6 +157,17 @@ export async function createAppointment(input: AppointmentInput): Promise<Appoin
         include: patientInclude
       });
     }
+  }
+
+  if (adoptGoogleEventId) {
+    const sendUpdates = (await isGoogleGuestCleanupPending()) ? "all" : "none";
+    const sync = await syncUpdateToGoogle(
+      adoptGoogleEventId,
+      { summary: title, description, startTime, endTime, colorId: color },
+      sendUpdates
+    );
+    synced = sync.synced;
+    syncError = sync.syncError;
   }
 
   await recordAudit("appointment.created", "Appointment", appointment.id, {
@@ -209,15 +220,16 @@ export async function updateAppointment(id: string, input: AppointmentInput): Pr
     description,
     startTime,
     endTime,
-    colorId: color,
-    attendees: patient.email ? [{ email: patient.email, name: patient.fullName }] : undefined
+    colorId: color
   };
+
+  const sendUpdates = (await isGoogleGuestCleanupPending()) ? "all" : "none";
 
   const nextStatus = parsed.status ?? existing.status;
   const becomingClosed = nextStatus === "CANCELLED" || nextStatus === "NO_SHOW";
 
   if (becomingClosed && appointment.googleEventId) {
-    const sync = await syncDeleteToGoogle(appointment.googleEventId);
+    const sync = await syncDeleteToGoogle(appointment.googleEventId, sendUpdates);
     synced = sync.synced;
     syncError = sync.syncError;
     if (sync.synced) {
@@ -228,7 +240,7 @@ export async function updateAppointment(id: string, input: AppointmentInput): Pr
       });
     }
   } else if (appointment.googleEventId) {
-    const sync = await syncUpdateToGoogle(appointment.googleEventId, eventInput);
+    const sync = await syncUpdateToGoogle(appointment.googleEventId, eventInput, sendUpdates);
     synced = sync.synced;
     syncError = sync.syncError;
   } else {
@@ -237,8 +249,7 @@ export async function updateAppointment(id: string, input: AppointmentInput): Pr
       description,
       startTime,
       endTime,
-      colorId: color,
-      patientEmail: patient.email
+      colorId: color
     });
     synced = sync.synced;
     syncError = sync.syncError;
@@ -276,7 +287,8 @@ export async function deleteAppointment(id: string): Promise<{ synced: boolean; 
   let syncError: string | undefined;
 
   if (appointment.googleEventId) {
-    const sync = await syncDeleteToGoogle(appointment.googleEventId);
+    const sendUpdates = (await isGoogleGuestCleanupPending()) ? "all" : "none";
+    const sync = await syncDeleteToGoogle(appointment.googleEventId, sendUpdates);
     synced = sync.synced;
     syncError = sync.syncError;
   }
@@ -378,8 +390,9 @@ export async function maybeAutoSyncAgenda(): Promise<OrphanGoogleEvent[]> {
   const stored = await prisma.setting.findUnique({ where: { key: LAST_ORPHANS_KEY } });
   const fallbackOrphans = parseStoredOrphans(stored?.value);
 
+  const guestCleanupPending = await isGoogleGuestCleanupPending();
   const pendingWork = elapsed >= AUTO_SYNC_RETRY_MIN_MS ? await hasPendingGoogleSync() : false;
-  const shouldRun = elapsed >= AUTO_SYNC_IDLE_MS || pendingWork;
+  const shouldRun = guestCleanupPending || elapsed >= AUTO_SYNC_IDLE_MS || pendingWork;
   if (!shouldRun) return fallbackOrphans;
 
   const summary = await runGoogleSync();
@@ -446,6 +459,8 @@ async function runGoogleSync(): Promise<GoogleSyncSummary> {
     errors: [],
     orphanEvents: []
   };
+  const guestCleanupPending = await isGoogleGuestCleanupPending();
+  const guestRemovalNotifications = guestCleanupPending ? "all" : "none";
 
   for (const appointment of appointments) {
     const eventInput: GoogleCalendarEventInput = {
@@ -453,17 +468,14 @@ async function runGoogleSync(): Promise<GoogleSyncSummary> {
       description: appointment.description,
       startTime: appointment.startTime,
       endTime: appointment.endTime,
-      colorId: appointment.colorId,
-      attendees: appointment.patient.email
-        ? [{ email: appointment.patient.email, name: appointment.patient.fullName }]
-        : undefined
+      colorId: appointment.colorId
     };
 
     const isClosed = appointment.status === "CANCELLED" || appointment.status === "NO_SHOW";
 
     if (isClosed) {
       if (appointment.googleEventId) {
-        const sync = await syncDeleteToGoogle(appointment.googleEventId);
+        const sync = await syncDeleteToGoogle(appointment.googleEventId, guestRemovalNotifications);
         if (sync.synced) {
           summary.deleted += 1;
           await prisma.appointment.update({
@@ -490,8 +502,7 @@ async function runGoogleSync(): Promise<GoogleSyncSummary> {
         description: eventInput.description,
         startTime: eventInput.startTime,
         endTime: eventInput.endTime,
-        colorId: eventInput.colorId,
-        patientEmail: appointment.patient.email
+        colorId: eventInput.colorId
       });
 
       if (sync.synced && sync.googleEventId) {
@@ -509,7 +520,7 @@ async function runGoogleSync(): Promise<GoogleSyncSummary> {
         });
       }
     } else {
-      const sync = await syncUpdateToGoogle(appointment.googleEventId, eventInput);
+      const sync = await syncUpdateToGoogle(appointment.googleEventId, eventInput, guestRemovalNotifications);
 
       if (sync.synced) {
         summary.updated += 1;
@@ -522,6 +533,14 @@ async function runGoogleSync(): Promise<GoogleSyncSummary> {
         });
       }
     }
+  }
+
+  if (guestCleanupPending && summary.failed === 0) {
+    await prisma.setting.upsert({
+      where: { key: GOOGLE_GUEST_CLEANUP_KEY },
+      create: { key: GOOGLE_GUEST_CLEANUP_KEY, value: "true" },
+      update: { value: "true" }
+    });
   }
 
   try {
@@ -568,6 +587,11 @@ async function runGoogleSync(): Promise<GoogleSyncSummary> {
 async function getSettingModifiedAt(key: string): Promise<Date | null> {
   const row = await prisma.setting.findUnique({ where: { key } });
   return row?.updatedAt ?? null;
+}
+
+async function isGoogleGuestCleanupPending(): Promise<boolean> {
+  const cleanup = await prisma.setting.findUnique({ where: { key: GOOGLE_GUEST_CLEANUP_KEY } });
+  return cleanup?.value !== "true";
 }
 
 async function hasPendingGoogleSync(): Promise<boolean> {
@@ -667,17 +691,15 @@ async function syncCreateToGoogle({
   description,
   startTime,
   endTime,
-  colorId,
-  patientEmail
-}: GoogleCalendarEventInput & { patientEmail?: string | null }): Promise<{ synced: boolean; syncError?: string; googleEventId?: string }> {
+  colorId
+}: GoogleCalendarEventInput): Promise<{ synced: boolean; syncError?: string; googleEventId?: string }> {
   try {
     const result = await createGoogleCalendarEvent({
       summary,
       description,
       startTime,
       endTime,
-      colorId,
-      attendees: patientEmail ? [{ email: patientEmail }] : undefined
+      colorId
     });
 
     return { synced: true, googleEventId: result.id };
@@ -688,19 +710,23 @@ async function syncCreateToGoogle({
 
 async function syncUpdateToGoogle(
   eventId: string,
-  input: GoogleCalendarEventInput
+  input: GoogleCalendarEventInput,
+  sendUpdates: "all" | "none" = "none"
 ): Promise<{ synced: boolean; syncError?: string }> {
   try {
-    await updateGoogleCalendarEvent(eventId, input);
+    await updateGoogleCalendarEvent(eventId, input, sendUpdates);
     return { synced: true };
   } catch (error) {
     return { synced: false, syncError: toSyncErrorMessage(error) };
   }
 }
 
-async function syncDeleteToGoogle(eventId: string): Promise<{ synced: boolean; syncError?: string }> {
+async function syncDeleteToGoogle(
+  eventId: string,
+  sendUpdates: "all" | "none" = "none"
+): Promise<{ synced: boolean; syncError?: string }> {
   try {
-    await deleteGoogleCalendarEvent(eventId);
+    await deleteGoogleCalendarEvent(eventId, sendUpdates);
     return { synced: true };
   } catch (error) {
     return { synced: false, syncError: toSyncErrorMessage(error) };

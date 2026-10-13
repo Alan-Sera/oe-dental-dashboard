@@ -13,7 +13,6 @@ export type GoogleCalendarEventInput = {
   startTime: Date;
   endTime: Date;
   colorId?: string | null;
-  attendees?: { email: string; name?: string }[];
 };
 
 export type GoogleCalendarEvent = {
@@ -61,14 +60,14 @@ export async function createGoogleCalendarEvent(input: GoogleCalendarEventInput)
     const calendar = google.calendar({ version: "v3", auth });
     const response = await calendar.events.insert({
       calendarId: CALENDAR_ID,
-      sendUpdates: "all",
+      eventLabelVersion: 0,
+      sendUpdates: "none",
       requestBody: {
         summary: input.summary,
         description: input.description,
         start: { dateTime: input.startTime.toISOString() },
         end: { dateTime: input.endTime.toISOString() },
-        ...(input.colorId ? { colorId: input.colorId } : {}),
-        attendees: input.attendees
+        ...(input.colorId ? { colorId: input.colorId } : {})
       }
     });
 
@@ -84,28 +83,45 @@ export async function createGoogleCalendarEvent(input: GoogleCalendarEventInput)
 
 export async function updateGoogleCalendarEvent(
   eventId: string,
-  input: GoogleCalendarEventInput
+  input: GoogleCalendarEventInput,
+  sendUpdates: "all" | "none" = "none"
 ): Promise<{ id: string }> {
   const auth = await getCalendarOAuthClient();
 
   try {
     const calendar = google.calendar({ version: "v3", auth });
-    const response = await calendar.events.update({
+    const response = await calendar.events.patch({
       calendarId: CALENDAR_ID,
       eventId,
-      sendUpdates: "all",
+      eventLabelVersion: 0,
+      sendUpdates,
       requestBody: {
         summary: input.summary,
         description: input.description,
         start: { dateTime: input.startTime.toISOString() },
         end: { dateTime: input.endTime.toISOString() },
         ...(input.colorId ? { colorId: input.colorId } : {}),
-        attendees: input.attendees
+        attendees: []
       }
     });
 
     if (!response.data.id) {
       throw new Error("Google Calendar no devolvió un id de evento");
+    }
+
+    if (input.colorId) {
+      const verification = await calendar.events.get({
+        calendarId: CALENDAR_ID,
+        eventId,
+        fields: "id,colorId"
+      });
+
+      if (verification.data.colorId !== input.colorId) {
+        const returnedColor = verification.data.colorId ?? "ninguno";
+        throw new Error(
+          `Google Calendar no confirmó el color seleccionado (solicitado: ${input.colorId}, recibido: ${returnedColor}). Intenta guardar la cita otra vez.`
+        );
+      }
     }
 
     return { id: response.data.id };
@@ -114,7 +130,7 @@ export async function updateGoogleCalendarEvent(
   }
 }
 
-export async function deleteGoogleCalendarEvent(eventId: string): Promise<void> {
+export async function deleteGoogleCalendarEvent(eventId: string, sendUpdates: "all" | "none" = "none"): Promise<void> {
   const auth = await getCalendarOAuthClient();
 
   try {
@@ -122,7 +138,7 @@ export async function deleteGoogleCalendarEvent(eventId: string): Promise<void> 
     await calendar.events.delete({
       calendarId: CALENDAR_ID,
       eventId,
-      sendUpdates: "all"
+      sendUpdates
     });
   } catch (error) {
     if (isEventAlreadyDeleted(error)) return;
