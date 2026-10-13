@@ -7,6 +7,7 @@ import { CloudOff } from "lucide-react";
 import { formatTime } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
 import { getGoogleCalendarColor } from "@/components/schedule/constants";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { AgendaAppointment } from "@/components/schedule/types";
 
 const statusColors: Record<string, string> = {
@@ -24,6 +25,8 @@ export function AppointmentChip({
   showTime,
   showPatient,
   showSync,
+  showDetailsOnHover = false,
+  wrapText = false,
   onClick,
   className
 }: {
@@ -31,6 +34,8 @@ export function AppointmentChip({
   showTime?: boolean;
   showPatient?: boolean;
   showSync?: boolean;
+  showDetailsOnHover?: boolean;
+  wrapText?: boolean;
   onClick?: (event: MouseEvent<HTMLButtonElement>) => void;
   className?: string;
 }) {
@@ -42,20 +47,28 @@ export function AppointmentChip({
   const colorStyle = colorDef
     ? { borderLeftColor: colorDef.hex, borderLeftWidth: "3px" }
     : undefined;
+  const fullText = [
+    showTime ? formatTime(start) : null,
+    appointment.title,
+    showPatient || showDetailsOnHover ? appointment.patientName : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
-  return (
+  const chip = (
     <button
       type="button"
       onClick={onClick}
       style={colorStyle}
       className={cn(
-        "block w-full rounded-md border px-2 py-1 text-left text-xs leading-tight transition",
-        colorDef ? colorDef.chipClass : statusColors[appointment.status] ?? statusColors.SCHEDULED,
+        "block w-full rounded-md border py-1 text-left text-xs leading-tight transition",
+        wrapText ? "overflow-hidden px-1" : "px-2",
+        colorDef ? cn(colorDef.chipClass, colorDef.lightTextClass) : statusColors[appointment.status] ?? statusColors.SCHEDULED,
         cancelled ? cancelledOpacity : undefined,
         className
       )}
     >
-      <span className="block truncate font-medium">
+      <span className={cn("block font-medium", wrapText ? "whitespace-normal break-words" : "truncate")}>
         {showTime ? `${formatTime(start)} · ` : ""}
         {appointment.title}
         {showSync && !appointment.googleEventId ? (
@@ -68,8 +81,23 @@ export function AppointmentChip({
           </>
         ) : null}
       </span>
-      {showPatient ? <span className="block truncate opacity-80">{appointment.patientName}</span> : null}
+      {showPatient ? (
+        <span className={cn("block opacity-80", wrapText ? "whitespace-normal break-words" : "truncate")}>
+          {appointment.patientName}
+        </span>
+      ) : null}
       <span className="sr-only">Termina a las {formatTime(end)}</span>
     </button>
+  );
+
+  if (!wrapText && !showDetailsOnHover) return chip;
+
+  return (
+    <Tooltip>
+      <TooltipTrigger render={chip} />
+      <TooltipContent className="max-w-sm whitespace-normal text-base leading-snug">
+        <span className="block whitespace-normal">{fullText}</span>
+      </TooltipContent>
+    </Tooltip>
   );
 }

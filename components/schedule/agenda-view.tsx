@@ -274,7 +274,13 @@ export function AgendaView({
           onCreateInDay={handleCreateOnDay}
         />
       ) : view === "week" ? (
-        <WeekView dateKey={dateKey} appointments={appointments} onCreateAt={handleCreateAt} onEdit={handleEdit} />
+        <WeekView
+          dateKey={dateKey}
+          appointments={appointments}
+          onCreateAt={handleCreateAt}
+          onEdit={handleEdit}
+          onSelectDay={handleSelectDay}
+        />
       ) : (
         <DayView dateKey={dateKey} appointments={appointments} onCreateAt={handleCreateAt} onEdit={handleEdit} />
       )}

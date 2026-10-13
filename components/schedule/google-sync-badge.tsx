@@ -7,15 +7,15 @@ import { CloudOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { GoogleCalendarStatus } from "@/components/schedule/types";
 import { LoadingLink } from "@/components/loading-link";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 export function GoogleSyncBadge({ status }: { status: GoogleCalendarStatus }) {
   const presentation = presentStatus(status);
 
-  return (
+  const link = (
     <LoadingLink
       href="/settings"
       loadingLabel="Cargando ajustes..."
-      title={presentation.title}
       className={cn(
         "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition hover:brightness-110",
         presentation.className
@@ -24,6 +24,13 @@ export function GoogleSyncBadge({ status }: { status: GoogleCalendarStatus }) {
       {presentation.icon}
       <span className="whitespace-nowrap">{presentation.label}</span>
     </LoadingLink>
+  );
+
+  return (
+    <Tooltip>
+      <TooltipTrigger render={link} />
+      <TooltipContent>{presentation.title}</TooltipContent>
+    </Tooltip>
   );
 }
 

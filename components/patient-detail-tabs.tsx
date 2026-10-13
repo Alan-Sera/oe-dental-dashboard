@@ -81,6 +81,10 @@ import { appointmentStatusLabels } from "@/components/schedule/constants";
 import type { AgendaAppointment } from "@/components/schedule/types";
 import { getAppointmentNextAnchor, getRecentAttendance } from "@/lib/attendance";
 import type { AttendanceItem } from "@/lib/attendance";
+import {
+  ConfirmationDialog,
+  confirmationCancelButtonClass,
+} from "@/components/confirmation-dialog";
 import { ConfirmDeleteModal } from "@/components/confirm-delete-modal";
 import { PatientAttendanceSummary } from "@/components/patient-attendance-summary";
 import { useGlobalLoading } from "@/components/loading-provider";
@@ -91,14 +95,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -118,6 +114,10 @@ const historyNoShowButtonClass =
 const historyCancelButtonClass =
   "bg-lavender-700/40 text-lavender-50 hover:bg-lavender-700/55 hover:text-theme-strong";
 const filterLinkedTextHistorySearchResults = true;
+
+const historySearchInputClass =
+  "border-violet-400/70 bg-violet-100/90 placeholder:text-ink-500 focus:border-violet-500 focus:ring-violet-400/40 focus-visible:ring-violet-400/40 hover:border-violet-500/80 hover:bg-violet-200 dark:border-violet-400/60 dark:bg-violet-950/45 dark:placeholder:text-lavender-300 dark:focus:border-violet-300 dark:focus:ring-violet-300/40 dark:hover:border-violet-300 dark:hover:bg-violet-950/60";
+const historySearchIconClass = "text-violet-600 dark:text-violet-300";
 
 function formatAppointmentTime(value: string) {
   return new Intl.DateTimeFormat("es", {
@@ -1067,32 +1067,43 @@ function LinkedTextHistoryBlocks({
               </Badge>
             ) : null}
           </div>
-          <div className="relative w-full lg:mx-auto lg:max-w-xl">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-lavender-200/55" />
-            <Input
-              value={searchQuery}
-              onFocus={() => {
-                if (hasPendingEdits) setPendingEditsModalOpen(true);
-              }}
-              onChange={(event) => requestSearchChange(event.target.value)}
-              placeholder="Buscar en historia"
-              className="h-10 rounded-full pl-10 pr-10 hover:border-lavender-300/60 hover:bg-lavender-800/50"
-              aria-label="Buscar palabras en historia"
-              disabled={disabled}
-            />
-            {hasSearchQuery ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="absolute right-1 top-1/2 size-8 -translate-y-1/2"
-                aria-label="Limpiar búsqueda en historia"
+          <div className="w-full lg:mx-auto lg:max-w-xl">
+            <div className="relative">
+              <Search
+                className={cn(
+                  "pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2",
+                  historySearchIconClass,
+                )}
+                aria-hidden="true"
+              />
+              <Input
+                value={searchQuery}
+                onFocus={() => {
+                  if (hasPendingEdits) setPendingEditsModalOpen(true);
+                }}
+                onChange={(event) => requestSearchChange(event.target.value)}
+                placeholder="Buscar en historia"
+                className={cn(
+                  "h-10 rounded-full pl-10 pr-10 focus-visible:outline-none focus-visible:ring-2",
+                  historySearchInputClass,
+                )}
+                aria-label="Buscar palabras en historia"
                 disabled={disabled}
-                onClick={() => requestSearchChange("")}
-              >
-                <X className="size-4" aria-hidden="true" />
-              </Button>
-            ) : null}
+              />
+              {hasSearchQuery ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-1 top-1/2 size-8 -translate-y-1/2"
+                  aria-label="Limpiar búsqueda en historia"
+                  disabled={disabled}
+                  onClick={() => requestSearchChange("")}
+                >
+                  <X className="size-4" aria-hidden="true" />
+                </Button>
+              ) : null}
+            </div>
           </div>
           <Button
             type="button"
@@ -1391,8 +1402,8 @@ function LinkedTextAppointmentBlock({
       <article
         id={isNew ? undefined : `cita-${entryId}-${index}`}
         className={cn(
-          "grid gap-3 scroll-mt-24 rounded-lg border bg-lavender-950/18 p-3 md:grid-cols-[9.5rem_minmax(0,1fr)]",
-          hasNoShow ? "border-coral-400/35" : "border-lavender-500/25",
+          "grid gap-3 scroll-mt-24 rounded-lg border bg-lavender-400/18 p-3 md:grid-cols-[9.5rem_minmax(0,1fr)]",
+          hasNoShow ? "border-coral-400/35 dark:bg-coral-400/10 bg-coral-900/70" : "border-lavender-500/25",
         )}
       >
         <div className="space-y-2">
@@ -1654,7 +1665,7 @@ function LinkedTextNextBlock({
       <div
         id={anchorId}
         tabIndex={anchorId ? -1 : undefined}
-        className="w-full scroll-mt-24 rounded-md border border-amber-400/25 bg-amber-950/20 p-3 focus-visible:outline-2 focus-visible:outline-amber-200/70"
+        className="w-full scroll-mt-24 rounded-md border dark:bg-amber-950/20 border-amber-400/25 bg-amber-100/55 p-3 focus-visible:outline-2 focus-visible:outline-amber-200/70"
       >
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
           <label
@@ -2219,23 +2230,29 @@ function PaymentHistoryPanel({
           </Tooltip>
         </form>
 
-        <Dialog open={confirmFolderEditOpen} onOpenChange={setConfirmFolderEditOpen}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>¿Seguro que quieres modificar la liga?</DialogTitle>
-              <DialogDescription>
-                Al confirmar se habilitará el campo. El nuevo destino se aplicará al pulsar
-                “Subir/Reintentar”, lo que creará una hoja en la carpeta indicada. La hoja actual
-                permanecerá en Google Drive.
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter className="mt-4">
-              <Button type="button" variant="secondary" onClick={() => setConfirmFolderEditOpen(false)}>
+        <ConfirmationDialog
+          open={confirmFolderEditOpen}
+          onOpenChange={setConfirmFolderEditOpen}
+          tone="primary"
+          title="¿Seguro que quieres modificar la liga?"
+          description={
+            "Al confirmar se habilitará el campo. El nuevo destino se aplicará al pulsar “Subir/Reintentar”, lo que creará una hoja en la carpeta indicada. La hoja actual permanecerá en Google Drive."
+          }
+          closeLabel="Cancelar"
+          actions={
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                className={`w-full sm:w-auto ${confirmationCancelButtonClass}`}
+                onClick={() => setConfirmFolderEditOpen(false)}
+              >
                 Cancelar
               </Button>
               <Button
                 type="button"
                 variant="primary"
+                className="w-full sm:w-auto"
                 onClick={() => {
                   setEditingFolder({
                     sheetId: sheet.id,
@@ -2247,9 +2264,9 @@ function PaymentHistoryPanel({
               >
                 Sí, modificar
               </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+            </>
+          }
+        />
 
         {!sheet.isActive && !featured ? (
           <form action={setActivePaymentHistorySheet}>
@@ -2341,7 +2358,7 @@ function Tab({
   return (
     <Tabs.Trigger
       value={value}
-      className="flex h-10 items-center gap-2 rounded-md px-3 text-sm text-lavender-200/70 transition hover:bg-lavender-800/35 hover:text-lavender-50 data-[state=active]:bg-lavender-800/80 data-[state=active]:text-lavender-50"
+      className="flex h-10 items-center gap-2 rounded-md px-3 text-sm  transition hover:bg-lavender-800 hover:text-lavender-50 data-[state=active]:bg-brand-600 data-[state=active]:text-white"
     >
       <Icon className="size-4" />
       {label}

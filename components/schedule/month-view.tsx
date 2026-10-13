@@ -53,12 +53,12 @@ export function MonthView({
                   type="button"
                   onClick={() => onSelectDay(dayKey)}
                   className={cn(
-                    "flex size-6 items-center justify-center rounded-full text-xs transition hover:bg-brand-800",
+                    "flex size-6 items-center justify-center rounded-full text-xs transition hover:bg-brand-50 dark:hover:bg-brand-800",
                     dayLooksToday
-                      ? "bg-brand-600 font-semibold text-white"
+                      ? "bg-brand-600 text-white font-semibold hover:text-brand-800 hover:bg-brand-600 dark:hover:text-white"
                       : inMonth
-                        ? "text-lavender-100"
-                        : "text-lavender-200/40"
+                        ? "text-lavender-100 hover:text-brand-800 dark:hover:text-lavender-100 font-semibold"
+                        : "text-lavender-200/40 hover:text-brand-800 dark:hover:text-lavender-200/40"
                   )}
                 >
                   {day.getDate()}
@@ -70,7 +70,7 @@ export function MonthView({
                     event.stopPropagation();
                     onCreateInDay(dayKey);
                   }}
-                  className="mr-0.5 rounded px-1.5 text-xs font-medium text-brand-300 opacity-0 transition hover:bg-brand-900 hover:text-theme-strong group-hover:opacity-100"
+                  className="mr-0.5 rounded-full px-1.5 text-md font-medium dark:text-white opacity-0 transition bg-brand-900 hover:text-theme-strong group-hover:opacity-100"
                 >
                   +
                 </button>
@@ -82,6 +82,7 @@ export function MonthView({
                     appointment={appointment}
                     showTime
                     showSync
+                    showDetailsOnHover
                     onClick={(event) => {
                       event.stopPropagation();
                       onEditAppointment(appointment);

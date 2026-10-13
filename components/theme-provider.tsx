@@ -6,7 +6,7 @@ import { resolveThemePreference, THEME_STORAGE_KEY, type ThemePreference } from 
 
 interface ThemeContextValue {
   theme: ThemePreference;
-  toggleTheme: () => void;
+  setTheme: (theme: ThemePreference) => void;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
@@ -18,7 +18,7 @@ function applyTheme(theme: ThemePreference) {
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<ThemePreference>("light");
+  const [theme, setCurrentTheme] = useState<ThemePreference>("light");
 
   useEffect(() => {
     let storedTheme: string | null = null;
@@ -28,22 +28,21 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       // If storage is unavailable, keep the app's light-mode default.
     }
     const initialTheme = resolveThemePreference(storedTheme);
-    setTheme(initialTheme);
+    setCurrentTheme(initialTheme);
     applyTheme(initialTheme);
   }, []);
 
-  const toggleTheme = useCallback(() => {
-    const nextTheme: ThemePreference = theme === "dark" ? "light" : "dark";
-    setTheme(nextTheme);
+  const setTheme = useCallback((nextTheme: ThemePreference) => {
+    setCurrentTheme(nextTheme);
     applyTheme(nextTheme);
     try {
       window.localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
     } catch {
       // The current page still changes theme even when preference storage is unavailable.
     }
-  }, [theme]);
+  }, []);
 
-  const value = useMemo(() => ({ theme, toggleTheme }), [theme, toggleTheme]);
+  const value = useMemo(() => ({ theme, setTheme }), [theme, setTheme]);
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }

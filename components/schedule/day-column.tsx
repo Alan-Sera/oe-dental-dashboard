@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { formatTime, toDateKey } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
+import { layoutOverlappingAppointments } from "@/components/schedule/appointment-layout";
 import {
   HOUR_HEIGHT_PX,
   WORKDAY_END_HOUR,
@@ -32,19 +33,30 @@ export function DayTimelineColumn({
   appointments,
   onCreateAt,
   onEdit,
+  showDetailsOnHover = false,
+  hourLineClassName,
   className,
 }: {
   date: Date;
   appointments: AgendaAppointment[];
   onCreateAt: (point: TimelineCreatePoint) => void;
   onEdit: (appointment: AgendaAppointment) => void;
+  showDetailsOnHover?: boolean;
+  hourLineClassName?: string;
   className?: string;
 }) {
   const columnRef = useRef<HTMLDivElement>(null);
   const dateKey = toDateKey(date);
-  const dayAppointments = appointments.filter(
-    (appointment) => toDateKey(new Date(appointment.startTime)) === dateKey,
-  );
+  const { dayAppointments, appointmentLayouts } = useMemo(() => {
+    const appointmentsForDay = appointments.filter(
+      (appointment) => toDateKey(new Date(appointment.startTime)) === dateKey,
+    );
+
+    return {
+      dayAppointments: appointmentsForDay,
+      appointmentLayouts: layoutOverlappingAppointments(appointmentsForDay),
+    };
+  }, [appointments, dateKey]);
 
   function handleEmptyClick(offsetRatio: number) {
     const minutes = WORKDAY_START_MINUTES + offsetRatio * WORKDAY_TOTAL_MINUTES;
@@ -60,7 +72,10 @@ export function DayTimelineColumn({
         {hours.map((hour) => (
           <div
             key={hour}
-            className="absolute inset-x-0 border-t border-lavender-600/40"
+            className={cn(
+              "absolute inset-x-0 border-t",
+              hourLineClassName ?? "border-lavender-600/40",
+            )}
             style={{ top: (hour - WORKDAY_START_HOUR) * HOUR_HEIGHT_PX }}
           />
         ))}
@@ -86,18 +101,27 @@ export function DayTimelineColumn({
             appointment.startTime,
             appointment.endTime,
           );
+          const { columnIndex = 0, columnCount = 1 } = appointmentLayouts.get(appointment.id) ?? {};
+          const columnWidth = 100 / columnCount;
 
           return (
             <div
               key={appointment.id}
-              className="absolute left-1 right-1 z-20 min-w-0"
-              style={{ top: `${top}%`, height: `${height}%` }}
+              className={cn("absolute z-20 min-w-0", columnCount === 1 && "px-1")}
+              style={{
+                top: `${top}%`,
+                height: `${height}%`,
+                left: `${columnIndex * columnWidth}%`,
+                width: `${columnWidth}%`,
+              }}
             >
               <AppointmentChip
                 appointment={appointment}
                 showTime
                 showPatient
                 showSync
+                showDetailsOnHover={showDetailsOnHover}
+                wrapText={columnCount > 1}
                 onClick={(event) => {
                   event.stopPropagation();
                   onEdit(appointment);
@@ -175,18 +199,18 @@ function positionHeight(startValue: string, endValue: string) {
   );
 }
 
-export function TimelineHourGutter() {
+export function TimelineHourGutter({ firstHourHeight = 75 }: { firstHourHeight?: number }) {
   return (
     <div
       className="shrink-0 text-right"
       style={{ height: totalHeightPx }}
       aria-hidden="true"
     >
-      {hours.map((hour) => (
+      {hours.map((hour, index) => (
         <div
           key={hour}
-          className="flex items-end justify-end pr-2 text-xs text-lavender-200/50"
-          style={{ height: HOUR_HEIGHT_PX }}
+          className="flex items-end justify-end px-2 text-s font-semibold text-lavender-200/50"
+          style={{ height: index === 0 ? firstHourHeight : HOUR_HEIGHT_PX }}
         >
           {formatTime(new Date(2000, 0, 1, hour))}
         </div>

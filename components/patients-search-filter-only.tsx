@@ -17,7 +17,7 @@ import {
   type PatientGenderFilter,
   type PatientSortOrder
 } from "@/lib/patient-search";
-import { formatDate } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 
 export type PatientListItem = PatientDirectoryRecord & {
   id: string;
@@ -46,7 +46,8 @@ export function PatientsSearchFilterOnly({ patients }: { patients: PatientListIt
   const hasQuery = query.trim().length > 0;
   const hasActiveFilters = genderFilter !== "ALL" || debtorsOnly || appointmentDate.length > 0;
   const showResultCount = hasQuery || hasActiveFilters;
-
+  const historySearchInputClass =
+    "border-violet-400/70 bg-violet-100/90 placeholder:text-ink-500 focus:border-violet-500 focus:ring-violet-400/40 focus-visible:ring-violet-400/40 hover:border-violet-500/80 hover:bg-violet-200 dark:border-violet-400/60 dark:bg-violet-950/45 dark:placeholder:text-lavender-300 dark:focus:border-violet-300 dark:focus:ring-violet-300/40 dark:hover:border-violet-300 dark:hover:bg-violet-950/60";
   function resetFilters() {
     setGenderFilter("ALL");
     setDebtorsOnly(false);
@@ -66,7 +67,7 @@ export function PatientsSearchFilterOnly({ patients }: { patients: PatientListIt
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Buscar por nombre o teléfono"
-            className="h-11 rounded-full pl-10 pr-10 hover:border-lavender-300/60 hover:bg-lavender-800/50 placeholder:hover:text-lavender-200"
+            className={cn("h-10 rounded-full pl-10 pr-10 focus-visible:outline-none focus-visible:ring-2", historySearchInputClass)}
             aria-label="Buscar pacientes por nombre o teléfono"
           />
           {hasQuery ? (
@@ -140,7 +141,7 @@ export function PatientsSearchFilterOnly({ patients }: { patients: PatientListIt
                   <Select
                     value={genderFilter}
                     onChange={(event) => setGenderFilter(event.target.value as PatientGenderFilter)}
-                    className="h-8 w-[120px] hover:border-lavender-300/60 hover:bg-lavender-800/50"
+                    className="h-8 w-[120px]"
                     aria-label="Filtrar por género"
                   >
                     <option value="ALL">Todos</option>

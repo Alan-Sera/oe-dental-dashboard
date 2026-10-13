@@ -102,7 +102,7 @@ export function Calendar({ className, classNames, ...props }: DayPickerProps) {
         day: "size-9 rounded-md p-0 text-center align-middle",
         day_button:
           "flex size-9 items-center justify-center rounded-md text-sm text-ink-100 transition hover:bg-lavender-800/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lavender-200/60",
-        selected: "bg-brand-600 font-semibold text-white hover:bg-brand-500",
+        selected: "bg-brand-600 font-semibold text-white [&>button]:text-white hover:bg-brand-500",
         today:
           "font-bold [&>button]:underline [&>button]:decoration-brand-300/70 [&>button]:underline-offset-4",
         outside: "text-lavender-200/30",

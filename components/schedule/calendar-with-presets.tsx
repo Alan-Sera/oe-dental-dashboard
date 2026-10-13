@@ -38,6 +38,7 @@ export function CalendarWithPresets({
   }
 
   const today = startOfDay(new Date());
+  const selectedDayStart = startOfDay(selectedDay);
 
   return (
     <Card className="mx-auto px-1 w-fit max-w-[300px]" size="sm">
@@ -62,19 +63,24 @@ export function CalendarWithPresets({
           { label: "En 2 semanas", date: addDays(today, 14) },
           { label: "En 3 semanas", date: addDays(today, 21) },
           { label: "Próximo mes", date: addDays(today, 28) }
-        ].map((preset) => (
-          <Button
-            key={preset.label}
-            variant="secondary"
-            size="sm"
-            className="flex-1 px-5"
-            type="button"
-            disabled={disabled}
-            onClick={() => pick(preset.date)}
-          >
-            {preset.label}
-          </Button>
-        ))}
+        ].map((preset) => {
+          const isSelected = preset.date.getTime() === selectedDayStart.getTime();
+
+          return (
+            <Button
+              key={preset.label}
+              variant={isSelected ? "primary" : "secondary"}
+              size="sm"
+              className="flex-1 px-5"
+              type="button"
+              disabled={disabled}
+              aria-pressed={isSelected}
+              onClick={() => pick(preset.date)}
+            >
+              {preset.label}
+            </Button>
+          );
+        })}
       </CardFooter>
     </Card>
   );

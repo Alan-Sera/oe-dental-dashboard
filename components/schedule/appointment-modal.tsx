@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useMemo, useState, useTransition } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CalendarClock } from "lucide-react";
+import { CalendarClock, Search } from "lucide-react";
 import { useForm } from "react-hook-form";
 
 import { createAppointment, deleteAppointment, updateAppointment } from "@/lib/actions/appointments.actions";
@@ -13,6 +13,7 @@ import {
   toDatetimeLocal
 } from "@/lib/date-utils";
 import { APPOINTMENT_TITLE_PREFIX, appointmentInputSchema, appointmentStatuses, type AppointmentInput } from "@/lib/validation";
+import { ModalShell } from "@/components/modal-shell";
 import { appointmentStatusLabels, GOOGLE_CALENDAR_COLORS } from "@/components/schedule/constants";
 import { AppointmentStatusBadge } from "@/components/schedule/appointment-status-badge";
 import { CalendarWithPresets } from "@/components/schedule/calendar-with-presets";
@@ -26,19 +27,12 @@ import {
   ComboboxItem,
   ComboboxList
 } from "@/components/ui/combobox";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  type DialogHandle
-} from "@/components/ui/dialog";
+import { DialogFooter, type DialogHandle } from "@/components/ui/dialog";
 import { FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 const TIME_SLOTS = [
   { value: "08:00", label: "08:00" },
@@ -66,6 +60,8 @@ const TIME_SLOTS = [
   { value: "20:00", label: "20:00" },
   { value: "20:30", label: "20:30" }
 ];
+
+const DEFAULT_APPOINTMENT_COLOR_ID = "1";
 
 const STANDARD_DURATIONS = [
   { value: 30, label: "30 min" },
@@ -128,7 +124,6 @@ export function AppointmentModal({
   const titleId = useId();
   const notesId = useId();
   const colorGroupId = useId();
-  const dialogDescriptionId = useId();
   const timeGroupLabelId = useId();
   const durationGroupLabelId = useId();
   const statusId = useId();
@@ -179,7 +174,7 @@ export function AppointmentModal({
       ...composeRange(initial.day, initial.time, initial.duration),
       description: mode === "edit" ? appointment?.description ?? "" : presetDescription ?? "",
       status: mode === "edit" ? appointment?.status ?? "SCHEDULED" : undefined,
-      color: mode === "edit" ? appointment?.color ?? "" : "",
+      color: mode === "edit" ? appointment?.color ?? "" : DEFAULT_APPOINTMENT_COLOR_ID,
       adoptGoogleEventId: adoptGoogleEventId ?? null
     }
   });
@@ -191,7 +186,7 @@ export function AppointmentModal({
       ...composeRange(initial.day, initial.time, initial.duration),
       description: mode === "edit" ? appointment?.description ?? "" : presetDescription ?? "",
       status: mode === "edit" ? appointment?.status ?? "SCHEDULED" : undefined,
-      color: mode === "edit" ? appointment?.color ?? "" : "",
+      color: mode === "edit" ? appointment?.color ?? "" : DEFAULT_APPOINTMENT_COLOR_ID,
       adoptGoogleEventId: adoptGoogleEventId ?? null
     });
     setSelectedDay(initial.day);
@@ -284,25 +279,28 @@ export function AppointmentModal({
   const statusError = form.formState.errors.status?.message;
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange} handle={dialogHandle}>
-      <DialogContent aria-describedby={dialogDescriptionId}>
-        <DialogHeader>
-          <div className="flex items-center justify-between gap-3">
-            <DialogTitle>
-              <CalendarClock className="size-5 text-lavender-200" aria-hidden="true" />
-              {isAdopting ? "Asignar cita de Google" : mode === "edit" ? "Editar cita" : "Crear nueva cita"}
-            </DialogTitle>
-            {mode === "edit" && appointment ? (
-              <AppointmentStatusBadge status={appointment.status} />
-            ) : null}
-          </div>
-          <DialogDescription id={dialogDescriptionId}>
-            {isAdopting
-              ? "Vincula el evento de Google con un paciente, elige el día y la hora."
-              : "Elige el paciente, día, hora y duración de la cita."}
-          </DialogDescription>
-        </DialogHeader>
-
+    <ModalShell
+      open={open}
+      onOpenChange={handleOpenChange}
+      handle={dialogHandle}
+      title={isAdopting ? "Asignar cita de Google" : mode === "edit" ? "Editar cita" : "Crear nueva cita"}
+      description={
+        isAdopting
+          ? "Vincula el evento de Google con un paciente, elige el día y la hora."
+          : "Elige el paciente, día, hora y duración de la cita."
+      }
+      tone="primary"
+      icon={<CalendarClock className="size-5" aria-hidden="true" />}
+      titleAccessory={
+        mode === "edit" && appointment ? (
+          <AppointmentStatusBadge status={appointment.status} />
+        ) : null
+      }
+      closeDisabled={isPending}
+      size="medium"
+      scrollBehavior="panel"
+    >
+      <div className="p-5">
         {syncNotice ? (
           <div className="mb-4 rounded-md border border-amber-500/40 bg-amber-950/50 px-3 py-2 text-sm text-amber-300">
             La cita se guardó localmente, pero no se sincronizó con Google Calendar: {syncNotice}
@@ -355,13 +353,17 @@ export function AppointmentModal({
                 itemToStringLabel={(patient) => patient.fullName}
                 isItemEqualToValue={(a, b) => a?.id === b?.id}
               >
-                <ComboboxInput
-                  id={patientInputId}
-                  placeholder="Buscar paciente por nombre"
-                  aria-invalid={Boolean(patientError)}
-                  aria-describedby={patientError ? patientErrorId : undefined}
-                  disabled={isPending}
-                />
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-lavender-200" aria-hidden="true" />
+                  <ComboboxInput
+                    id={patientInputId}
+                    placeholder="Buscar paciente por nombre"
+                    aria-invalid={Boolean(patientError)}
+                    aria-describedby={patientError ? patientErrorId : undefined}
+                    disabled={isPending}
+                    className="h-10 rounded-full border-violet-400/70 bg-violet-100/90 pl-10 pr-3 text-ink-100 placeholder:text-ink-500 focus:border-violet-500 focus:ring-2 focus:ring-violet-400/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/40 hover:border-violet-500/80 hover:bg-violet-200 dark:border-violet-400/60 dark:bg-violet-950/45 dark:placeholder:text-lavender-300 dark:focus:border-violet-300 dark:focus:ring-violet-300/40 dark:focus-visible:ring-violet-300/40 dark:hover:border-violet-300 dark:hover:bg-violet-950/60"
+                  />
+                </div>
                 <ComboboxContent>
                   <ComboboxEmpty>
                     <span className="block px-2.5 py-6">Sin pacientes encontrados.</span>
@@ -485,38 +487,28 @@ export function AppointmentModal({
                 aria-labelledby={colorGroupId}
                 className="flex flex-wrap gap-2"
               >
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={colorValue === ""}
-                  onClick={() => form.setValue("color", "", { shouldDirty: true })}
-                  disabled={isPending}
-                  className="group relative size-8 rounded-full border-2 border-lavender-500/50 bg-lavender-800/40 transition hover:border-lavender-300/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lavender-200/60"
-                  title="Predeterminado (según estado)"
-                >
-                  <span className="absolute inset-0 flex items-center justify-center text-[10px] text-lavender-200/70">
-                    Auto
-                  </span>
-                  {colorValue === "" ? (
-                    <span className="absolute -inset-0.5 rounded-full ring-2 ring-lavender-300/80" />
-                  ) : null}
-                </button>
                 {GOOGLE_CALENDAR_COLORS.map((c) => (
-                  <button
-                    key={c.id}
-                    type="button"
-                    role="radio"
-                    aria-checked={colorValue === c.id}
-                    onClick={() => form.setValue("color", c.id, { shouldDirty: true })}
-                    disabled={isPending}
-                    className="group relative size-8 rounded-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lavender-200/60"
-                    style={{ backgroundColor: c.hex }}
-                    title={c.name}
-                  >
-                    {colorValue === c.id ? (
-                      <span className="absolute -inset-0.5 rounded-full ring-2 ring-white" />
-                    ) : null}
-                  </button>
+                  <Tooltip key={c.id}>
+                    <TooltipTrigger
+                      render={
+                        <button
+                          type="button"
+                          role="radio"
+                          aria-label={c.name}
+                          aria-checked={colorValue === c.id}
+                          onClick={() => form.setValue("color", c.id, { shouldDirty: true })}
+                          disabled={isPending}
+                          className="group relative size-8 rounded-full transition hover:scale-110 hover:ring-2 hover:ring-brand-500 hover:ring-offset-2 hover:ring-offset-white dark:hover:ring-white dark:hover:ring-offset-ink-950 motion-reduce:hover:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lavender-200/60"
+                          style={{ backgroundColor: c.hex }}
+                        >
+                          {colorValue === c.id ? (
+                            <span className="absolute -inset-0.5 rounded-full ring-2 ring-ink-100 dark:ring-white" />
+                          ) : null}
+                        </button>
+                      }
+                    />
+                    <TooltipContent side="bottom">{c.name}</TooltipContent>
+                  </Tooltip>
                 ))}
               </div>
               <FieldDescription>Selecciona un color para identificar la cita en el calendario.</FieldDescription>
@@ -556,8 +548,8 @@ export function AppointmentModal({
             </Button>
           </DialogFooter>
         </form>
-      </DialogContent>
-    </Dialog >
+      </div>
+    </ModalShell>
   );
 }
 

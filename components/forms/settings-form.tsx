@@ -73,9 +73,9 @@ export function SettingsForm({ settings }: { settings: ClinicSettings }) {
           <Tooltip>
             <TooltipTrigger
               aria-label="Información sobre la carpeta de Drive"
-              className="inline-flex size-7 items-center justify-center rounded-lg bg-neutral-900 text-neutral-100 shadow-sm transition hover:bg-neutral-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lavender-200/70"
+              className="inline-flex size-7 items-center justify-center rounded-lg dark:bg-neutral-900 bg-emerald-700/70 text-neutral-100 shadow-sm transition hover:bg-emerald-700/50 dark:hover:bg-neutral-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lavender-200/70"
             >
-              <Info className="size-4 text-green-400" aria-hidden="true" />
+              <Info className="size-4 dark:text-green-400 text-white" aria-hidden="true" />
             </TooltipTrigger>
             <TooltipContent>
               <p>Esta carpeta está definida por la clínica y no se cambia desde Ajustes.</p>
@@ -84,9 +84,9 @@ export function SettingsForm({ settings }: { settings: ClinicSettings }) {
           <Tooltip>
             <TooltipTrigger
               aria-label="Información sobre la carpeta de Google Drive"
-              className="inline-flex size-7 items-center justify-center rounded-lg bg-neutral-900 text-neutral-100 shadow-sm transition hover:bg-neutral-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lavender-200/70"
+              className="inline-flex size-7 items-center justify-center rounded-lg dark:bg-neutral-900 bg-emerald-700/70 text-neutral-100 shadow-sm transition hover:bg-emerald-700/50 dark:hover:bg-neutral-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lavender-200/70"
             >
-              <Info className="size-4 text-green-400" aria-hidden="true" />
+              <Info className="size-4 dark:text-green-400 text-white" aria-hidden="true" />
             </TooltipTrigger>
             <TooltipContent>
               <p>La autorización se completa en el navegador externo y solo da acceso a esta carpeta.</p>

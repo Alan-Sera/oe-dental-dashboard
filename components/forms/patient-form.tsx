@@ -174,7 +174,7 @@ export function PatientForm({
         <Input type="date" {...form.register("birthDate")} />
       </Field>
       <Field label="Género" error={form.formState.errors.gender?.message}>
-        <Select {...form.register("gender")} className='hover:border-lavender-300/60 hover:bg-lavender-800/50'>
+        <Select {...form.register("gender")}>
           <option value="">Sin especificar</option>
           <option value="FEMENINO">Femenino</option>
           <option value="MASCULINO">Masculino</option>
@@ -185,7 +185,7 @@ export function PatientForm({
         <PatientNextAppointment value={defaultValues?.nextAppointmentDate ?? null} compact />
       </div>
       <Field label="Notas" error={form.formState.errors.notes?.message} className="md:col-span-2">
-        <Textarea {...form.register("notes")} className='hover:border-lavender-300/60 hover:bg-lavender-800/50' />
+        <Textarea {...form.register("notes")} />
       </Field>
       {!patientId ? (
         <div className="surface md:col-span-2 p-3 text-sm text-lavender-100/80">

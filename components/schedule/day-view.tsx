@@ -2,8 +2,9 @@
 
 import { fromDateKey } from "@/lib/date-utils";
 import { DayTimelineColumn, TimelineHourGutter, type TimelineCreatePoint } from "@/components/schedule/day-column";
-import { HOUR_HEIGHT_PX } from "@/components/schedule/constants";
 import type { AgendaAppointment } from "@/components/schedule/types";
+
+const FIRST_HOUR_HEIGHT_PX = 30;
 
 export function DayView({
   dateKey,
@@ -21,11 +22,11 @@ export function DayView({
   return (
     <div className="panel p-3">
       <div className="flex">
-        <TimelineHourGutter />
+        <TimelineHourGutter firstHourHeight={FIRST_HOUR_HEIGHT_PX} />
         <div className="flex-1">
           <div
             className="border-b border-lavender-500/45"
-            style={{ height: HOUR_HEIGHT_PX }}
+            style={{ height: FIRST_HOUR_HEIGHT_PX - 10 }}
             aria-hidden="true"
           />
           <DayTimelineColumn
@@ -33,6 +34,7 @@ export function DayView({
             appointments={appointments}
             onCreateAt={onCreateAt}
             onEdit={onEdit}
+            hourLineClassName="border-lavender-500/45"
             className="min-w-[420px]"
           />
         </div>

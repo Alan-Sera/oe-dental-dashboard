@@ -136,8 +136,8 @@ export function GoogleConnectionCard({ returnTo }: { returnTo: string }) {
     <div className="surface grid gap-4 p-4 md:grid-cols-[1fr_auto]">
       <div className="flex items-start gap-3">
         {connected && calendarScope ? (
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-lime-950/30 text-lavender-100 ring-1 ring-lavender-300/35">
-            <Cloud className="size-5 text-green-400" aria-hidden="true" />
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-emerald-700/70 ring-1 ring-lavender-300/35">
+            <Cloud className="size-5 text-white dark:text-green-400" aria-hidden="true" />
           </div>
         ) : (
           <div className="flex size-10 shrink-0 items-center justify-center rounded-md text-lavender-100 ring-1 ring-lavender-300/35">
