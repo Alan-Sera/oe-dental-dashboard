@@ -40,6 +40,17 @@ const directoryPatients: PatientDirectoryRecord[] = [
   }
 ];
 
+const patientsWithAndWithoutAppointments: PatientDirectoryRecord[] = [
+  ...directoryPatients,
+  {
+    fullName: "Sofia Perez",
+    phone: null,
+    gender: null,
+    nextAppointmentDate: null,
+    balanceCents: 0
+  }
+];
+
 describe("patient search", () => {
   it("normalizes accents and case for names", () => {
     expect(normalizeSearchText("  MARÍA  ")).toBe("maria");
@@ -72,6 +83,7 @@ describe("patient search", () => {
     const results = filterPatientDirectory(directoryPatients, {
       query: "",
       genderFilter: "MASCULINO",
+      appointmentFilter: "ALL",
       debtorsOnly: false,
       appointmentDate: "",
       sortOrder: "asc"
@@ -84,6 +96,7 @@ describe("patient search", () => {
     const results = filterPatientDirectory(directoryPatients, {
       query: "",
       genderFilter: "ALL",
+      appointmentFilter: "ALL",
       debtorsOnly: true,
       appointmentDate: "",
       sortOrder: "asc"
@@ -96,6 +109,7 @@ describe("patient search", () => {
     const results = filterPatientDirectory(directoryPatients, {
       query: "",
       genderFilter: "ALL",
+      appointmentFilter: "ALL",
       debtorsOnly: false,
       appointmentDate: "2026-08-24",
       sortOrder: "asc"
@@ -108,11 +122,56 @@ describe("patient search", () => {
     const results = filterPatientDirectory(directoryPatients, {
       query: "55 2020",
       genderFilter: "FEMENINO",
+      appointmentFilter: "ALL",
       debtorsOnly: true,
       appointmentDate: "2026-08-25",
       sortOrder: "asc"
     });
 
     expect(results.map((patient) => patient.fullName)).toEqual(["Ana Ruiz"]);
+  });
+
+  it("filters patients with and without an upcoming appointment", () => {
+    const withAppointment = filterPatientDirectory(patientsWithAndWithoutAppointments, {
+      query: "",
+      genderFilter: "ALL",
+      appointmentFilter: "WITH_APPOINTMENT",
+      debtorsOnly: false,
+      appointmentDate: "",
+      sortOrder: "asc"
+    });
+    const withoutAppointment = filterPatientDirectory(patientsWithAndWithoutAppointments, {
+      query: "",
+      genderFilter: "ALL",
+      appointmentFilter: "WITHOUT_APPOINTMENT",
+      debtorsOnly: false,
+      appointmentDate: "",
+      sortOrder: "asc"
+    });
+
+    expect(withAppointment).toHaveLength(3);
+    expect(withoutAppointment.map((patient) => patient.fullName)).toEqual(["Sofia Perez"]);
+  });
+
+  it("combines appointment presence with the selected appointment date", () => {
+    const results = filterPatientDirectory(patientsWithAndWithoutAppointments, {
+      query: "",
+      genderFilter: "ALL",
+      appointmentFilter: "WITH_APPOINTMENT",
+      debtorsOnly: false,
+      appointmentDate: "2026-08-24",
+      sortOrder: "asc"
+    });
+    const contradictoryResults = filterPatientDirectory(patientsWithAndWithoutAppointments, {
+      query: "",
+      genderFilter: "ALL",
+      appointmentFilter: "WITHOUT_APPOINTMENT",
+      debtorsOnly: false,
+      appointmentDate: "2026-08-24",
+      sortOrder: "asc"
+    });
+
+    expect(results.map((patient) => patient.fullName)).toEqual(["Carlos Núñez", "María López"]);
+    expect(contradictoryResults).toEqual([]);
   });
 });

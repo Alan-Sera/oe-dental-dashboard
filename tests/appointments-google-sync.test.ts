@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   googleCreate: vi.fn(),
   googleDelete: vi.fn(),
   getConnectionStatus: vi.fn(),
+  requireSession: vi.fn(),
   recordAudit: vi.fn(),
   appointmentFindMany: vi.fn(),
   appointmentFindFirst: vi.fn(),
@@ -45,6 +46,7 @@ vi.mock("@/lib/prisma", () => ({
 }));
 
 vi.mock("@/lib/actions/audit.actions", () => ({ recordAudit: mocks.recordAudit }));
+vi.mock("@/lib/auth", () => ({ requireSession: mocks.requireSession }));
 vi.mock("@/lib/google-drive", () => ({ isGoogleReconnectRequiredError: () => false }));
 vi.mock("@/lib/google-settings", () => ({ getGoogleConnectionStatus: mocks.getConnectionStatus }));
 vi.mock("@/lib/google-calendar", () => ({
@@ -56,7 +58,13 @@ vi.mock("@/lib/google-calendar", () => ({
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
-import { createAppointment, maybeAutoSyncAgenda, syncAllAppointmentsToGoogle } from "@/lib/actions/appointments.actions";
+import {
+  createAppointment,
+  getStoredAgendaOrphans,
+  maybeAutoSyncAgenda,
+  refreshAgendaGoogleState,
+  syncAllAppointmentsToGoogle
+} from "@/lib/actions/appointments.actions";
 
 const guestCleanupKey = "agenda.googleGuestCleanupDone";
 const lastBulkSyncKey = "agenda.lastBulkSyncAt";
@@ -132,6 +140,7 @@ beforeEach(() => {
     mocks.remoteEventsWithGuests.delete(eventId);
   });
   mocks.getConnectionStatus.mockReset().mockResolvedValue({ connected: true, calendarScope: true });
+  mocks.requireSession.mockReset().mockResolvedValue({ id: "session" });
   mocks.recordAudit.mockReset().mockResolvedValue(undefined);
 });
 
@@ -189,5 +198,53 @@ describe("one-time Google guest cleanup", () => {
     await syncAllAppointmentsToGoogle();
 
     expect(mocks.settings.has(guestCleanupKey)).toBe(false);
+  });
+});
+
+describe("agenda Google background refresh", () => {
+  it("loads cached orphan notices without checking Google", async () => {
+    const orphan = {
+      eventId: "orphan-1",
+      title: "Consulta sin asignar",
+      description: null,
+      startTime: "2026-10-13T15:00:00.000Z",
+      endTime: "2026-10-13T15:30:00.000Z"
+    };
+    mocks.settings.set("agenda.lastOrphanEvents", {
+      key: "agenda.lastOrphanEvents",
+      value: JSON.stringify([orphan])
+    });
+
+    await expect(getStoredAgendaOrphans()).resolves.toEqual([orphan]);
+    expect(mocks.getConnectionStatus).not.toHaveBeenCalled();
+    expect(mocks.googleList).not.toHaveBeenCalled();
+  });
+
+  it("shares an in-flight refresh and reuses the same Google status for auto-sync", async () => {
+    mocks.settings.delete(guestCleanupKey);
+    let resolveStatus!: (status: { configured: boolean; connected: boolean; needsReconnect: boolean; calendarScope: boolean; driveConnected: boolean; driveNeedsReconnect: boolean }) => void;
+    mocks.getConnectionStatus.mockImplementationOnce(
+      () => new Promise((resolve) => { resolveStatus = resolve; })
+    );
+
+    const first = refreshAgendaGoogleState();
+    const second = refreshAgendaGoogleState();
+    await Promise.resolve();
+    expect(mocks.getConnectionStatus).toHaveBeenCalledTimes(1);
+
+    resolveStatus({
+      configured: true,
+      connected: true,
+      needsReconnect: false,
+      calendarScope: true,
+      driveConnected: true,
+      driveNeedsReconnect: false
+    });
+    const [firstResult, secondResult] = await Promise.all([first, second]);
+
+    expect(firstResult).toEqual(secondResult);
+    expect(mocks.getConnectionStatus).toHaveBeenCalledTimes(1);
+    expect(mocks.googleList).toHaveBeenCalledTimes(2);
+    expect(firstResult.appointmentsChanged).toBe(false);
   });
 });

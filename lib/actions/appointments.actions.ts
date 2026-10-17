@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { Prisma, type AppointmentStatus } from "@prisma/client";
 
 import { recordAudit } from "@/lib/actions/audit.actions";
+import { requireSession } from "@/lib/auth";
 import { isGoogleReconnectRequiredError } from "@/lib/google-drive";
 import {
   createGoogleCalendarEvent,
@@ -24,6 +25,7 @@ import {
   type AppointmentInput
 } from "@/lib/validation";
 import type { GoogleSyncSummary, OrphanGoogleEvent } from "@/components/schedule/types";
+import type { GoogleConnectionStatus } from "@/lib/google-settings";
 
 const ORPHAN_SYNC_PAST_DAYS = 30;
 const ORPHAN_SYNC_FUTURE_DAYS = 365;
@@ -33,6 +35,14 @@ const LAST_BULK_SYNC_KEY = "agenda.lastBulkSyncAt";
 const LAST_ORPHANS_KEY = "agenda.lastOrphanEvents";
 const GOOGLE_GUEST_CLEANUP_KEY = "agenda.googleGuestCleanupDone";
 const NEXT_APPOINTMENT_EXCLUDED_STATUSES: AppointmentStatus[] = ["CANCELLED", "NO_SHOW"];
+
+type AgendaGoogleRefreshResult = {
+  status: GoogleConnectionStatus;
+  orphanEvents: OrphanGoogleEvent[];
+  appointmentsChanged: boolean;
+};
+
+let agendaGoogleRefreshInFlight: Promise<AgendaGoogleRefreshResult> | null = null;
 
 const patientInclude = {
   patient: {
@@ -383,7 +393,39 @@ export async function syncAllAppointmentsToGoogle(): Promise<GoogleSyncSummary> 
   return summary;
 }
 
+export async function getStoredAgendaOrphans(): Promise<OrphanGoogleEvent[]> {
+  await requireSession();
+  const stored = await prisma.setting.findUnique({ where: { key: LAST_ORPHANS_KEY } });
+  return parseStoredOrphans(stored?.value);
+}
+
+export async function refreshAgendaGoogleState(): Promise<AgendaGoogleRefreshResult> {
+  await requireSession();
+
+  if (agendaGoogleRefreshInFlight) return agendaGoogleRefreshInFlight;
+
+  const refresh = refreshAgendaGoogleStateOnce();
+  agendaGoogleRefreshInFlight = refresh;
+
+  try {
+    return await refresh;
+  } finally {
+    if (agendaGoogleRefreshInFlight === refresh) agendaGoogleRefreshInFlight = null;
+  }
+}
+
+async function refreshAgendaGoogleStateOnce(): Promise<AgendaGoogleRefreshResult> {
+  const status = await getGoogleConnectionStatus();
+  const { orphanEvents, appointmentsChanged } = await maybeAutoSyncAgendaState(status);
+  return { status, orphanEvents, appointmentsChanged };
+}
+
 export async function maybeAutoSyncAgenda(): Promise<OrphanGoogleEvent[]> {
+  const connection = await getGoogleConnectionStatus();
+  return (await maybeAutoSyncAgendaState(connection)).orphanEvents;
+}
+
+async function maybeAutoSyncAgendaState(connection: GoogleConnectionStatus) {
   const lastSync = await getSettingModifiedAt(LAST_BULK_SYNC_KEY);
   const elapsed = lastSync ? Date.now() - lastSync.getTime() : Number.POSITIVE_INFINITY;
 
@@ -393,9 +435,9 @@ export async function maybeAutoSyncAgenda(): Promise<OrphanGoogleEvent[]> {
   const guestCleanupPending = await isGoogleGuestCleanupPending();
   const pendingWork = elapsed >= AUTO_SYNC_RETRY_MIN_MS ? await hasPendingGoogleSync() : false;
   const shouldRun = guestCleanupPending || elapsed >= AUTO_SYNC_IDLE_MS || pendingWork;
-  if (!shouldRun) return fallbackOrphans;
+  if (!shouldRun) return { orphanEvents: fallbackOrphans, appointmentsChanged: false };
 
-  const summary = await runGoogleSync();
+  const summary = await runGoogleSync(connection);
 
   await prisma.setting.upsert({
     where: { key: LAST_BULK_SYNC_KEY },
@@ -403,16 +445,19 @@ export async function maybeAutoSyncAgenda(): Promise<OrphanGoogleEvent[]> {
     update: { value: new Date().toISOString() }
   });
 
-  return summary.connected ? summary.orphanEvents : fallbackOrphans;
+  return {
+    orphanEvents: summary.connected ? summary.orphanEvents : fallbackOrphans,
+    appointmentsChanged: summary.created > 0 || summary.deleted > 0
+  };
 }
 
-async function runGoogleSync(): Promise<GoogleSyncSummary> {
-  const connection = await getGoogleConnectionStatus();
+async function runGoogleSync(connection?: GoogleConnectionStatus): Promise<GoogleSyncSummary> {
+  const currentConnection = connection ?? await getGoogleConnectionStatus();
 
-  if (!connection.connected || !connection.calendarScope) {
+  if (!currentConnection.connected || !currentConnection.calendarScope) {
     return {
       connected: false,
-      message: connection.connected
+      message: currentConnection.connected
         ? "Google está conectado pero falta el permiso de calendario. Reconecta desde Ajustes."
         : "Google no está conectado. Reconecta desde Ajustes para sincronizar las citas.",
       total: 0,

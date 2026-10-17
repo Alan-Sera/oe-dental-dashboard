@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Dialog } from "@base-ui/react/dialog";
 
 import { addDays, addMonths, fromDateKey, toDateKey, toDatetimeLocal } from "@/lib/date-utils";
-import { syncAllAppointmentsToGoogle } from "@/lib/actions/appointments.actions";
+import { refreshAgendaGoogleState, syncAllAppointmentsToGoogle } from "@/lib/actions/appointments.actions";
 import { DEFAULT_APPOINTMENT_MINUTES, type ScheduleView } from "@/components/schedule/constants";
 import { CalendarHeader } from "@/components/schedule/calendar-header";
 import { MonthView } from "@/components/schedule/month-view";
@@ -65,15 +65,53 @@ export function AgendaView({
   const [modal, setModal] = useState<ModalState>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<GoogleSyncSummary | null>(null);
-  const [clientOrphans, setClientOrphans] = useState<OrphanGoogleEvent[]>([]);
+  const [clientOrphans, setClientOrphans] = useState<OrphanGoogleEvent[]>(initialOrphans ?? []);
+  const [currentGoogleStatus, setCurrentGoogleStatus] = useState<GoogleCalendarStatus | null>(googleStatus ?? null);
+  const [checkingGoogle, setCheckingGoogle] = useState(true);
+  const [googleCheckFailed, setGoogleCheckFailed] = useState(false);
+  const googleRefreshRef = useRef<Promise<void> | null>(null);
   const [, startTransition] = useTransition();
   const newAppointmentDialogHandle = useMemo(() => Dialog.createHandle(), []);
 
   const baseDate = useMemo(() => fromDateKey(dateKey), [dateKey]);
 
+  const refreshGoogleState = useCallback(() => {
+    if (googleRefreshRef.current) return googleRefreshRef.current;
+
+    setCheckingGoogle(true);
+    setGoogleCheckFailed(false);
+
+    const request = (async () => {
+      try {
+        const result = await refreshAgendaGoogleState();
+        setCurrentGoogleStatus(result.status);
+        setClientOrphans(result.orphanEvents);
+
+        if (result.appointmentsChanged) router.refresh();
+      } catch {
+        setGoogleCheckFailed(true);
+      } finally {
+        setCheckingGoogle(false);
+      }
+    })();
+
+    googleRefreshRef.current = request;
+    void request.finally(() => {
+      if (googleRefreshRef.current === request) googleRefreshRef.current = null;
+    });
+    return request;
+  }, [router]);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => void refreshGoogleState());
+    return () => window.cancelAnimationFrame(frame);
+  }, [view, dateKey, refreshGoogleState]);
+
   useEffect(() => {
     function refreshIfVisible() {
-      if (document.visibilityState === "visible") router.refresh();
+      if (document.visibilityState !== "visible") return;
+      router.refresh();
+      void refreshGoogleState();
     }
 
     const timer = window.setInterval(refreshIfVisible, UI_REFRESH_MS);
@@ -83,7 +121,7 @@ export function AgendaView({
       window.clearInterval(timer);
       window.removeEventListener("focus", refreshIfVisible);
     };
-  }, [router]);
+  }, [router, refreshGoogleState]);
 
   const localEventIds = useMemo(
     () =>
@@ -99,19 +137,26 @@ export function AgendaView({
     modal?.mode === "create" ? modal.adoptGoogleEventId : null;
 
   const orphans = useMemo(() => {
-    return dedupeOrphans([...(initialOrphans ?? []), ...clientOrphans]).filter(
+    return dedupeOrphans(clientOrphans).filter(
       (orphan) => {
         // No volver a mostrar toasts de orphans que ya estamos adoptando
         if (orphan.eventId === adoptingEventId) return false;
         return !localEventIds.has(orphan.eventId);
       }
     );
-  }, [initialOrphans, clientOrphans, localEventIds, adoptingEventId]);
+  }, [clientOrphans, localEventIds, adoptingEventId]);
 
   const toastedOrphansRef = useRef(new Set<string>());
   const previouslyDismissedOrphanIds = useRef(new Set<string>());
 
   useEffect(() => {
+    const activeOrphanIds = new Set(orphans.map((orphan) => orphan.eventId));
+    for (const eventId of toastedOrphansRef.current) {
+      if (activeOrphanIds.has(eventId)) continue;
+      toastManager.close(`orphan-${eventId}`);
+      toastedOrphansRef.current.delete(eventId);
+    }
+
     for (const orphan of orphans) {
       if (previouslyDismissedOrphanIds.current.has(orphan.eventId)) continue;
 
@@ -246,6 +291,7 @@ export function AgendaView({
       toastManager.close(`orphan-${modal.adoptGoogleEventId}`);
     }
     router.refresh();
+    void refreshGoogleState();
   }
 
   return (
@@ -253,7 +299,10 @@ export function AgendaView({
       <CalendarHeader
         view={view}
         dateKey={dateKey}
-        syncStatus={googleStatus ?? undefined}
+        syncStatus={currentGoogleStatus ?? undefined}
+        checkingGoogle={checkingGoogle}
+        googleCheckFailed={googleCheckFailed}
+        onRetryGoogleCheck={refreshGoogleState}
         dialogHandle={newAppointmentDialogHandle}
         onNavigate={handleNavigate}
         onToday={handleToday}

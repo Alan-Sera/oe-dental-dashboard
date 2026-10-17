@@ -9,14 +9,16 @@ export default async function PatientsPage() {
   const patients = await getPatients();
   const patientItems = patients.map((patient) => {
     const totals = calculateLedgerTotals(patient.charges, patient.payments);
+    const nextAppointment = patient.appointments[0] ?? null;
 
-return {
+    return {
       id: patient.id,
       fullName: patient.fullName,
       phone: patient.phone,
       email: patient.email,
       gender: patient.gender,
-      nextAppointmentDate: patient.nextAppointmentDate?.toISOString() ?? null,
+      nextAppointmentDate: nextAppointment?.startTime.toISOString() ?? null,
+      nextAppointmentId: nextAppointment?.id ?? null,
       balanceCents: totals.balanceCents,
       updatedAt: patient.updatedAt.toISOString(),
       photoAttachmentId: patient.profilePhotoId ?? null

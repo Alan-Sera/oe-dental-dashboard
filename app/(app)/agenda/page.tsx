@@ -1,6 +1,5 @@
 import { addDays, fromDateKey, startOfWeek, toDateKey } from "@/lib/date-utils";
-import { getAppointmentsInRange, listAppointmentPatients, maybeAutoSyncAgenda } from "@/lib/actions/appointments.actions";
-import { getGoogleConnectionStatus } from "@/lib/google-settings";
+import { getAppointmentsInRange, getStoredAgendaOrphans, listAppointmentPatients } from "@/lib/actions/appointments.actions";
 import type { ScheduleView } from "@/components/schedule/constants";
 import { AgendaView } from "@/components/schedule/agenda-view";
 import type { AgendaAppointment } from "@/components/schedule/types";
@@ -26,12 +25,10 @@ export default async function AgendaPage({
 
   const range = getRangeForView(view, date);
 
-  const orphanEvents = await maybeAutoSyncAgenda();
-
-  const [appointments, patients, googleStatus] = await Promise.all([
+  const [appointments, patients, orphanEvents] = await Promise.all([
     getAppointmentsInRange(range.start, range.end),
     listAppointmentPatients(),
-    getGoogleConnectionStatus()
+    getStoredAgendaOrphans()
   ]);
 
   const serializedAppointments: AgendaAppointment[] = appointments.map((appointment) => ({
@@ -56,7 +53,6 @@ export default async function AgendaPage({
         dateKey={dateKey}
         appointments={serializedAppointments}
         patients={patients}
-        googleStatus={googleStatus}
         initialPatientId={params.paciente}
         focusAppointmentId={params.cita}
         initialOrphans={orphanEvents}

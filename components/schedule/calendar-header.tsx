@@ -26,6 +26,9 @@ export function CalendarHeader({
   view,
   dateKey,
   syncStatus,
+  checkingGoogle = false,
+  googleCheckFailed = false,
+  onRetryGoogleCheck,
   dialogHandle,
   onNavigate,
   onToday,
@@ -35,6 +38,9 @@ export function CalendarHeader({
   view: ScheduleView;
   dateKey: string;
   syncStatus?: GoogleCalendarStatus;
+  checkingGoogle?: boolean;
+  googleCheckFailed?: boolean;
+  onRetryGoogleCheck?: () => void;
   dialogHandle?: DialogHandle;
   onNavigate: (direction: 1 | -1) => void;
   onToday: () => void;
@@ -57,7 +63,7 @@ export function CalendarHeader({
   return (
     <div className="flex flex-col gap-1 lg:flex-row lg:items-center lg:justify-between">
       <div className="flex items-center gap-1">
-        <h1 className="section-title text-xl capitalize lg:text-sm text-theme-strong">{title}</h1>
+        <h1 className="section-title text-xl capitalize text-theme-strong">{title}</h1>
         <div className="flex items-center gap-1">
           <Button type="button" variant="ghost" size="icon" aria-label="Anterior" onClick={() => onNavigate(-1)}>
             <ChevronLeft className="size-4" aria-hidden="true" />
@@ -85,7 +91,14 @@ export function CalendarHeader({
           </button>
         ) : null}
         */}
-        {syncStatus ? <GoogleSyncBadge status={syncStatus} /> : null}
+        {syncStatus || checkingGoogle || googleCheckFailed ? (
+          <GoogleSyncBadge
+            status={syncStatus}
+            checking={checkingGoogle}
+            error={googleCheckFailed}
+            onRetry={onRetryGoogleCheck}
+          />
+        ) : null}
         <div className="flex rounded-md border border-lavender-500/50 bg-lavender-900/40 p-0.5" role="tablist">
           {views.map((item) => (
             <button

@@ -310,6 +310,15 @@ export async function getPatients() {
       paymentHistorySheets: {
         include: { attachment: true },
         orderBy: { createdAt: "desc" }
+      },
+      appointments: {
+        where: {
+          startTime: { gte: new Date() },
+          status: { notIn: ["CANCELLED", "NO_SHOW"] }
+        },
+        orderBy: { startTime: "asc" },
+        take: 1,
+        select: { id: true, startTime: true }
       }
     }
   });

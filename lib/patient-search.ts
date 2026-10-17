@@ -5,6 +5,7 @@ export type PatientSearchRecord = {
 
 export type PatientGenderValue = "MASCULINO" | "FEMENINO";
 export type PatientGenderFilter = "ALL" | PatientGenderValue;
+export type PatientAppointmentFilter = "ALL" | "WITH_APPOINTMENT" | "WITHOUT_APPOINTMENT";
 export type PatientSortOrder = "asc" | "desc";
 
 export type PatientDirectoryRecord = PatientSearchRecord & {
@@ -16,6 +17,7 @@ export type PatientDirectoryRecord = PatientSearchRecord & {
 export type PatientDirectoryFilters = {
   query: string;
   genderFilter: PatientGenderFilter;
+  appointmentFilter: PatientAppointmentFilter;
   debtorsOnly: boolean;
   appointmentDate: string;
   sortOrder: PatientSortOrder;
@@ -101,6 +103,12 @@ export function filterPatientDirectory<T extends PatientDirectoryRecord>(
 
   if (filters.debtorsOnly) {
     matches = matches.filter((patient) => patient.balanceCents > 0);
+  }
+
+  if (filters.appointmentFilter === "WITH_APPOINTMENT") {
+    matches = matches.filter((patient) => patient.nextAppointmentDate !== null);
+  } else if (filters.appointmentFilter === "WITHOUT_APPOINTMENT") {
+    matches = matches.filter((patient) => patient.nextAppointmentDate === null);
   }
 
   if (filters.appointmentDate) {

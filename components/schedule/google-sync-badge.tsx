@@ -1,25 +1,47 @@
 "use client";
 
 
-import { Cloud } from "lucide-react";
-import { CloudOff } from "lucide-react";
+import { Cloud, CloudOff, LoaderCircle, RefreshCw } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import type { GoogleCalendarStatus } from "@/components/schedule/types";
 import { LoadingLink } from "@/components/loading-link";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
-export function GoogleSyncBadge({ status }: { status: GoogleCalendarStatus }) {
-  const presentation = presentStatus(status);
+export function GoogleSyncBadge({
+  status,
+  checking = false,
+  error = false,
+  onRetry
+}: {
+  status?: GoogleCalendarStatus;
+  checking?: boolean;
+  error?: boolean;
+  onRetry?: () => void;
+}) {
+  const presentation = status ? presentStatus(status) : null;
+  const commonClassName = "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition";
 
-  const link = (
+  const target = error ? (
+    <button
+      type="button"
+      onClick={onRetry}
+      className={cn(commonClassName, "border-coral-500/40 bg-coral-900/10 text-coral-400 hover:brightness-110 dark:bg-transparent dark:text-ink-100")}
+      aria-label="No se pudo verificar Google. Reintentar"
+    >
+      <RefreshCw className="size-3.5" aria-hidden="true" />
+      <span className="whitespace-nowrap">Error · Reintentar</span>
+    </button>
+  ) : checking || !presentation ? (
+    <span role="status" aria-live="polite" className={cn(commonClassName, "border-lavender-500/30 bg-lavender-900/40 text-lavender-200/80")}>
+      <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
+      <span className="whitespace-nowrap">Verificando…</span>
+    </span>
+  ) : (
     <LoadingLink
       href="/settings"
       loadingLabel="Cargando ajustes..."
-      className={cn(
-        "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition hover:brightness-110",
-        presentation.className
-      )}
+      className={cn(commonClassName, "hover:brightness-110", presentation.className)}
     >
       {presentation.icon}
       <span className="whitespace-nowrap">{presentation.label}</span>
@@ -28,8 +50,14 @@ export function GoogleSyncBadge({ status }: { status: GoogleCalendarStatus }) {
 
   return (
     <Tooltip>
-      <TooltipTrigger render={link} />
-      <TooltipContent>{presentation.title}</TooltipContent>
+      <TooltipTrigger render={target} />
+      <TooltipContent>
+        {error
+          ? "No se pudo comprobar la conexión de Google. Pulsa para intentarlo de nuevo."
+          : checking
+            ? "Comprobando la conexión y los eventos de Google Calendar."
+            : presentation?.title}
+      </TooltipContent>
     </Tooltip>
   );
 }

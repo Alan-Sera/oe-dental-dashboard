@@ -513,7 +513,7 @@ export function PatientDetailTabs({
                           <button
                             type="button"
                             onClick={() => openAppointmentOnAgenda(appointment)}
-                            className="flex w-full items-center justify-between gap-3 rounded-md border border-lavender-500/25 bg-lavender-950/18 px-3 py-2 text-left transition hover:border-brand-400/50 hover:bg-lavender-800/30"
+                            className="flex w-full items-center justify-between gap-3 rounded-md border border-emerald-300 bg-emerald-100/70 px-3 py-2 text-left transition-colors hover:border-emerald-500 hover:bg-emerald-200/80 dark:border-emerald-300/40 dark:bg-emerald-950/30 dark:hover:border-emerald-300/65 dark:hover:bg-emerald-900/50"
                           >
                             <div className="min-w-0">
                               <p className="truncate text-sm font-semibold text-theme-strong">
@@ -1478,8 +1478,9 @@ function LinkedTextAppointmentBlock({
     <>
       <article
         id={isNew ? undefined : `cita-${entryId}-${index}`}
+        tabIndex={isNew ? undefined : -1}
         className={cn(
-          "grid gap-3 scroll-mt-24 rounded-lg border bg-lavender-400/18 p-3 md:grid-cols-[9.5rem_minmax(0,1fr)]",
+          "grid gap-3 scroll-mt-24 rounded-lg border bg-lavender-400/18 p-3 focus-visible:outline-2 focus-visible:outline-brand-400 md:grid-cols-[9.5rem_minmax(0,1fr)]",
           hasNoShow ? "border-coral-400/35 dark:bg-coral-400/10 bg-coral-900/70" : "border-lavender-500/25",
         )}
       >
