@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, FolderDown, Loader2, Table2 } from "lucide-react";
 
@@ -224,7 +223,7 @@ export function ImportWizard({
         </label>
       </div>
 
-      <div className="surface grid gap-4 p-4 md:grid-cols-[1fr_auto]">
+      <div className="panel grid gap-4 p-4 md:grid-cols-[1fr_auto]">
         <div className="flex items-start gap-3">
           <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-green-100 dark:bg-lime-950/40 text-lavender-100 ring-1 ring-lavender-300/35">
             <Table2 className="size-5 text-green-400" aria-hidden="true" />
@@ -236,7 +235,7 @@ export function ImportWizard({
             </p>
           </div>
         </div>
-        <div className="flex flex-col justify-center gap-1">
+        <div className="flex flex-row center items-center justify-center gap-1">
           <Badge
             tone={googleStatus?.connected ? "green" : googleStatus?.needsReconnect ? "coral" : "neutral"}
           >
@@ -250,9 +249,9 @@ export function ImportWizard({
           </Badge>
           {googleStatus?.configured && !googleStatus.connected ? (
             <Button asChild variant="secondary" size="sm">
-              <Link href="/api/google/oauth/start?returnTo=/import">
+              <a href="/api/google/oauth/start?returnTo=/import">
                 {googleStatus.needsReconnect ? "Reconectar Google" : "Conectar Google"}
-              </Link>
+              </a>
             </Button>
           ) : null}
           {googleNotice ? (

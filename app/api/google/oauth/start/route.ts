@@ -14,26 +14,29 @@ export async function GET(request: Request) {
   const returnTo = normalizeOAuthReturnTo(requestUrl.searchParams.get("returnTo"));
   const drivePicker = requestUrl.searchParams.get("flow") === "drive-folder-picker";
   const isElectron = /\bElectron\//i.test(request.headers.get("user-agent") ?? "");
+  const statusKey = drivePicker ? "drive" : "google";
   const redirectUri = isElectron
     ? getElectronLoopbackRedirectUri(requestUrl)
     : new URL("/api/google/oauth/callback", requestUrl.origin).toString();
-  const config = getGoogleOAuthConfig(redirectUri);
 
-  if (!config) {
-    return redirectWithGoogleStatus(request, returnTo, drivePicker ? "drive" : "google", "not-configured");
-  }
+  try {
+    const config = getGoogleOAuthConfig(redirectUri);
 
-  const purpose = drivePicker ? "DRIVE_FOLDER_PICKER" : "GOOGLE_CONNECT";
-  const { state, codeChallenge } = await createOAuthAttempt(returnTo, redirectUri, new Date(), purpose);
-  const authorizationUrl = drivePicker
-    ? createGoogleDrivePickerAuthorizationUrl(config, state, codeChallenge, GOOGLE_PATIENTS_ROOT_ID)
-    : createGoogleAuthorizationUrl(config, state, codeChallenge);
+    if (!config) {
+      return redirectWithGoogleStatus(request, returnTo, statusKey, "not-configured");
+    }
 
-  if (isElectron) {
-    const localReturnUrl = new URL(returnTo, getElectronLoopbackOrigin(requestUrl));
-    localReturnUrl.searchParams.set(drivePicker ? "drive" : "google", "pending");
-    const script = `window.open(${JSON.stringify(authorizationUrl.toString())}, "_blank", "noopener");window.location.replace(${JSON.stringify(localReturnUrl.toString())});`;
-    return new NextResponse(`<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Conectando Google</title><style>
+    const purpose = drivePicker ? "DRIVE_FOLDER_PICKER" : "GOOGLE_CONNECT";
+    const { state, codeChallenge } = await createOAuthAttempt(returnTo, redirectUri, new Date(), purpose);
+    const authorizationUrl = drivePicker
+      ? createGoogleDrivePickerAuthorizationUrl(config, state, codeChallenge, GOOGLE_PATIENTS_ROOT_ID)
+      : createGoogleAuthorizationUrl(config, state, codeChallenge);
+
+    if (isElectron) {
+      const localReturnUrl = new URL(returnTo, getElectronLoopbackOrigin(requestUrl));
+      localReturnUrl.searchParams.set(statusKey, "pending");
+      const script = `window.open(${JSON.stringify(authorizationUrl.toString())}, "_blank", "noopener");window.location.replace(${JSON.stringify(localReturnUrl.toString())});`;
+      return new NextResponse(`<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Conectando Google</title><style>
       :root{color-scheme:dark;font-family:"Segoe UI",sans-serif;background:#101522;color:#eef0f8}
       *{box-sizing:border-box}
       body{display:grid;min-height:100vh;margin:0;padding:24px;place-items:center}
@@ -46,15 +49,19 @@ export async function GET(request: Request) {
       .return-link:focus-visible{outline:3px solid #b7c4ff;outline-offset:3px}
       .hint{margin:16px 0 0;color:#929bb0;font-size:13px;line-height:1.5}
       @media(max-width:480px){main{padding:24px}}
-    </style></head><body><main><p class="eyebrow">OE Dental · Google</p><h1>Conectando con Google</h1><p class="message">Google debería abrirse en tu navegador externo. Cuando termines la autorización, regresarás a OE Dental.</p><a class="return-link" href="${escapeHtml(localReturnUrl.toString())}">Volver a OE Dental</a><p class="hint">Si esta pantalla se queda aquí, usa el botón para regresar y vuelve a intentar la conexión desde la app.</p></main><script>${script}</script></body></html>`, {
-      headers: {
-        "content-type": "text/html; charset=utf-8",
-        "content-security-policy": "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'"
-      }
-    });
-  }
+      </style></head><body><main><p class="eyebrow">OE Dental · Google</p><h1>Conectando con Google</h1><p class="message">Google debería abrirse en tu navegador externo. Cuando termines la autorización, regresarás a OE Dental.</p><a class="return-link" href="${escapeHtml(localReturnUrl.toString())}">Volver a OE Dental</a><p class="hint">Si esta pantalla se queda aquí, usa el botón para regresar y vuelve a intentar la conexión desde la app.</p></main><script>${script}</script></body></html>`, {
+        headers: {
+          "content-type": "text/html; charset=utf-8",
+          "content-security-policy": "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'"
+        }
+      });
+    }
 
-  return NextResponse.redirect(authorizationUrl);
+    return NextResponse.redirect(authorizationUrl);
+  } catch (error) {
+    console.error("[google-oauth] No se pudo iniciar el flujo de autorización.", getSafeErrorDetails(error));
+    return redirectWithGoogleStatus(request, returnTo, statusKey, "error");
+  }
 }
 
 function getElectronLoopbackRedirectUri(requestUrl: URL) {
@@ -86,4 +93,17 @@ function escapeHtml(value: string) {
 
     return entities[character];
   });
+}
+
+function getSafeErrorDetails(error: unknown) {
+  const details: { name: string; code?: string } = {
+    name: error instanceof Error ? error.name : "UnknownError"
+  };
+
+  if (typeof error === "object" && error !== null && "code" in error) {
+    const code = error.code;
+    if (typeof code === "string") details.code = code;
+  }
+
+  return details;
 }

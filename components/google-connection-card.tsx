@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 
 import { Cloud } from "lucide-react";
 import { CloudOff } from "lucide-react";
@@ -140,8 +139,8 @@ export function GoogleConnectionCard({ returnTo }: { returnTo: string }) {
             <Cloud className="size-5 text-white dark:text-green-400" aria-hidden="true" />
           </div>
         ) : (
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-md text-lavender-100 ring-1 ring-lavender-300/35">
-            <CloudOff className="size-5" aria-hidden="true" />
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-coral-500/70 text-lavender-100 ring-1 ring-lavender-300/35">
+            <CloudOff className="size-5 text-white dark:text-coral-400" aria-hidden="true" />
           </div>
         )}
         <div className="min-w-0 space-y-1">
@@ -165,10 +164,10 @@ export function GoogleConnectionCard({ returnTo }: { returnTo: string }) {
         </Badge>
         {configured ? (
           <Button asChild variant="secondary" size="sm">
-            <Link href={`/api/google/oauth/start?returnTo=${encodeURIComponent(returnTo)}`}>
+            <a href={`/api/google/oauth/start?returnTo=${encodeURIComponent(returnTo)}`}>
               {status === null ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null}
               {buttonLabel}
-            </Link>
+            </a>
           </Button>
         ) : null}
       </div>

@@ -102,6 +102,7 @@
     ],
     "npmRebuild": false,
     "win": {
+      "icon": "public/assets/brand/oe.svg",
       "target": [
         "nsis"
       ],

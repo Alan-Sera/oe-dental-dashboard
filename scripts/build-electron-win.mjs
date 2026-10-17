@@ -1,8 +1,11 @@
 import { spawn } from "node:child_process";
 import fs from "node:fs";
+import { createRequire } from "node:module";
 import { copyFile, cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { findGeneratedPrismaClient } from "./prisma-client-resolver.mjs";
 
 const rootDir = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -55,61 +58,8 @@ async function copyIfExists(from, to) {
   });
 }
 
-function findGeneratedPrismaClient() {
-  const directClient = path.join(rootDir, "node_modules", ".prisma", "client");
-  const schemaPath = path.join(rootDir, "prisma", "schema.prisma");
-  const sourceSchema = fs.existsSync(schemaPath)
-    ? fs.readFileSync(schemaPath, "utf8").replace(/\r\n/g, "\n")
-    : null;
-  const candidates = [];
-
-  if (fs.existsSync(path.join(directClient, "default.js"))) {
-    candidates.push(directClient);
-  }
-
-  const pnpmDir = path.join(rootDir, "node_modules", ".pnpm");
-
-  if (fs.existsSync(pnpmDir)) {
-    for (const entry of fs.readdirSync(pnpmDir)) {
-      if (!entry.startsWith("@prisma+client@")) {
-        continue;
-      }
-
-      const candidate = path.join(
-        pnpmDir,
-        entry,
-        "node_modules",
-        ".prisma",
-        "client"
-      );
-
-      if (fs.existsSync(path.join(candidate, "default.js"))) {
-        candidates.push(candidate);
-      }
-    }
-  }
-
-  for (const candidate of candidates) {
-    const generatedSchemaPath = path.join(candidate, "schema.prisma");
-
-    if (
-      sourceSchema &&
-      fs.existsSync(generatedSchemaPath) &&
-      fs.readFileSync(generatedSchemaPath, "utf8").replace(/\r\n/g, "\n") === sourceSchema
-    ) {
-      return candidate;
-    }
-  }
-
-  return null;
-}
-
 async function preparePrismaClient() {
-  const generatedClient = findGeneratedPrismaClient();
-
-  if (!generatedClient) {
-    throw new Error("No se encontró el cliente generado de Prisma.");
-  }
+  const generatedClient = findGeneratedPrismaClient(rootDir);
 
   const targetClient = path.join(
     stageNextDir,
@@ -145,8 +95,31 @@ async function preparePrismaClient() {
     filter: (source) => !path.basename(source).includes(".tmp"),
   });
   await patchPrismaEntrypoints(targetClient);
+  await verifyPackagedPrismaClient(targetClient);
 
   console.log("[electron-build] Prisma client preparado en @prisma/client/generated-client");
+}
+
+async function verifyPackagedPrismaClient(prismaClientDir) {
+  const requireFromPrismaClient = createRequire(
+    path.join(prismaClientDir, "package.json")
+  );
+  const { PrismaClient } = requireFromPrismaClient(prismaClientDir);
+  const prisma = new PrismaClient();
+
+  try {
+    if (
+      !prisma.googleOAuthAttempt ||
+      typeof prisma.googleOAuthAttempt.deleteMany !== "function" ||
+      typeof prisma.googleOAuthAttempt.create !== "function"
+    ) {
+      throw new Error(
+        "El cliente Prisma empaquetado no expone googleOAuthAttempt."
+      );
+    }
+  } finally {
+    await prisma.$disconnect();
+  }
 }
 
 async function prepareNodeRuntime() {

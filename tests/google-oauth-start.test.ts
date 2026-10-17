@@ -101,4 +101,42 @@ describe("Google OAuth start fallback in Electron", () => {
       "GOOGLE_CONNECT"
     );
   });
+
+  it("returns to Settings with the existing error status when starting OAuth fails", async () => {
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    mocks.createOAuthAttempt.mockRejectedValueOnce(
+      new TypeError("Cannot read properties of undefined (reading 'deleteMany')")
+    );
+
+    const response = await GET(new Request(
+      "http://127.0.0.1:61495/api/google/oauth/start?returnTo=%2Fsettings",
+      { headers: { "user-agent": "Mozilla/5.0 Electron/44.0.0" } }
+    ));
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe(
+      "http://127.0.0.1:61495/settings?google=error"
+    );
+    expect(errorLog).toHaveBeenCalledWith(
+      "[google-oauth] No se pudo iniciar el flujo de autorización.",
+      { name: "TypeError" }
+    );
+    errorLog.mockRestore();
+  });
+
+  it("uses the Drive error status for a failed folder-picker flow", async () => {
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    mocks.createOAuthAttempt.mockRejectedValueOnce(new Error("OAuth state storage failed"));
+
+    const response = await GET(new Request(
+      "http://127.0.0.1:61495/api/google/oauth/start?flow=drive-folder-picker&returnTo=%2Fsettings",
+      { headers: { "user-agent": "Mozilla/5.0 Electron/44.0.0" } }
+    ));
+
+    expect(response.headers.get("location")).toBe(
+      "http://127.0.0.1:61495/settings?drive=error"
+    );
+    expect(JSON.stringify(errorLog.mock.calls)).not.toContain("OAuth state storage failed");
+    errorLog.mockRestore();
+  });
 });

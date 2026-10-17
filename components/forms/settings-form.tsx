@@ -2,7 +2,6 @@
 
 import { useState, useTransition } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { Info } from "lucide-react";
@@ -115,9 +114,9 @@ export function SettingsForm({ settings }: { settings: ClinicSettings }) {
             asChild
             disabled={isPending}
           >
-            <Link href={`/api/google/oauth/start?flow=drive-folder-picker&returnTo=${encodeURIComponent("/settings")}`}>
+            <a href={`/api/google/oauth/start?flow=drive-folder-picker&returnTo=${encodeURIComponent("/settings")}`}>
               Autorizar carpeta con Google
-            </Link>
+            </a>
           </Button>
           <Button
             type="button"
