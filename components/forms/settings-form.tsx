@@ -64,7 +64,7 @@ export function SettingsForm({ settings }: { settings: ClinicSettings }) {
         error={form.formState.errors.patientsRootPath?.message}
         className="md:col-span-2"
       >
-        <Input placeholder="D:\Pacientes" {...form.register("patientsRootPath")} />
+        <Input placeholder="D:\Pacientes Chetumal" {...form.register("patientsRootPath")} />
       </Field>
       <div className="theme-settings-card md:col-span-3 rounded-xl border border-white/10 bg-white/[0.03] p-4">
         <div className="flex items-center gap-2">

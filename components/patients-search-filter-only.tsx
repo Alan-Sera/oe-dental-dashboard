@@ -209,32 +209,6 @@ export function PatientsSearchFilterOnly({ patients }: { patients: PatientListIt
               </Tooltip>
             </div>
 
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <span
-                    role="group"
-                    tabIndex={0}
-                    aria-label="Filtro de deudores no disponible"
-                    className="inline-flex rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lavender-200/60"
-                  >
-                    <Button
-                      type="button"
-                      variant={debtorsOnly ? "secondary" : "ghost"}
-                      size="sm"
-                      onClick={() => setDebtorsOnly((current) => !current)}
-                      aria-pressed={debtorsOnly}
-                      disabled
-                    >
-                      <BadgeDollarSign className="size-4" aria-hidden="true" />
-                      Deudores
-                    </Button>
-                  </span>
-                }
-              />
-              <TooltipContent>Filtro no disponible.</TooltipContent>
-            </Tooltip>
-
             <div className="relative w-full sm:w-auto">
               <Tooltip>
                 <TooltipTrigger

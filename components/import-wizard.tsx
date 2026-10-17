@@ -177,7 +177,7 @@ export function ImportWizard({
             <Input
               value={patientsRootPath}
               onChange={(event) => setPatientsRootPath(event.target.value)}
-              placeholder="D:\PacientesChetumal"
+              placeholder="D:\Pacientes Chetumal"
             />
           </Field>
           <Field label="Google Drive para .xlsx">
