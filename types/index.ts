@@ -5,6 +5,7 @@ import type {
   PaymentHistoryUploadStatus,
   PaymentStatus
 } from "@prisma/client";
+import type { DentalRecord, DentalRecordVersion } from "@/lib/odontogram";
 
 export type ImportPreviewFile = {
   id: string;
@@ -98,4 +99,7 @@ export type SerializedPatientDetail = {
     updatedAt: string;
     attachment: SerializedAttachment;
   }>;
+  odontogramRecords: DentalRecord[];
+  odontogramRevision: number;
+  odontogramHistory: DentalRecordVersion[];
 };

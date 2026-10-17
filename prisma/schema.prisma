@@ -126,6 +126,7 @@ model Patient {
   payments                Payment[]
   paymentHistorySheets    PaymentHistorySheet[]
   appointments            Appointment[]
+  odontogram              Odontogram?
 
   @@index([fullName])
 }
@@ -290,4 +291,67 @@ model Appointment {
 
   @@index([patientId, startTime])
   @@index([startTime])
+}
+
+model Odontogram {
+  id        String             @id @default(cuid())
+  patientId String             @unique
+  revision  Int                @default(0)
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+  patient   Patient            @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  records   OdontogramRecord[]
+}
+
+model OdontogramRecord {
+  id           String              @id @default(cuid())
+  odontogramId String
+  tooth        String
+  treatment    String
+  phase        String
+  status       String
+  notes        String
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  retiredAt    DateTime?
+  odontogram   Odontogram          @relation(fields: [odontogramId], references: [id], onDelete: Cascade)
+  surfaces     OdontogramSurface[]
+  versions     OdontogramRecordVersion[]
+
+  @@index([odontogramId, retiredAt, createdAt])
+  @@index([odontogramId, tooth])
+}
+
+model OdontogramSurface {
+  recordId String
+  surface  String
+  record   OdontogramRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
+
+  @@id([recordId, surface])
+}
+
+model OdontogramRecordVersion {
+  id               String                           @id @default(cuid())
+  recordId         String
+  tooth            String
+  treatment        String
+  phase            String
+  status           String
+  notes            String
+  recordCreatedAt  DateTime
+  changeType       String
+  changedAt        DateTime                         @default(now())
+  record           OdontogramRecord                 @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  surfaces         OdontogramRecordVersionSurface[]
+
+  @@index([recordId, changedAt])
+  @@index([changeType, changedAt])
+}
+
+model OdontogramRecordVersionSurface {
+  versionId String
+  surface   String
+  version   OdontogramRecordVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  @@id([versionId, surface])
 }

@@ -13,6 +13,7 @@ import {
 import { useFormStatus } from "react-dom";
 import Image from "next/image";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { missingFilesToastManager } from "@/components/toast-providers";
 import * as Tabs from "@radix-ui/react-tabs";
@@ -34,6 +35,7 @@ import {
   Plus,
   Save,
   Search,
+  ScanLine,
   Table2,
   Trash2,
   UploadCloud,
@@ -79,7 +81,7 @@ import { isPaymentHistoryUploadInProgress } from "@/lib/payment-history-upload-s
 import { toDateKey } from "@/lib/date-utils";
 import { appointmentStatusLabels } from "@/components/schedule/constants";
 import type { AgendaAppointment } from "@/components/schedule/types";
-import { getAppointmentNextAnchor, getRecentAttendance } from "@/lib/attendance";
+import { getAppointmentAnchor, getAppointmentNextAnchor, getRecentAttendance } from "@/lib/attendance";
 import type { AttendanceItem } from "@/lib/attendance";
 import {
   ConfirmationDialog,
@@ -88,6 +90,7 @@ import {
 import { ConfirmDeleteModal } from "@/components/confirm-delete-modal";
 import { PatientAttendanceSummary } from "@/components/patient-attendance-summary";
 import { useGlobalLoading } from "@/components/loading-provider";
+import { useNavigationGuard } from "@/components/navigation-guard-provider";
 import {
   PendingEditsModal,
   type PendingEditItem,
@@ -104,6 +107,7 @@ import {
 } from "@/components/forms/ledger-forms";
 import { PatientForm } from "@/components/forms/patient-form";
 import { setPatientProfilePhoto } from "@/lib/actions/patient.actions";
+import { savePatientOdontogram } from "@/lib/actions/odontogram.actions";
 
 const historyDeleteButtonClass =
   "border-coral-400/55 bg-coral-900/60 text-coral-400 backdrop-blur-md hover:bg-coral-500 hover:text-white";
@@ -118,6 +122,21 @@ const filterLinkedTextHistorySearchResults = true;
 const historySearchInputClass =
   "border-violet-400/70 bg-violet-100/90 placeholder:text-ink-500 focus:border-violet-500 focus:ring-violet-400/40 focus-visible:ring-violet-400/40 hover:border-violet-500/80 hover:bg-violet-200 dark:border-violet-400/60 dark:bg-violet-950/45 dark:placeholder:text-lavender-300 dark:focus:border-violet-300 dark:focus:ring-violet-300/40 dark:hover:border-violet-300 dark:hover:bg-violet-950/60";
 const historySearchIconClass = "text-violet-600 dark:text-violet-300";
+
+const Odontogram = dynamic(
+  () => import("@/components/odontogram/Odontogram"),
+  {
+    loading: () => (
+      <div
+        className="rounded-xl border border-lavender-500/30 bg-lavender-900/20 p-6 text-sm text-lavender-200"
+        role="status"
+        aria-live="polite"
+      >
+        Cargando odontograma...
+      </div>
+    ),
+  },
+);
 
 function formatAppointmentTime(value: string) {
   return new Intl.DateTimeFormat("es", {
@@ -155,7 +174,9 @@ export function PatientDetailTabs({
 }) {
   const router = useRouter();
   const { show: showLoading, hide: hideLoading, startNavigation } = useGlobalLoading();
+  const { requestNavigation } = useNavigationGuard();
   const [activeTab, setActiveTab] = useState("summary");
+  const [hasOpenedOdontogram, setHasOpenedOdontogram] = useState(false);
   const [selectedPhotoId, setSelectedPhotoId] = useState<string | null>(null);
 
   function handleNewAppointmentForPatient() {
@@ -163,14 +184,18 @@ export function PatientDetailTabs({
       ? toDateKey(new Date(upcomingAppointments[0].startTime))
       : toDateKey(new Date());
     const agendaUrl = `/agenda?view=day&date=${date}&paciente=${patient.id}`;
-    startNavigation("Cargando agenda...", agendaUrl);
-    router.push(agendaUrl);
+    requestNavigation(() => {
+      startNavigation("Cargando agenda...", agendaUrl);
+      router.push(agendaUrl);
+    }, agendaUrl);
   }
 
   function openAppointmentOnAgenda(appointment: AgendaAppointment) {
     const agendaUrl = `/agenda?view=day&date=${toDateKey(new Date(appointment.startTime))}&cita=${appointment.id}`;
-    startNavigation("Cargando agenda...", agendaUrl);
-    router.push(agendaUrl);
+    requestNavigation(() => {
+      startNavigation("Cargando agenda...", agendaUrl);
+      router.push(agendaUrl);
+    }, agendaUrl);
   }
   const [pendingInitialImageIds, setPendingInitialImageIds] = useState<
     Set<string>
@@ -295,9 +320,13 @@ export function PatientDetailTabs({
     });
   }, []);
 
-  const handleTabChange = useCallback(
+  const applyTabChange = useCallback(
     (value: string) => {
       if (value === activeTab) return;
+
+      if (value === "odontogram") {
+        setHasOpenedOdontogram(true);
+      }
 
       if (value === "media") {
         startMediaLoading();
@@ -306,6 +335,7 @@ export function PatientDetailTabs({
         const labels: Record<string, string> = {
           summary: "Cargando resumen...",
           clinical: "Cargando historia clínica...",
+          odontogram: "Cargando odontograma...",
           "payment-history": "Cargando historial de pagos...",
           files: "Cargando archivos...",
         };
@@ -318,20 +348,47 @@ export function PatientDetailTabs({
     [activeTab, hideLoading, showLoading, startMediaLoading, stopMediaLoading],
   );
 
-  const handleViewNext = useCallback(
-    (item: AttendanceItem) => {
-      handleTabChange("clinical");
+  const handleTabChange = useCallback(
+    (value: string) => {
+      if (value === activeTab) return false;
+      return requestNavigation(() => applyTabChange(value), `pestaña ${value}`);
+    },
+    [activeTab, applyTabChange, requestNavigation],
+  );
 
-      window.setTimeout(() => {
-        const target = document.getElementById(getAppointmentNextAnchor(item));
+  const navigateToClinicalTarget = useCallback(
+    (targetId: string) => {
+      const showTarget = () => {
+        const target = document.getElementById(targetId);
         if (!target) return;
 
         const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
         target.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "center" });
         target.focus({ preventScroll: true });
-      }, 80);
+      };
+      const navigateAndShow = () => {
+        if (activeTab !== "clinical") applyTabChange("clinical");
+        window.setTimeout(showTarget, activeTab === "clinical" ? 0 : 80);
+      };
+
+      if (activeTab === "clinical") {
+        navigateAndShow();
+        return;
+      }
+
+      requestNavigation(navigateAndShow, "pestaña clinical");
     },
-    [handleTabChange],
+    [activeTab, applyTabChange, requestNavigation],
+  );
+
+  const handleViewAppointment = useCallback(
+    (item: AttendanceItem) => navigateToClinicalTarget(getAppointmentAnchor(item)),
+    [navigateToClinicalTarget],
+  );
+
+  const handleViewNext = useCallback(
+    (item: AttendanceItem) => navigateToClinicalTarget(getAppointmentNextAnchor(item)),
+    [navigateToClinicalTarget],
   );
 
   const handleLinkTextHistory = useCallback(
@@ -393,6 +450,7 @@ export function PatientDetailTabs({
           <Tab value="summary" icon={FileText} label="Resumen" />
           <Tab value="media" icon={ImageIcon} label="Fotos" />
           <Tab value="clinical" icon={NotebookPen} label="Historia" />
+          <Tab value="odontogram" icon={ScanLine} label="Odontograma" />
           {/* <Tab value="ledger" icon={BadgeDollarSign} label="Cuenta" /> */}
           <Tab value="payment-history" icon={Table2} label="Historial pagos" />
           <Tab value="files" icon={FolderOpen} label="Archivos" />
@@ -488,6 +546,7 @@ export function PatientDetailTabs({
               <PatientAttendanceSummary
                 nextAppointmentDate={patient.nextAppointmentDate}
                 items={recentAttendance}
+                onViewAppointment={handleViewAppointment}
                 onViewNext={handleViewNext}
                 showNextAppointment={false}
               />
@@ -535,6 +594,24 @@ export function PatientDetailTabs({
               <EmptyState text="Sin notas clínicas registradas" />
             )}
           </div>
+        </Tabs.Content>
+
+        <Tabs.Content
+          value="odontogram"
+          forceMount
+          hidden={activeTab !== "odontogram"}
+          className="space-y-5"
+        >
+          {hasOpenedOdontogram ? (
+            <Odontogram
+              key={patient.id}
+              patientId={patient.id}
+              initialRecords={patient.odontogramRecords}
+              initialRevision={patient.odontogramRevision}
+              initialHistory={patient.odontogramHistory}
+              onSave={savePatientOdontogram}
+            />
+          ) : null}
         </Tabs.Content>
 
         <Tabs.Content value="ledger" className="space-y-5">

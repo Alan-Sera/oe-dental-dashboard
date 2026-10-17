@@ -42,12 +42,12 @@ export function PatientNextAppointment({
   return (
     <div
       className={cn(
-        "flex items-center gap-3 rounded-md border border-emerald-300/40 bg-emerald-950/30",
+        "flex items-center gap-3 rounded-md border border-emerald-300 bg-emerald-100/70 dark:border-emerald-300/40 dark:bg-emerald-950/30",
         compact ? "p-2.5" : "p-3",
         className
       )}
     >
-      <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-emerald-800/60 text-emerald-100 ring-1 ring-emerald-300/30">
+      <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-emerald-700 text-white ring-1 ring-emerald-600/30 dark:bg-emerald-800/60 dark:text-emerald-100 dark:ring-emerald-300/30">
         <CalendarDays className="size-5" aria-hidden="true" />
       </div>
       <div className="min-w-0">
@@ -64,12 +64,14 @@ export function PatientNextAppointment({
 export function PatientAttendanceSummary({
   nextAppointmentDate,
   items,
+  onViewAppointment,
   onViewNext,
   showNextAppointment = true,
   className
 }: {
   nextAppointmentDate: string | null | undefined;
   items: AttendanceItem[];
+  onViewAppointment?: (item: AttendanceItem) => void;
   onViewNext?: (item: AttendanceItem) => void;
   showNextAppointment?: boolean;
   className?: string;
@@ -89,10 +91,16 @@ export function PatientAttendanceSummary({
               return (
                 <li
                   key={item.key}
-                  aria-label={`Cita ${item.appointmentNumber} ${item.dateText}${item.hasNoShow ? ", no asistió" : ""}${item.hasNext ? ", con NEXT" : ""}`}
-                  className="flex items-center justify-between gap-3 rounded-md border border-lavender-500/25 bg-lavender-950/18 px-3 py-2"
+                  className="relative isolate flex items-center justify-between gap-3 rounded-md border border-lavender-500/25 bg-lavender-950/18 px-3 py-2 transition-colors hover:border-brand-400 hover:bg-brand-900/80 dark:hover:border-brand-300/55 dark:hover:bg-lavender-800/45"
                 >
-                  <div className="min-w-0">
+                  <button
+                    type="button"
+                    onClick={() => onViewAppointment?.(item)}
+                    disabled={!onViewAppointment}
+                    aria-label={`Ver cita ${item.appointmentNumber}, ${item.dateText}, en la historia clínica`}
+                    className="absolute inset-0 z-0 w-full rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-400 disabled:cursor-default"
+                  />
+                  <div aria-hidden="true" className="pointer-events-none relative z-10 min-w-0 flex-1">
                     <p className="text-[0.68rem] font-semibold uppercase tracking-wide text-lavender-200/45">
                       Cita {item.appointmentNumber}
                     </p>
@@ -103,13 +111,13 @@ export function PatientAttendanceSummary({
                       {weekday ?? "Fecha sin normalizar"}
                     </p>
                   </div>
-                  <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                  <div className="pointer-events-none relative z-10 flex shrink-0 flex-wrap items-center justify-end gap-2">
                     {item.hasNext ? (
                       <Button
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="w-fit text-amber-800/90 hover:bg-amber-950/10 hover:text-amber-900 dark:text-amber-200/80 dark:hover:bg-amber-950/25 dark:hover:text-amber-100"
+                        className="pointer-events-auto w-fit text-amber-800/90 hover:bg-amber-950/10 hover:text-amber-900 dark:text-amber-200/80 dark:hover:bg-amber-950/25 dark:hover:text-amber-100"
                         aria-label={`Ver NEXT de cita ${item.appointmentNumber} ${item.dateText}`}
                         onClick={() => onViewNext?.(item)}
                       >

@@ -15,6 +15,7 @@ import { patientSchema, type PatientInput } from "@/lib/validation";
 import { resolveInitialPhoneUnavailable } from "@/lib/patient-provisioning";
 import { useGlobalLoading } from "@/components/loading-provider";
 import { LoadingLink } from "@/components/loading-link";
+import { useNavigationGuard } from "@/components/navigation-guard-provider";
 import { PatientNextAppointment } from "@/components/patient-attendance-summary";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
@@ -32,6 +33,7 @@ export function PatientForm({
 }) {
   const router = useRouter();
   const loading = useGlobalLoading();
+  const { requestNavigation } = useNavigationGuard();
   const [isPending, startTransition] = useTransition();
   const creationRequestId = useRef(globalThis.crypto?.randomUUID?.() ?? `patient-${Date.now()}`);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
@@ -95,8 +97,10 @@ export function PatientForm({
           return;
         }
         const patientUrl = `/patients/${result.patientId}`;
-        loading.startNavigation("Cargando expediente...", patientUrl);
-        router.push(patientUrl);
+        requestNavigation(() => {
+          loading.startNavigation("Cargando expediente...", patientUrl);
+          router.push(patientUrl);
+        }, patientUrl);
       } catch (error) {
         setSubmissionError(error instanceof Error ? error.message : "No se pudo crear el paciente.");
       } finally {
@@ -120,8 +124,10 @@ export function PatientForm({
           try {
             const patient = await updatePatient(patientId, values);
             const patientUrl = `/patients/${patient.id}`;
-            loading.startNavigation("Cargando expediente...", patientUrl);
-            router.push(patientUrl);
+            requestNavigation(() => {
+              loading.startNavigation("Cargando expediente...", patientUrl);
+              router.push(patientUrl);
+            }, patientUrl);
           } catch (error) {
             setSubmissionError(error instanceof Error ? error.message : "No se pudo actualizar el paciente.");
           } finally {

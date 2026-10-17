@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { getPatientById } from "@/lib/actions/patient.actions";
 import { getPatientMissingAttachmentIds } from "@/lib/actions/settings.actions";
 import { getUpcomingPatientAppointments } from "@/lib/actions/appointments.actions";
+import { getPatientOdontogramData } from "@/lib/odontogram-data";
 import type { SerializedPatientDetail } from "@/types";
 import type { AgendaAppointment } from "@/components/schedule/types";
 
@@ -20,17 +21,23 @@ export default async function PatientDetailPage({
   params: Promise<{ patientId: string }>;
 }) {
   const { patientId } = await params;
-  const [patient, missingAttachmentIds, upcomingAppointmentsRaw] = await Promise.all([
+  const [patient, missingAttachmentIds, upcomingAppointmentsRaw, odontogramData] = await Promise.all([
     getPatientById(patientId),
     getPatientMissingAttachmentIds(patientId),
-    getUpcomingPatientAppointments(patientId)
+    getUpcomingPatientAppointments(patientId),
+    getPatientOdontogramData(patientId)
   ]);
 
   if (!patient) {
     notFound();
   }
 
-  const serializedPatient = JSON.parse(JSON.stringify(patient)) as SerializedPatientDetail;
+  const serializedPatient = JSON.parse(JSON.stringify({
+    ...patient,
+    odontogramRecords: odontogramData.records,
+    odontogramRevision: odontogramData.revision,
+    odontogramHistory: odontogramData.history,
+  })) as SerializedPatientDetail;
 
   const upcomingAppointments: AgendaAppointment[] = upcomingAppointmentsRaw.map((appointment) => ({
     id: appointment.id,

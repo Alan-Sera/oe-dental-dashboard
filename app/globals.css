@@ -66,6 +66,8 @@
   --dental-tooth-selected: 239 246 255;
   --dental-tooth-selection-border: 96 165 250;
   --dental-surface-selected: 254 243 199;
+  --dental-phase-previous: 37 99 235;
+  --dental-phase-current: 220 38 38;
 }
 
 html.dark {
@@ -131,6 +133,8 @@ html.dark {
   --dental-tooth-selected: 36 48 74;
   --dental-tooth-selection-border: 119 183 238;
   --dental-surface-selected: 49 38 17;
+  --dental-phase-previous: 119 183 238;
+  --dental-phase-current: 255 138 122;
 }
 
 * {
@@ -161,6 +165,27 @@ html.dark body {
 
 .text-theme-strong {
   color: rgb(var(--theme-strong));
+}
+
+html.dark .odontogram-theme .text-slate-500,
+html.dark .odontogram-theme .text-slate-600 {
+  color: rgb(var(--theme-muted));
+}
+
+html.dark .odontogram-theme .text-slate-700 {
+  color: rgb(var(--ink-200));
+}
+
+html.dark .odontogram-theme .text-slate-800 {
+  color: rgb(var(--ink-100));
+}
+
+html.dark .odontogram-theme .text-slate-400 {
+  color: rgb(var(--ink-300));
+}
+
+html.dark .odontogram-theme .border-dashed.border-slate-200 {
+  border-color: rgb(var(--lavender-500) / 45%);
 }
 
 .theme-switch-focus:focus-visible {

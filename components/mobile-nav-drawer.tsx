@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { Database, Menu, X } from "lucide-react";
 
 import { BrandMark } from "@/components/brand-mark";
+import { ClinicName } from "@/components/clinic-name";
 import { LoadingLink } from "@/components/loading-link";
 import { LogoutButton } from "@/components/logout-button";
 import { SidebarNav } from "@/components/sidebar-nav";
@@ -87,11 +88,13 @@ export function MobileNavDrawer({
             className="fixed inset-y-0 left-0 z-50 flex w-[min(22rem,calc(100vw-2rem))] flex-col overflow-y-auto border-r border-lavender-500/45 bg-lavender-950 p-5 shadow-panel lg:hidden"
           >
             <div className="flex items-start justify-between gap-3">
-              <LoadingLink href="/dashboard" className="flex min-w-0 items-center gap-3" onNavigate={() => setOpen(false)} loadingLabel="Cargando inicio...">
-                <BrandMark size="md" priority />
-                <div className="min-w-0">
-                  <p className="truncate text-base font-semibold text-theme-strong">{clinicName}</p>
-                  <p className="text-xs text-lavender-200/75">Odontología especializada</p>
+              <LoadingLink href="/dashboard" className="flex min-w-0 flex-1 items-center gap-3" onNavigate={() => setOpen(false)} loadingLabel="Cargando inicio...">
+                <BrandMark variant="oe" size="md" priority />
+                <div className="min-w-0 flex-1">
+                  <ClinicName
+                    name={clinicName}
+                    className="w-full text-base font-semibold leading-6 text-theme-strong"
+                  />
                 </div>
               </LoadingLink>
 

@@ -33,9 +33,11 @@ const LoadingContext = createContext<LoadingContextValue | null>(null);
 export function LoadingProvider({
   children,
   mode = "content",
+  sidebarCollapsed = false,
 }: {
   children: React.ReactNode;
   mode?: LoadingMode;
+  sidebarCollapsed?: boolean;
 }) {
   const [isLoading, setIsLoading] = useState(false);
   const [isFadingOut, setIsFadingOut] = useState(false);
@@ -205,6 +207,7 @@ export function LoadingProvider({
           <ScreenLoadingOverlay
             label={label}
             mode={mode}
+            sidebarCollapsed={sidebarCollapsed}
             fading={isFadingOut}
           />
         ) : null}

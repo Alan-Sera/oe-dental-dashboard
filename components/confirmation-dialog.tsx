@@ -13,11 +13,13 @@ type ConfirmationDialogProps = {
   title: string;
   description: string;
   actions: ReactNode;
+  children?: ReactNode;
   tone: "danger" | "primary";
   icon?: ReactNode;
   itemLabel?: string;
   closeLabel?: string;
   closeDisabled?: boolean;
+  size?: "compact" | "medium" | "wide";
 };
 
 export function ConfirmationDialog({
@@ -26,11 +28,13 @@ export function ConfirmationDialog({
   title,
   description,
   actions,
+  children,
   tone,
   icon,
   itemLabel,
   closeLabel = "Cerrar",
   closeDisabled = false,
+  size = "compact",
 }: ConfirmationDialogProps) {
   return (
     <ModalShell
@@ -42,6 +46,7 @@ export function ConfirmationDialog({
       description={description}
       closeLabel={closeLabel}
       closeDisabled={closeDisabled}
+      size={size}
     >
       {itemLabel ? (
         <div className="shrink-0 border-b border-lavender-500/25 px-5 py-3">
@@ -50,6 +55,8 @@ export function ConfirmationDialog({
           </p>
         </div>
       ) : null}
+
+      {children}
 
       <div className="flex shrink-0 flex-col-reverse gap-2 px-5 py-4 sm:flex-row sm:justify-end">
         {actions}
