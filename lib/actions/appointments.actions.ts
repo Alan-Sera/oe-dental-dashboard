@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { Prisma, type AppointmentStatus } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 
 import { recordAudit } from "@/lib/actions/audit.actions";
 import { requireSession } from "@/lib/auth";
@@ -17,6 +17,7 @@ import {
 } from "@/lib/google-calendar";
 import { getGoogleConnectionStatus } from "@/lib/google-settings";
 import { prisma } from "@/lib/prisma";
+import { getUpcomingAppointmentWhere } from "@/lib/upcoming-appointments";
 import {
   appointmentDeleteSchema,
   appointmentInputSchema,
@@ -34,8 +35,6 @@ const AUTO_SYNC_RETRY_MIN_MS = 60 * 1000;
 const LAST_BULK_SYNC_KEY = "agenda.lastBulkSyncAt";
 const LAST_ORPHANS_KEY = "agenda.lastOrphanEvents";
 const GOOGLE_GUEST_CLEANUP_KEY = "agenda.googleGuestCleanupDone";
-const NEXT_APPOINTMENT_EXCLUDED_STATUSES: AppointmentStatus[] = ["CANCELLED", "NO_SHOW"];
-
 type AgendaGoogleRefreshResult = {
   status: GoogleConnectionStatus;
   orphanEvents: OrphanGoogleEvent[];
@@ -369,8 +368,7 @@ export async function getUpcomingPatientAppointments(
   return prisma.appointment.findMany({
     where: {
       patientId,
-      startTime: { gte: new Date() },
-      status: { notIn: NEXT_APPOINTMENT_EXCLUDED_STATUSES }
+      ...getUpcomingAppointmentWhere(new Date())
     },
     include: patientInclude,
     orderBy: { startTime: "asc" },
@@ -704,8 +702,7 @@ async function syncPatientNextAppointmentDate(patientId: string) {
   const nextAppointment = await prisma.appointment.findFirst({
     where: {
       patientId,
-      startTime: { gte: new Date() },
-      status: { notIn: NEXT_APPOINTMENT_EXCLUDED_STATUSES }
+      ...getUpcomingAppointmentWhere(new Date())
     },
     orderBy: { startTime: "asc" },
     select: { startTime: true }

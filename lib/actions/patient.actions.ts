@@ -13,6 +13,7 @@ import {
 import { resolveLinkedAttachmentPath } from "@/lib/local-paths";
 import { normalizePatientIdentity, normalizePhone, isProvisioningInProgress } from "@/lib/patient-provisioning";
 import { prisma } from "@/lib/prisma";
+import { getUpcomingAppointmentWhere } from "@/lib/upcoming-appointments";
 import {
   PatientProvisioningAlreadyRunningError,
   PatientProvisioningPreflightError,
@@ -312,10 +313,7 @@ export async function getPatients() {
         orderBy: { createdAt: "desc" }
       },
       appointments: {
-        where: {
-          startTime: { gte: new Date() },
-          status: { notIn: ["CANCELLED", "NO_SHOW"] }
-        },
+        where: getUpcomingAppointmentWhere(new Date()),
         orderBy: { startTime: "asc" },
         take: 1,
         select: { id: true, startTime: true }
