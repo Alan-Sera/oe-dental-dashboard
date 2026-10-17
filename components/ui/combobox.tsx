@@ -29,7 +29,7 @@ function ComboboxContent({
 }: React.ComponentProps<typeof ComboboxPrimitive.Popup>) {
   return (
     <ComboboxPrimitive.Portal>
-      <ComboboxPrimitive.Positioner className="z-[70]" sideOffset={4}>
+      <ComboboxPrimitive.Positioner className="z-[110]" sideOffset={4}>
         <ComboboxPrimitive.Popup
           className={cn(
             "max-h-64 w-[var(--anchor-width)] overflow-y-auto rounded-md border border-lavender-600/70 bg-lavender-950/95 p-1 shadow-xl shadow-ink-950/50 backdrop-blur-md",

@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   appointmentFindUnique: vi.fn(),
   appointmentCreate: vi.fn(),
   appointmentUpdate: vi.fn(),
+  patientFindMany: vi.fn(),
   patientFindUnique: vi.fn(),
   patientUpdate: vi.fn(),
   settingFindUnique: vi.fn(),
@@ -35,6 +36,7 @@ vi.mock("@/lib/prisma", () => ({
       update: mocks.appointmentUpdate
     },
     patient: {
+      findMany: mocks.patientFindMany,
       findUnique: mocks.patientFindUnique,
       update: mocks.patientUpdate
     },
@@ -61,6 +63,7 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 import {
   createAppointment,
   getStoredAgendaOrphans,
+  listAppointmentPatients,
   maybeAutoSyncAgenda,
   refreshAgendaGoogleState,
   syncAllAppointmentsToGoogle
@@ -107,6 +110,7 @@ beforeEach(() => {
     if (current) Object.assign(current, data);
     return current;
   });
+  mocks.patientFindMany.mockReset().mockResolvedValue([]);
   mocks.patientFindUnique.mockReset().mockResolvedValue({
     id: "patient-adoption",
     fullName: "Paciente adopción",
@@ -142,6 +146,22 @@ beforeEach(() => {
   mocks.getConnectionStatus.mockReset().mockResolvedValue({ connected: true, calendarScope: true });
   mocks.requireSession.mockReset().mockResolvedValue({ id: "session" });
   mocks.recordAudit.mockReset().mockResolvedValue(undefined);
+});
+
+describe("appointment patient options", () => {
+  it("returns all patients ordered by name for the appointment chooser", async () => {
+    const patients = [
+      { id: "patient-ana", fullName: "Ana Prueba" },
+      { id: "patient-zoe", fullName: "Zoe Prueba" }
+    ];
+    mocks.patientFindMany.mockResolvedValue(patients);
+
+    await expect(listAppointmentPatients()).resolves.toEqual(patients);
+    expect(mocks.patientFindMany).toHaveBeenCalledWith({
+      select: { id: true, fullName: true },
+      orderBy: { fullName: "asc" }
+    });
+  });
 });
 
 describe("one-time Google guest cleanup", () => {

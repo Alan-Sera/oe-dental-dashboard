@@ -302,19 +302,19 @@ export function AppointmentModal({
     >
       <div className="p-5">
         {syncNotice ? (
-          <div className="mb-4 rounded-md border border-amber-500/40 bg-amber-950/50 px-3 py-2 text-sm text-amber-300">
+          <div className="mb-4 rounded-md border border-amber-300/70 bg-amber-50 px-3 py-2 text-sm text-amber-950 dark:border-amber-500/40 dark:bg-amber-950/50 dark:text-amber-300">
             La cita se guardó localmente, pero no se sincronizó con Google Calendar: {syncNotice}
           </div>
         ) : null}
 
         {isAdopting ? (
-          <div className="mb-4 rounded-md border border-amber-500/40 bg-amber-950/50 px-3 py-2 text-sm text-amber-300">
+          <div className="mb-4 rounded-md border border-amber-300/70 bg-amber-50 px-3 py-2 text-sm text-amber-950 dark:border-amber-500/40 dark:bg-amber-950/50 dark:text-amber-300">
             Esta cita ya existe en Google Calendar. Seleciona el paciente para crear un evento sin duplicarlo.
           </div>
         ) : null}
 
         {mode === "edit" && appointment && !appointment.googleEventId ? (
-          <div className="mb-4 rounded-md border border-amber-500/40 bg-amber-950/50 px-3 py-2 text-sm text-amber-300">
+          <div className="mb-4 rounded-md border border-amber-300/70 bg-amber-50 px-3 py-2 text-sm text-amber-950 dark:border-amber-500/40 dark:bg-amber-950/50 dark:text-amber-300">
             Esta cita aún no está sincronizada con Google Calendar. Si la guardas, se intentará sincronizar
             ahora.
           </div>
