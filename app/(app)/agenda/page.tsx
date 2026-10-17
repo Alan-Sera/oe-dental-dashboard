@@ -11,6 +11,7 @@ type AgendaSearchParams = {
   date?: string;
   paciente?: string;
   cita?: string;
+  adopt?: string;
 };
 
 export default async function AgendaPage({
@@ -56,6 +57,7 @@ export default async function AgendaPage({
         initialPatientId={params.paciente}
         focusAppointmentId={params.cita}
         initialOrphans={orphanEvents}
+        initialAdoptGoogleEventId={params.adopt}
       />
     </main>
   );

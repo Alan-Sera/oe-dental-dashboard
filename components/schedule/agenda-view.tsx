@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Dialog } from "@base-ui/react/dialog";
 
 import { addDays, addMonths, fromDateKey, toDateKey, toDatetimeLocal } from "@/lib/date-utils";
+import { buildAgendaAdoptionUrl } from "@/lib/agenda-adoption-navigation";
 import { refreshAgendaGoogleState, syncAllAppointmentsToGoogle } from "@/lib/actions/appointments.actions";
 import { DEFAULT_APPOINTMENT_MINUTES, type ScheduleView } from "@/components/schedule/constants";
 import { CalendarHeader } from "@/components/schedule/calendar-header";
@@ -25,6 +26,7 @@ import { toastManager } from "@/components/toast-providers";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useGlobalLoading } from "@/components/loading-provider";
+import { useNavigationGuard } from "@/components/navigation-guard-provider";
 
 type ModalState =
   | {
@@ -49,7 +51,8 @@ export function AgendaView({
   googleStatus,
   initialPatientId,
   focusAppointmentId,
-  initialOrphans
+  initialOrphans,
+  initialAdoptGoogleEventId
 }: {
   view: ScheduleView;
   dateKey: string;
@@ -59,9 +62,11 @@ export function AgendaView({
   initialPatientId?: string | null;
   focusAppointmentId?: string | null;
   initialOrphans?: OrphanGoogleEvent[];
+  initialAdoptGoogleEventId?: string | null;
 }) {
   const router = useRouter();
   const { startNavigation } = useGlobalLoading();
+  const { requestNavigation } = useNavigationGuard();
   const [modal, setModal] = useState<ModalState>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<GoogleSyncSummary | null>(null);
@@ -134,7 +139,7 @@ export function AgendaView({
   );
 
   const adoptingEventId =
-    modal?.mode === "create" ? modal.adoptGoogleEventId : null;
+    (modal?.mode === "create" ? modal.adoptGoogleEventId : null) ?? initialAdoptGoogleEventId ?? null;
 
   const orphans = useMemo(() => {
     return dedupeOrphans(clientOrphans).filter(
@@ -173,15 +178,12 @@ export function AgendaView({
         actionProps: {
           children: "Asignar",
           onClick: () => {
-            setModal({
-              mode: "create",
-              startTime: toDatetimeLocal(new Date(orphan.startTime)),
-              endTime: toDatetimeLocal(new Date(orphan.endTime)),
-              adoptGoogleEventId: orphan.eventId,
-              title: orphan.title || "",
-              description: orphan.description ?? ""
-            });
-            toastManager.close(toastId);
+            const agendaUrl = buildAgendaAdoptionUrl(orphan);
+            requestNavigation(() => {
+              startNavigation("Abriendo evento...", agendaUrl);
+              router.push(agendaUrl);
+              toastManager.close(toastId);
+            }, agendaUrl);
           }
         },
         onClose: () => {
@@ -191,7 +193,69 @@ export function AgendaView({
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orphans, adoptingEventId]);
+  }, [orphans, adoptingEventId, router, requestNavigation, startNavigation]);
+
+  const processedAdoptionRequestRef = useRef<string | null>(null);
+  const adoptionRefreshAttemptedRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    function clearAdoptionQuery() {
+      const params = new URLSearchParams(window.location.search);
+      params.delete("adopt");
+      const query = params.toString();
+      const target = `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`;
+      router.replace(target, { scroll: false });
+    }
+
+    const requestedEventId = initialAdoptGoogleEventId;
+    if (!requestedEventId) {
+      processedAdoptionRequestRef.current = null;
+      adoptionRefreshAttemptedRef.current = null;
+      return;
+    }
+    if (processedAdoptionRequestRef.current === requestedEventId) return;
+
+    const orphan = dedupeOrphans(clientOrphans).find(
+      (item) => item.eventId === requestedEventId && !localEventIds.has(item.eventId)
+    );
+    if (orphan) {
+      processedAdoptionRequestRef.current = requestedEventId;
+      setModal({
+        mode: "create",
+        startTime: toDatetimeLocal(new Date(orphan.startTime)),
+        endTime: toDatetimeLocal(new Date(orphan.endTime)),
+        adoptGoogleEventId: orphan.eventId,
+        title: orphan.title || "",
+        description: orphan.description ?? ""
+      });
+      toastManager.close(`orphan-${requestedEventId}`);
+      adoptionRefreshAttemptedRef.current = requestedEventId;
+      clearAdoptionQuery();
+      return;
+    }
+
+    if (checkingGoogle) {
+      adoptionRefreshAttemptedRef.current = requestedEventId;
+      return;
+    }
+
+    if (adoptionRefreshAttemptedRef.current !== requestedEventId) {
+      adoptionRefreshAttemptedRef.current = requestedEventId;
+      void refreshGoogleState();
+      return;
+    }
+
+    processedAdoptionRequestRef.current = requestedEventId;
+    toastManager.add({
+      id: `orphan-adoption-missing-${requestedEventId}`,
+      title: "No se pudo abrir el evento",
+      description: googleCheckFailed
+        ? "No se pudo verificar si el evento sigue disponible. Revisa la conexión con Google Calendar e inténtalo de nuevo."
+        : "El evento sin asignar ya no está disponible. Actualiza la agenda e inténtalo de nuevo.",
+      type: "info"
+    });
+    clearAdoptionQuery();
+  }, [initialAdoptGoogleEventId, clientOrphans, localEventIds, checkingGoogle, googleCheckFailed, refreshGoogleState, router]);
 
   useEffect(() => {
     if (focusAppointmentId) {
