@@ -29,7 +29,7 @@ function ToastRoot({
   return (
     <ToastPrimitive.Root
       className={cn(
-        "oe-toast-root group rounded-lg border border-lavender-500/30 bg-lavender-950/90 shadow-xl shadow-ink-950/40 backdrop-blur-md hover:border-lavender-200",
+        "oe-toast-root group rounded-lg border border-ink-400/70 bg-ink-700 shadow-2xl shadow-ink-950/35 ring-1 ring-ink-950/10 backdrop-blur-md transition-[border-color,box-shadow] hover:border-ink-300 dark:border-lavender-500/80 dark:bg-lavender-800 dark:ring-lavender-200/10 dark:hover:border-lavender-300",
         className,
       )}
       {...props}
@@ -70,7 +70,7 @@ function ToastDescription({
 }: React.ComponentProps<typeof ToastPrimitive.Description>) {
   return (
     <ToastPrimitive.Description
-      className={cn("text-xs text-lavender-200/70", className)}
+      className={cn("text-xs text-ink-200 dark:text-lavender-200", className)}
       {...props}
     />
   );
@@ -99,7 +99,7 @@ function ToastClose({
     <ToastPrimitive.Close
       aria-label="Cerrar"
       className={cn(
-        "absolute top-2 right-2 size-6 border-coral-400/55 bg-coral-900/60 text-coral-400 backdrop-blur-md hover:bg-coral-500 hover:text-white",
+        "absolute top-2 right-2 inline-flex size-6 items-center justify-center rounded-md border border-coral-400/80 bg-coral-900 text-coral-500 shadow-sm transition-colors hover:bg-coral-500 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-coral-400 focus-visible:ring-offset-2 focus-visible:ring-offset-ink-700 dark:bg-coral-900/80 dark:text-coral-400 dark:focus-visible:ring-offset-lavender-800",
         className,
       )}
       {...props}

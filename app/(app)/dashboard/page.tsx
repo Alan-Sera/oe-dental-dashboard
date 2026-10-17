@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/stat-card";
 import { LoadingLink } from "@/components/loading-link";
+import { DashboardClock } from "@/components/dashboard-clock";
 
 export const dynamic = "force-dynamic";
 
@@ -28,14 +29,16 @@ export default async function DashboardPage() {
 
   return (
     <main className="page-shell">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
+        <div className="min-w-0">
           <h1 className="text-2xl font-semibold text-theme-strong">Dashboard</h1>
-          <p className="muted">{formatDate(new Date())}</p>
         </div>
-        <Button asChild>
-          <LoadingLink href="/import" loadingLabel="Cargando importación...">Importar carpeta</LoadingLink>
-        </Button>
+        <DashboardClock className="col-span-2 row-start-2 justify-self-center md:col-span-1 md:col-start-2 md:row-start-1" />
+        <div className="col-start-2 row-start-1 justify-self-end md:col-start-3">
+          <Button asChild>
+            <LoadingLink href="/import" loadingLabel="Cargando importación...">Importar carpeta</LoadingLink>
+          </Button>
+        </div>
       </div>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
