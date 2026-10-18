@@ -78,6 +78,7 @@
         "filter": [
           "electron/main.cjs",
           "electron/patient-file-sync-starter.cjs",
+          "electron/test-user-data.cjs",
           "electron/preload.cjs",
           "package.json"
         ]

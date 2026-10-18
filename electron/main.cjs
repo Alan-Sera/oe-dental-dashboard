@@ -8,6 +8,7 @@ const net = require("node:net");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
 const { createPatientFileSyncStarter } = require("./patient-file-sync-starter.cjs");
+const { configureElectronTestUserData } = require("./test-user-data.cjs");
 
 const HOST = "127.0.0.1";
 
@@ -23,10 +24,11 @@ let fileSyncToken = "";
 let fileSyncStarter = null;
 
 app.setName("OE Dental");
+const isolatedTestUserDataDir = configureElectronTestUserData(app);
 
 function getBootstrapLogPath() {
   const appDataPath = process.env.APPDATA || process.cwd();
-  const bootstrapDir = path.join(appDataPath, "OE Dental");
+  const bootstrapDir = isolatedTestUserDataDir || path.join(appDataPath, "OE Dental");
 
   fs.mkdirSync(bootstrapDir, { recursive: true });
 
@@ -486,14 +488,19 @@ function createWindow(targetUrl) {
     });
   }
   allowedLocalOrigin = localOrigin;
-  mainWindow.setResizable(true);
-  mainWindow.setMinimumSize(960, 640);
-  mainWindow.setSize(1200, 800);
-  mainWindow.center();
-  mainWindow.setTitle("OE Dental");
-  mainWindow.show();
-  mainWindow.focus();
-  mainWindow.loadURL(targetUrl);
+  const window = mainWindow;
+  window.setResizable(true);
+  window.setMinimumSize(960, 640);
+  window.setTitle("OE Dental");
+  void window.loadURL(targetUrl).then(() => {
+    if (window.isDestroyed()) return;
+    window.maximize();
+    window.show();
+    window.focus();
+    logInfo("[Electron] Ventana principal maximizada:", window.isMaximized());
+  }).catch((error) => {
+    logError("[Electron] No se pudo cargar la ventana principal:", error);
+  });
 }
 
 function isSameLocalOrigin(value, localOrigin) {
