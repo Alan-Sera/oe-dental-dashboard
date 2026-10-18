@@ -7,12 +7,14 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PatientFileSyncStatus } from "@/components/patient-file-sync-status";
 
 export function LinkedFilesControls({ report }: { report: LinkedFilesReport }) {
   const hasMissing = report.missingCount > 0;
 
   return (
     <div className="space-y-4">
+      <PatientFileSyncStatus />
       <div className="surface flex flex-wrap items-center justify-between gap-3 p-4">
         <div className="min-w-0">
           <p className="text-sm font-medium text-ink-100">Carpeta maestra</p>

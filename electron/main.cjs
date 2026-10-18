@@ -7,6 +7,7 @@ const http = require("node:http");
 const net = require("node:net");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
+const { createPatientFileSyncStarter } = require("./patient-file-sync-starter.cjs");
 
 const HOST = "127.0.0.1";
 
@@ -18,6 +19,8 @@ let nextProcess = null;
 let nextStartupError = "";
 let googleTokenEncryptionKey = "";
 let packagedGoogleOAuthConfig = {};
+let fileSyncToken = "";
+let fileSyncStarter = null;
 
 app.setName("OE Dental");
 
@@ -276,6 +279,7 @@ async function startNextServer(port) {
       PORT: String(port),
       HOSTNAME: HOST,
       GOOGLE_TOKEN_ENCRYPTION_KEY: googleTokenEncryptionKey,
+      APP_INTERNAL_SYNC_TOKEN: fileSyncToken,
       ...packagedGoogleOAuthConfig,
     },
     windowsHide: true,
@@ -377,6 +381,35 @@ function waitForNext(targetUrl, spawnedProcess) {
 
     check();
   });
+}
+
+function beginPatientFileSync(targetUrl, signal) {
+  return new Promise((resolve, reject) => {
+    const endpoint = new URL("/api/internal/patient-file-sync", targetUrl);
+    const request = http.request(endpoint, {
+      method: "POST",
+      headers: { "x-oe-file-sync-token": fileSyncToken },
+      timeout: 60_000,
+      signal,
+    }, (response) => {
+      response.resume();
+      if (response.statusCode === 202) resolve();
+      else reject(new Error(`El servicio de archivos respondió ${response.statusCode}.`));
+    });
+    request.once("error", reject);
+    request.once("timeout", () => request.destroy(new Error("Tiempo de espera agotado.")));
+    request.end();
+  });
+}
+
+function startPatientFileSync(targetUrl) {
+  if (isQuitting) return;
+  fileSyncStarter = createPatientFileSyncStarter({
+    request: (signal) => beginPatientFileSync(targetUrl, signal),
+    onRetry: (error, delayMs) => logWarn(`[file-sync] No se pudo iniciar; nuevo intento en ${delayMs / 1_000} s:`, error),
+    onStarted: () => logInfo("[file-sync] Vigilancia iniciada."),
+  });
+  fileSyncStarter.start();
 }
 
 function createBrowserWindow(options) {
@@ -499,6 +532,7 @@ async function startApplication() {
   createStartupWindow();
   ensureGoogleTokenEncryptionKey();
   loadPackagedGoogleOAuthConfig();
+  fileSyncToken = process.env.APP_INTERNAL_SYNC_TOKEN || crypto.randomBytes(32).toString("hex");
   logInfo("[Electron] App ready. packaged=", app.isPackaged);
 
   const developmentUrl = getDevelopmentUrl();
@@ -506,6 +540,7 @@ async function startApplication() {
   if (developmentUrl) {
     await waitForNext(developmentUrl);
     createWindow(developmentUrl);
+    startPatientFileSync(developmentUrl);
     return;
   }
 
@@ -515,6 +550,7 @@ async function startApplication() {
 
   await waitForNext(targetUrl, spawnedProcess);
   createWindow(targetUrl);
+  startPatientFileSync(targetUrl);
 }
 
 function stopNextServer() {
@@ -569,6 +605,7 @@ if (!hasSingleInstanceLock) {
 
   app.on("before-quit", () => {
     isQuitting = true;
+    fileSyncStarter?.stop();
     stopNextServer();
   });
 

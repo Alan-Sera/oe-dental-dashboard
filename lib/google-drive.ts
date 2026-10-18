@@ -279,13 +279,15 @@ export async function findGoogleDriveResource({
   parentId,
   patientId,
   resourceType,
-  paymentHistorySheetId
+  paymentHistorySheetId,
+  paymentHistorySheetVersionId
 }: {
   accessToken: string;
   parentId: string;
   patientId: string;
   resourceType: "patient-folder" | "payment-sheet";
   paymentHistorySheetId?: string;
+  paymentHistorySheetVersionId?: string;
 }) {
   const escapedPatientId = escapeDriveQueryValue(patientId);
   const escapedResourceType = escapeDriveQueryValue(resourceType);
@@ -299,6 +301,11 @@ export async function findGoogleDriveResource({
   if (paymentHistorySheetId) {
     queryParts.push(
       `appProperties has { key='oePaymentHistorySheetId' and value='${escapeDriveQueryValue(paymentHistorySheetId)}' }`
+    );
+  }
+  if (paymentHistorySheetVersionId) {
+    queryParts.push(
+      `appProperties has { key='oePaymentHistorySheetVersionId' and value='${escapeDriveQueryValue(paymentHistorySheetVersionId)}' }`
     );
   }
   const query = queryParts.join(" and ");

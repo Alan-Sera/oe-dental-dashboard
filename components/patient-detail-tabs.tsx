@@ -47,10 +47,11 @@ import { categoryLabels } from "@/constants";
 import type { SerializedAttachment, SerializedPatientDetail } from "@/types";
 import { isPatientPhotoOrRadiograph } from "@/lib/patient-media";
 import {
-  linkTextAttachmentAsClinicalHistory,
+  resolveLinkedTextClinicalConflict,
   updateLinkedTextClinicalHistory,
 } from "@/lib/actions/clinical.actions";
-import { retryPaymentHistorySheetUpload, setActivePaymentHistorySheet } from "@/lib/actions/payment-history.actions";
+import { confirmSpecialPatientFile } from "@/lib/actions/patient-file-sync.actions";
+import { createNewPaymentHistoryVersion, retryPaymentHistorySheetUpload, setActivePaymentHistorySheet } from "@/lib/actions/payment-history.actions";
 import {
   detectPreferredLineEnding,
   isPlainTextAttachment,
@@ -166,11 +167,17 @@ function appointmentStatusToneClass(status: string) {
 export function PatientDetailTabs({
   patient,
   missingAttachmentIds = [],
-  upcomingAppointments = []
+  upcomingAppointments = [],
+  initialFileSyncRevision = 0,
+  clinicalFileConflicts = [],
+  paymentFileStates = []
 }: {
   patient: SerializedPatientDetail;
   missingAttachmentIds?: string[];
   upcomingAppointments?: AgendaAppointment[];
+  initialFileSyncRevision?: number;
+  clinicalFileConflicts?: Array<{ attachmentId: string; sourceHash: string; entryUpdatedAt: string }>;
+  paymentFileStates?: Array<{ sheetId: string; state: "changed" | "unverified"; sourceHash: string }>;
 }) {
   const router = useRouter();
   const { show: showLoading, hide: hideLoading, startNavigation } = useGlobalLoading();
@@ -178,6 +185,66 @@ export function PatientDetailTabs({
   const [activeTab, setActiveTab] = useState("summary");
   const [hasOpenedOdontogram, setHasOpenedOdontogram] = useState(false);
   const [selectedPhotoId, setSelectedPhotoId] = useState<string | null>(null);
+  const fileSyncRevisionRef = useRef(initialFileSyncRevision);
+  const [specialFileToConfirm, setSpecialFileToConfirm] = useState<{
+    id: string;
+    name: string;
+    kind: "text-history" | "payment-history";
+  } | null>(null);
+  const [textConflictToResolve, setTextConflictToResolve] = useState<{
+    attachmentId: string;
+    sourceHash: string;
+    entryUpdatedAt: string;
+    name: string;
+  } | null>(null);
+  const [textConflictError, setTextConflictError] = useState<string | null>(null);
+  const [isResolvingTextConflict, startResolvingTextConflict] = useTransition();
+  const textConflictByAttachment = useMemo(
+    () => new Map(clinicalFileConflicts.map((item) => [item.attachmentId, item])),
+    [clinicalFileConflicts]
+  );
+
+  function resolveTextConflict(resolution: "use-file" | "use-app") {
+    if (!textConflictToResolve) return;
+    setTextConflictError(null);
+    startResolvingTextConflict(async () => {
+      try {
+        await resolveLinkedTextClinicalConflict({
+          patientId: patient.id,
+          attachmentId: textConflictToResolve.attachmentId,
+          expectedSourceHash: textConflictToResolve.sourceHash,
+          expectedEntryUpdatedAt: textConflictToResolve.entryUpdatedAt,
+          resolution
+        });
+        setTextConflictToResolve(null);
+        router.refresh();
+      } catch (error) {
+        setTextConflictError(error instanceof Error ? error.message : "No se pudo resolver el conflicto.");
+        router.refresh();
+      }
+    });
+  }
+
+  useEffect(() => {
+    if ((activeTab !== "media" && activeTab !== "files" && activeTab !== "clinical") || selectedPhotoId || specialFileToConfirm || textConflictToResolve) return;
+    let mounted = true;
+    const check = async () => {
+      try {
+        const response = await fetch(`/api/patient-file-sync/status?patientId=${encodeURIComponent(patient.id)}`, { cache: "no-store" });
+        if (!response.ok) return;
+        const status = await response.json() as { revision: number };
+        if (mounted && status.revision > fileSyncRevisionRef.current) {
+          fileSyncRevisionRef.current = status.revision;
+          router.refresh();
+        }
+      } catch {
+        // A temporary sync-status failure must not interrupt the patient record.
+      }
+    };
+    void check();
+    const timer = window.setInterval(() => void check(), 10_000);
+    return () => { mounted = false; window.clearInterval(timer); };
+  }, [activeTab, patient.id, router, selectedPhotoId, specialFileToConfirm, textConflictToResolve]);
 
   function handleNewAppointmentForPatient() {
     const date = upcomingAppointments[0]
@@ -203,9 +270,9 @@ export function PatientDetailTabs({
   const [textHistoryLinkError, setTextHistoryLinkError] = useState<
     string | null
   >(null);
-  const [pendingTextHistoryAttachmentId, setPendingTextHistoryAttachmentId] =
+  const [pendingSpecialAttachmentId, setPendingSpecialAttachmentId] =
     useState<string | null>(null);
-  const [isLinkingTextHistory, startLinkingTextHistoryTransition] =
+  const [isLinkingSpecial, startLinkingSpecialTransition] =
     useTransition();
   const mediaLoadTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
@@ -391,28 +458,30 @@ export function PatientDetailTabs({
     [navigateToClinicalTarget],
   );
 
-  const handleLinkTextHistory = useCallback(
-    (attachmentId: string) => {
+  const handleConfirmSpecialFile = useCallback(
+    (item: NonNullable<typeof specialFileToConfirm>) => {
       setTextHistoryLinkError(null);
-      setPendingTextHistoryAttachmentId(attachmentId);
-      showLoading("Vinculando historia...");
+      setPendingSpecialAttachmentId(item.id);
+      showLoading(item.kind === "text-history" ? "Vinculando historia..." : "Activando historial de pagos...");
 
-      startLinkingTextHistoryTransition(async () => {
+      startLinkingSpecialTransition(async () => {
         try {
-          await linkTextAttachmentAsClinicalHistory({
+          await confirmSpecialPatientFile({
             patientId: patient.id,
-            attachmentId,
+            attachmentId: item.id,
+            kind: item.kind,
           });
+          setSpecialFileToConfirm(null);
           router.refresh();
         } catch (error) {
           setTextHistoryLinkError(
             error instanceof Error
               ? error.message
-              : "No se pudo vincular la historia",
+              : "No se pudo activar el archivo",
           );
         } finally {
           hideLoading();
-          setPendingTextHistoryAttachmentId(null);
+          setPendingSpecialAttachmentId(null);
         }
       });
     },
@@ -421,7 +490,7 @@ export function PatientDetailTabs({
       patient.id,
       router,
       showLoading,
-      startLinkingTextHistoryTransition,
+      startLinkingSpecialTransition,
     ],
   );
 
@@ -588,6 +657,14 @@ export function PatientDetailTabs({
                   key={entry.id}
                   patientId={patient.id}
                   entry={entry}
+                  conflict={(() => {
+                    const attachment = getLinkedTextAttachment(entry);
+                    const conflict = attachment && textConflictByAttachment.get(attachment.id);
+                    return attachment && conflict
+                      ? { ...conflict, name: attachment.originalName }
+                      : null;
+                  })()}
+                  onResolveConflict={setTextConflictToResolve}
                 />
               ))
             ) : (
@@ -672,6 +749,7 @@ export function PatientDetailTabs({
               <PaymentHistoryPanel
                 patientId={patient.id}
                 sheet={activePaymentHistory}
+                fileState={paymentFileStates.find((item) => item.sheetId === activePaymentHistory.id) ?? null}
                 missing={missingAttachmentIdSet.has(
                   activePaymentHistory.attachment.id,
                 )}
@@ -702,14 +780,22 @@ export function PatientDetailTabs({
                 attachment.mimeType,
               );
               const linkedToHistory = Boolean(attachment.clinicalEntryId);
+              const clinicalConflict = textConflictByAttachment.get(attachment.id);
+              const isSpreadsheet = attachment.originalName.toLowerCase().endsWith(".xlsx");
+              const hasPaymentHistory = patient.paymentHistorySheets.some(
+                (sheet) => sheet.attachment.id === attachment.id
+              );
+              const paymentState = patient.paymentHistorySheets
+                .filter((sheet) => sheet.attachment.id === attachment.id)
+                .map((sheet) => paymentFileStates.find((item) => item.sheetId === sheet.id))
+                .find(Boolean);
               const categoryBadgeTone =
                 attachment.category === "CLINICAL_HISTORY"
                   ? "mint"
                   : attachment.category === "PAYMENT_HISTORY"
                     ? "green"
                     : "neutral";
-              const linkingThisHistory =
-                pendingTextHistoryAttachmentId === attachment.id;
+              const linkingThisHistory = pendingSpecialAttachmentId === attachment.id;
 
               return (
                 <Card
@@ -736,9 +822,16 @@ export function PatientDetailTabs({
                             : "border-emerald-300/45 bg-emerald-700/70",
                         )}
                         disabled={
-                          missing || linkedToHistory || isLinkingTextHistory
+                          missing || linkedToHistory || isLinkingSpecial
                         }
-                        onClick={() => handleLinkTextHistory(attachment.id)}
+                        onClick={() => {
+                          setTextHistoryLinkError(null);
+                          setSpecialFileToConfirm({
+                            id: attachment.id,
+                            name: attachment.originalName,
+                            kind: "text-history"
+                          });
+                        }}
                       >
                         {linkedToHistory ? (
                           <CheckCircle2 className="size-4" aria-hidden="true" />
@@ -757,10 +850,40 @@ export function PatientDetailTabs({
                             : "Vincular historia"}
                       </Button>
                     ) : null}
+                    {isSpreadsheet && !hasPaymentHistory ? (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        className="border-brand-300/45 bg-brand-700/60 text-white hover:border-brand-200/60 hover:bg-brand-600"
+                        disabled={missing || isLinkingSpecial}
+                        onClick={() => {
+                          setTextHistoryLinkError(null);
+                          setSpecialFileToConfirm({
+                            id: attachment.id,
+                            name: attachment.originalName,
+                            kind: "payment-history"
+                          });
+                        }}
+                      >
+                        {linkingThisHistory ? <LoaderCircle className="size-4 animate-spin" aria-hidden="true" /> : <Table2 className="size-4" aria-hidden="true" />}
+                        {linkingThisHistory ? "Activando..." : "Activar historial"}
+                      </Button>
+                    ) : null}
                     <Badge tone={categoryBadgeTone}>
                       {categoryLabels[attachment.category]}
                     </Badge>
                     {missing ? <Badge tone="coral">Faltante</Badge> : null}
+                    {clinicalConflict ? (
+                      <Button type="button" variant="danger" size="sm" onClick={() => {
+                        setTextConflictError(null);
+                        setTextConflictToResolve({ ...clinicalConflict, name: attachment.originalName });
+                      }}>
+                        <AlertTriangle className="size-4" aria-hidden="true" />
+                        Resolver conflicto
+                      </Button>
+                    ) : null}
+                    {paymentState ? <Badge tone="coral">Hoja de Google {paymentState.state === "changed" ? "desactualizada" : "sin verificar"}</Badge> : null}
                     {missing ? (
                       <span className="text-sm text-lavender-200/35">
                         No disponible
@@ -784,6 +907,49 @@ export function PatientDetailTabs({
         </Tabs.Content>
       </Tabs.Root>
 
+      <ConfirmationDialog
+        open={Boolean(textConflictToResolve)}
+        onOpenChange={(open) => { if (!open && !isResolvingTextConflict) setTextConflictToResolve(null); }}
+        tone="danger"
+        title="El archivo clínico cambió fuera de la app"
+        description="La historia guardada y el archivo .txt contienen versiones distintas. Elige cuál conservar sin perder la otra."
+        itemLabel={textConflictToResolve?.name}
+        closeDisabled={isResolvingTextConflict}
+        size="medium"
+        actions={<>
+          <Button type="button" variant="ghost" className={confirmationCancelButtonClass} disabled={isResolvingTextConflict} onClick={() => setTextConflictToResolve(null)}>Seguir aquí</Button>
+          <Button type="button" variant="danger" disabled={isResolvingTextConflict} onClick={() => resolveTextConflict("use-app")}>Conservar versión de la app</Button>
+          <Button type="button" variant="primary" disabled={isResolvingTextConflict} onClick={() => resolveTextConflict("use-file")}>Incorporar archivo como nueva entrada</Button>
+        </>}
+      >
+        <p className="mx-5 mt-4 text-sm text-lavender-200/75">En ambos casos se guarda una copia del archivo actual. Incorporarlo crea otra entrada clínica y mantiene la anterior; conservar la versión de la app restaura el .txt.</p>
+        {textConflictError ? <p role="alert" className="mx-5 mt-3 rounded-md border border-coral-400/40 bg-coral-500/10 p-3 text-sm text-coral-700 dark:text-coral-200">{textConflictError}</p> : null}
+      </ConfirmationDialog>
+
+      <ConfirmationDialog
+        open={Boolean(specialFileToConfirm)}
+        onOpenChange={(open) => { if (!open && !isLinkingSpecial) setSpecialFileToConfirm(null); }}
+        tone="primary"
+        title={specialFileToConfirm?.kind === "text-history" ? "Vincular a la historia clínica" : "Activar historial de pagos"}
+        description={specialFileToConfirm?.kind === "text-history"
+          ? "Esto creará una entrada clínica con el contenido del archivo y conservará una copia de respaldo."
+          : "Esto activará el archivo como historial de pagos. Si el expediente tiene una carpeta de Google vinculada, también intentará subirlo allí."}
+        itemLabel={specialFileToConfirm?.name}
+        closeDisabled={isLinkingSpecial}
+        actions={<>
+          <Button type="button" variant="ghost" className={`w-full sm:w-auto ${confirmationCancelButtonClass}`} disabled={isLinkingSpecial} onClick={() => setSpecialFileToConfirm(null)}>Cancelar</Button>
+          <Button type="button" variant="primary" className="w-full sm:w-auto" disabled={!specialFileToConfirm || isLinkingSpecial} onClick={() => { if (specialFileToConfirm) handleConfirmSpecialFile(specialFileToConfirm); }}>
+            {isLinkingSpecial ? "Procesando..." : "Confirmar"}
+          </Button>
+        </>}
+      >
+        {textHistoryLinkError ? (
+          <p role="alert" className="mx-5 mt-4 rounded-md border border-coral-400/40 bg-coral-500/10 px-3 py-2 text-sm text-coral-700 dark:text-coral-200">
+            {textHistoryLinkError}
+          </p>
+        ) : null}
+      </ConfirmationDialog>
+
       {selectedPhotoIndex >= 0 ? (
         <PatientPhotoViewer
           patientName={patient.fullName}
@@ -802,9 +968,13 @@ export function PatientDetailTabs({
 function ClinicalEntryCard({
   patientId,
   entry,
+  conflict,
+  onResolveConflict,
 }: {
   patientId: string;
   entry: SerializedPatientDetail["clinicalEntries"][number];
+  conflict: { attachmentId: string; sourceHash: string; entryUpdatedAt: string; name: string } | null;
+  onResolveConflict: (conflict: { attachmentId: string; sourceHash: string; entryUpdatedAt: string; name: string }) => void;
 }) {
   const router = useRouter();
   const loading = useGlobalLoading();
@@ -850,6 +1020,7 @@ function ClinicalEntryCard({
         await updateLinkedTextClinicalHistory({
           patientId,
           clinicalEntryId: entry.id,
+          expectedEntryUpdatedAt: entry.updatedAt,
           notes: nextNotes,
           deletedBlockBackup,
         });
@@ -862,6 +1033,7 @@ function ClinicalEntryCard({
             ? saveError.message
             : "No se pudo guardar la historia",
         );
+        router.refresh();
         return false;
       } finally {
         setIsSaving(false);
@@ -871,6 +1043,7 @@ function ClinicalEntryCard({
     [
       entry.id,
       entry.notes,
+      entry.updatedAt,
       isSaving,
       linkedTextAttachment,
       loading,
@@ -934,11 +1107,21 @@ function ClinicalEntryCard({
         </div>
       ) : null}
 
+      {conflict ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-400/50 bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-200">
+          <p>El archivo .txt cambió fuera de la app. Resuelve el conflicto antes de editar esta historia.</p>
+          <Button type="button" variant="danger" size="sm" onClick={() => onResolveConflict(conflict)}>
+            <AlertTriangle className="size-4" aria-hidden="true" />
+            Resolver conflicto
+          </Button>
+        </div>
+      ) : null}
+
       {linkedTextAttachment ? (
         <LinkedTextHistoryBlocks
           entryId={entry.id}
           history={history}
-          disabled={isSaving}
+          disabled={isSaving || Boolean(conflict)}
           onSave={saveHistory}
         />
       ) : (
@@ -2150,14 +2333,20 @@ function PatientPhotoViewer({
 function PaymentHistoryPanel({
   patientId,
   sheet,
+  fileState,
   missing = false,
   featured = false,
 }: {
   patientId: string;
   sheet: SerializedPatientDetail["paymentHistorySheets"][number];
+  fileState: { sheetId: string; state: "changed" | "unverified"; sourceHash: string } | null;
   missing?: boolean;
   featured?: boolean;
 }) {
+  const router = useRouter();
+  const [confirmNewVersionOpen, setConfirmNewVersionOpen] = useState(false);
+  const [newVersionError, setNewVersionError] = useState<string | null>(null);
+  const [uploadingNewVersion, startNewVersionTransition] = useTransition();
   const [editingFolder, setEditingFolder] = useState<{
     sheetId: string;
     originalFolderId: string;
@@ -2174,8 +2363,28 @@ function PaymentHistoryPanel({
   const folderInputValue = isEditingCurrentFolder ? editingFolder.value : storedFolderId;
   const uploadIsInProgress = isPaymentHistoryUploadInProgress(sheet.uploadStartedAt);
   const folderWasChanged = folderInputValue.trim() !== storedFolderId.trim();
-  const canRetryUpload = Boolean(folderInputValue.trim()) && !uploadIsInProgress &&
+  const canRetryUpload = !fileState && Boolean(folderInputValue.trim()) && !uploadIsInProgress &&
     (folderWasChanged || sheet.uploadStatus !== "UPLOADED");
+
+  function uploadNewVersion() {
+    if (!fileState) return;
+    setNewVersionError(null);
+    startNewVersionTransition(async () => {
+      try {
+        await createNewPaymentHistoryVersion({
+          patientId,
+          sheetId: sheet.id,
+          expectedSourceHash: fileState.sourceHash,
+          googleFolderInput: folderInputValue
+        });
+        setConfirmNewVersionOpen(false);
+        router.refresh();
+      } catch (error) {
+        setNewVersionError(error instanceof Error ? error.message : "No se pudo subir la nueva versión.");
+        router.refresh();
+      }
+    });
+  }
 
   function cancelFolderEdit() {
     setEditingFolder(null);
@@ -2208,6 +2417,19 @@ function PaymentHistoryPanel({
           {sheet.errorMessage ? (
             <p className="text-sm text-coral-400 dark:text-ink-100">{sheet.errorMessage}</p>
           ) : null}
+          {fileState ? (
+            <div className="mt-3 space-y-2 rounded-lg border border-amber-400/50 bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-200">
+              <p>{fileState.state === "changed"
+                ? "El archivo local cambió desde la última subida. La hoja actual de Google conserva la versión anterior."
+                : "La hoja existente es anterior al control de versiones; no podemos comprobar si coincide con el archivo local."}</p>
+              <Button type="button" variant="primary" size="sm" disabled={missing || uploadIsInProgress} onClick={() => {
+                setNewVersionError(null);
+                setConfirmNewVersionOpen(true);
+              }}>
+                Subir como nueva versión
+              </Button>
+            </div>
+          ) : null}
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -2238,6 +2460,40 @@ function PaymentHistoryPanel({
           )}
         </div>
       </div>
+
+      {sheet.versions.some((version) => version.googleUrl && version.googleFileId !== sheet.googleFileId) ? (
+        <div className="border-t border-lavender-500/25 pt-3">
+          <p className="mb-2 text-sm font-medium text-theme-strong">Versiones anteriores en Google</p>
+          <ul className="space-y-1 text-sm">
+            {sheet.versions.filter((version) => version.googleUrl && version.googleFileId !== sheet.googleFileId).map((version) => (
+              <li key={version.id}>
+                <Link href={version.googleUrl!} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-brand-600 underline-offset-2 hover:underline dark:text-brand-200">
+                  <ExternalLink className="size-3" aria-hidden="true" />
+                  Hoja del {formatDate(version.uploadedAt ?? version.createdAt)}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      <ConfirmationDialog
+        open={confirmNewVersionOpen}
+        onOpenChange={(open) => { if (!uploadingNewVersion) setConfirmNewVersionOpen(open); }}
+        tone="primary"
+        title="Subir nueva versión del historial"
+        description="La hoja actual seguirá disponible. Solo cuando la nueva subida termine correctamente, esta pasará a ser la hoja principal del expediente."
+        itemLabel={sheet.attachment.originalName}
+        closeDisabled={uploadingNewVersion}
+        actions={<>
+          <Button type="button" variant="ghost" className={confirmationCancelButtonClass} disabled={uploadingNewVersion} onClick={() => setConfirmNewVersionOpen(false)}>Cancelar</Button>
+          <Button type="button" variant="primary" disabled={uploadingNewVersion || !folderInputValue.trim()} onClick={uploadNewVersion}>
+            {uploadingNewVersion ? "Subiendo..." : "Confirmar nueva versión"}
+          </Button>
+        </>}
+      >
+        {newVersionError ? <p role="alert" className="mx-5 mt-4 rounded-md border border-coral-400/40 bg-coral-500/10 p-3 text-sm text-coral-700 dark:text-coral-200">{newVersionError}</p> : null}
+      </ConfirmationDialog>
 
       <div className="grid gap-3 lg:grid-cols-[1fr_auto]">
         <form
@@ -2286,6 +2542,7 @@ function PaymentHistoryPanel({
                   tabIndex={canRetryUpload ? undefined : 0}
                   aria-label={canRetryUpload ? undefined : uploadIsInProgress
                     ? "La subida de este historial está en curso"
+                    : fileState ? "Confirma una nueva versión para este archivo modificado"
                     : "Modifica la liga o conecta Google para habilitar Subir/Reintentar"}
                   className="inline-flex rounded-md"
                 >
@@ -2301,6 +2558,8 @@ function PaymentHistoryPanel({
                 ? "Puedes subir/reintentar en la carpeta indicada."
                 : uploadIsInProgress
                   ? "La subida de este historial ya está en curso."
+                  : fileState
+                    ? "El archivo local no coincide con la hoja actual. Usa Subir como nueva versión."
                   : sheet.uploadStatus === "UPLOADED" && !folderWasChanged
                     ? "Para subir a otra carpeta, primero modifica la liga."
                     : "No hay una carpeta de Drive válida para subir este historial."}
@@ -2503,7 +2762,7 @@ function AttachmentTile({
             />
           ) : null}
           <Image
-            src={`/api/files/${attachment.id}/preview?w=520`}
+            src={`/api/files/${attachment.id}/preview?w=520&v=${encodeURIComponent(attachment.sourceModifiedAt ?? attachment.importedAt)}`}
             alt={attachment.originalName}
             width={640}
             height={480}

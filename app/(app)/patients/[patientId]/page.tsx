@@ -10,6 +10,9 @@ import { getPatientById } from "@/lib/actions/patient.actions";
 import { getPatientMissingAttachmentIds } from "@/lib/actions/settings.actions";
 import { getUpcomingPatientAppointments } from "@/lib/actions/appointments.actions";
 import { getPatientOdontogramData } from "@/lib/odontogram-data";
+import { getPatientFileSyncRuntime } from "@/lib/patient-file-sync-runtime";
+import { getPatientClinicalFileConflicts } from "@/lib/clinical-file-conflicts";
+import { getPatientPaymentFileStates } from "@/lib/payment-file-versions";
 import type { SerializedPatientDetail } from "@/types";
 import type { AgendaAppointment } from "@/components/schedule/types";
 
@@ -21,6 +24,7 @@ export default async function PatientDetailPage({
   params: Promise<{ patientId: string }>;
 }) {
   const { patientId } = await params;
+  const initialFileSyncRevision = getPatientFileSyncRuntime().revisionForPatient(patientId);
   const [patient, missingAttachmentIds, upcomingAppointmentsRaw, odontogramData] = await Promise.all([
     getPatientById(patientId),
     getPatientMissingAttachmentIds(patientId),
@@ -31,6 +35,11 @@ export default async function PatientDetailPage({
   if (!patient) {
     notFound();
   }
+
+  const [clinicalFileConflicts, paymentFileStates] = await Promise.all([
+    getPatientClinicalFileConflicts(patient),
+    getPatientPaymentFileStates(patient)
+  ]);
 
   const serializedPatient = JSON.parse(JSON.stringify({
     ...patient,
@@ -68,6 +77,7 @@ export default async function PatientDetailPage({
             <PatientAvatar
               fullName={patient.fullName}
               photoAttachmentId={serializedPatient.profilePhotoId}
+              photoVersion={serializedPatient.attachments.find((attachment) => attachment.id === serializedPatient.profilePhotoId)?.sourceModifiedAt}
               size="lg"
             />
             <div>
@@ -84,6 +94,9 @@ export default async function PatientDetailPage({
         patient={serializedPatient}
         missingAttachmentIds={missingAttachmentIds}
         upcomingAppointments={upcomingAppointments}
+        initialFileSyncRevision={initialFileSyncRevision}
+        clinicalFileConflicts={clinicalFileConflicts}
+        paymentFileStates={paymentFileStates}
       />
     </main>
   );

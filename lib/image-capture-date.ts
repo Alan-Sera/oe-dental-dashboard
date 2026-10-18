@@ -20,14 +20,22 @@ export async function extractImageCapturedAt(
   fileName = path.basename(filePath),
   mimeType?: string | null
 ) {
-  if (!canReadImageCaptureMetadata(fileName, mimeType)) return null;
-
   try {
-    const buffer = await readFileStart(filePath, METADATA_READ_LIMIT_BYTES);
-    return extractImageCapturedAtFromBuffer(buffer);
+    return await readImageCapturedAt(filePath, fileName, mimeType);
   } catch {
     return null;
   }
+}
+
+export async function readImageCapturedAt(
+  filePath: string,
+  fileName = path.basename(filePath),
+  mimeType?: string | null
+) {
+  if (!canReadImageCaptureMetadata(fileName, mimeType)) return null;
+
+  const buffer = await readFileStart(filePath, METADATA_READ_LIMIT_BYTES);
+  return extractImageCapturedAtFromBuffer(buffer);
 }
 
 export function canReadImageCaptureMetadata(fileName: string, mimeType?: string | null) {

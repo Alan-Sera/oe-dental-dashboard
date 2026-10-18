@@ -5,11 +5,13 @@ import { cn, initials } from "@/lib/utils";
 export function PatientAvatar({
   fullName,
   photoAttachmentId,
+  photoVersion,
   size = "sm",
   className
 }: {
   fullName: string;
   photoAttachmentId: string | null;
+  photoVersion?: string | null;
   size?: "sm" | "md" | "lg";
   className?: string;
 }) {
@@ -41,7 +43,7 @@ export function PatientAvatar({
     >
       {photoAttachmentId ? (
         <Image
-          src={`/api/files/${photoAttachmentId}/preview?w=150&h=150`}
+          src={`/api/files/${photoAttachmentId}/preview?w=150&h=150${photoVersion ? `&v=${encodeURIComponent(photoVersion)}` : ""}`}
           alt={fullName}
           fill
           sizes={imageSizes[size]}

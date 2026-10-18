@@ -79,6 +79,7 @@ const deletedTextHistoryBlockBackupSchema = z.object({
 export const linkedTextClinicalHistorySchema = z.object({
   patientId: z.string().min(1),
   clinicalEntryId: z.string().min(1),
+  expectedEntryUpdatedAt: z.string().datetime(),
   notes: z.string().max(250_000, "La historia es demasiado larga"),
   deletedBlockBackup: deletedTextHistoryBlockBackupSchema.optional(),
 });

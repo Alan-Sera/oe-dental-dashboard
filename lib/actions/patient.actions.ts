@@ -12,6 +12,7 @@ import {
 } from "@/lib/image-capture-date";
 import { resolveLinkedAttachmentPath } from "@/lib/local-paths";
 import { normalizePatientIdentity, normalizePhone, isProvisioningInProgress } from "@/lib/patient-provisioning";
+import { assignMissingProfilePhotos } from "@/lib/patient-directory";
 import { prisma } from "@/lib/prisma";
 import { getUpcomingAppointmentWhere } from "@/lib/upcoming-appointments";
 import {
@@ -359,28 +360,8 @@ export async function setPatientProfilePhoto(input: {
 }
 
 export async function ensureProfilePhotos() {
-  const patients = await prisma.patient.findMany({
-    where: { profilePhotoId: null },
-    include: {
-      attachments: {
-        orderBy: { importedAt: "asc" }
-      }
-    }
-  });
-
-  for (const patient of patients) {
-    const firstPhoto = patient.attachments.find(
-      (a) => a.category === "PHOTO"
-    );
-    if (firstPhoto) {
-      await prisma.patient.update({
-        where: { id: patient.id },
-        data: { profilePhotoId: firstPhoto.id }
-      });
-    }
-  }
-
-  return { updated: patients.length };
+  await requireSession();
+  return assignMissingProfilePhotos();
 }
 
 export async function getPatientById(patientId: string) {
@@ -403,7 +384,7 @@ export async function getPatientById(patientId: string) {
         orderBy: { paidAt: "desc" }
       },
       paymentHistorySheets: {
-        include: { attachment: true },
+        include: { attachment: true, versions: { orderBy: { createdAt: "desc" } } },
         orderBy: [{ isActive: "desc" }, { createdAt: "desc" }]
       }
     }

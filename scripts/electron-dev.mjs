@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import http from "node:http";
 import net from "node:net";
 import path from "node:path";
@@ -153,6 +154,7 @@ async function main() {
     ELECTRON_DEV_SERVER_URL: developmentUrl,
     HOSTNAME: HOST,
     PORT: String(port),
+    APP_INTERNAL_SYNC_TOKEN: randomBytes(32).toString("hex"),
   };
 
   electronProcess = spawn(electronExecutable, [path.join(rootDir, "electron", "main.cjs")], {

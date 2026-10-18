@@ -15,6 +15,16 @@ export function stripByteOrderMark(value: string) {
   return value.replace(/^\uFEFF/, "");
 }
 
+export function clinicalNotesFromTextFile(content: string, fileName: string) {
+  const notes = stripByteOrderMark(content);
+  return notes.length ? notes : `Archivo .txt vacío: ${fileName}`;
+}
+
+export function linkedTextMatchesClinicalNotes(content: string, notes: string, fileName: string) {
+  const normalize = (value: string) => value.replace(/\r\n|\r/g, "\n");
+  return normalize(clinicalNotesFromTextFile(content, fileName)) === normalize(notes);
+}
+
 export function detectPreferredLineEnding(value: string) {
   const crlfCount = value.match(/\r\n/g)?.length ?? 0;
   const lfCount = value.replace(/\r\n/g, "").match(/\n/g)?.length ?? 0;

@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { ArrowRight, ArrowUpAZ, ArrowUpZA, BadgeDollarSign, CalendarDays, Search, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { ArrowRight, ArrowUpAZ, ArrowUpZA, CalendarDays, Search, X } from "lucide-react";
 
 import { PatientCreateModal } from "@/components/patient-create-modal";
 import { PatientAvatar } from "@/components/patient-avatar";
@@ -27,15 +28,44 @@ export type PatientListItem = PatientDirectoryRecord & {
   nextAppointmentId: string | null;
   updatedAt: string;
   photoAttachmentId: string | null;
+  photoVersion: string | null;
 };
 
-export function PatientsSearchFilterOnly({ patients }: { patients: PatientListItem[] }) {
+export function PatientsSearchFilterOnly({
+  patients,
+  initialFileSyncRevision = 0
+}: {
+  patients: PatientListItem[];
+  initialFileSyncRevision?: number;
+}) {
+  const router = useRouter();
+  const fileSyncRevisionRef = useRef(initialFileSyncRevision);
   const [query, setQuery] = useState("");
   const [sortOrder, setSortOrder] = useState<PatientSortOrder>("asc");
   const [genderFilter, setGenderFilter] = useState<PatientGenderFilter>("ALL");
   const [appointmentFilter, setAppointmentFilter] = useState<PatientAppointmentFilter>("ALL");
   const [debtorsOnly, setDebtorsOnly] = useState(false);
   const [appointmentDate, setAppointmentDate] = useState("");
+  useEffect(() => {
+    let mounted = true;
+    const check = async () => {
+      if (document.visibilityState !== "visible") return;
+      try {
+        const response = await fetch("/api/patient-file-sync/status", { cache: "no-store" });
+        if (!response.ok) return;
+        const status = await response.json() as { revision: number };
+        if (mounted && status.revision > fileSyncRevisionRef.current) {
+          fileSyncRevisionRef.current = status.revision;
+          router.refresh();
+        }
+      } catch {
+        // A background status check must not interrupt the patient directory.
+      }
+    };
+    void check();
+    const timer = window.setInterval(() => void check(), 30_000);
+    return () => { mounted = false; window.clearInterval(timer); };
+  }, [router]);
   const filteredPatients = useMemo(
     () =>
       filterPatientDirectory(patients, {
@@ -263,6 +293,7 @@ export function PatientsSearchFilterOnly({ patients }: { patients: PatientListIt
                   <PatientAvatar
                     fullName={patient.fullName}
                     photoAttachmentId={patient.photoAttachmentId}
+                    photoVersion={patient.photoVersion}
                     size="md"
                   />
                   <div className="min-w-0">

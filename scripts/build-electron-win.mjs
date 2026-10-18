@@ -104,7 +104,7 @@ async function verifyPackagedPrismaClient(prismaClientDir) {
   const requireFromPrismaClient = createRequire(
     path.join(prismaClientDir, "package.json")
   );
-  const { PrismaClient } = requireFromPrismaClient(prismaClientDir);
+  const { Prisma, PrismaClient } = requireFromPrismaClient(prismaClientDir);
   const prisma = new PrismaClient();
 
   try {
@@ -115,6 +115,20 @@ async function verifyPackagedPrismaClient(prismaClientDir) {
     ) {
       throw new Error(
         "El cliente Prisma empaquetado no expone googleOAuthAttempt."
+      );
+    }
+    const attachmentModel = Prisma.dmmf.datamodel.models.find(
+      (model) => model.name === "Attachment"
+    );
+    if (!attachmentModel?.fields.some((field) => field.name === "sourceModifiedAt")) {
+      throw new Error(
+        "El cliente Prisma empaquetado no incluye Attachment.sourceModifiedAt. Ejecuta prisma generate antes de empaquetar."
+      );
+    }
+    if (!prisma.paymentHistorySheetVersion ||
+        typeof prisma.paymentHistorySheetVersion.create !== "function") {
+      throw new Error(
+        "El cliente Prisma empaquetado no incluye PaymentHistorySheetVersion. Ejecuta prisma generate antes de empaquetar."
       );
     }
   } finally {

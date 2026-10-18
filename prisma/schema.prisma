@@ -143,6 +143,7 @@ model Attachment {
   importedAt          DateTime             @default(now())
   serviceDate         DateTime?
   capturedAt          DateTime?
+  sourceModifiedAt    DateTime?
   importBatchId       String?
   clinicalEntryId     String?
   chargeId            String?
@@ -226,9 +227,28 @@ model PaymentHistorySheet {
   updatedAt       DateTime                   @updatedAt
   patient         Patient                    @relation(fields: [patientId], references: [id], onDelete: Cascade)
   attachment      Attachment                 @relation(fields: [attachmentId], references: [id], onDelete: Cascade)
+  versions        PaymentHistorySheetVersion[]
 
   @@index([patientId, isActive])
   @@index([patientId, createdAt])
+}
+
+model PaymentHistorySheetVersion {
+  id               String                     @id @default(cuid())
+  sheetId          String
+  sourceSha256     String?
+  sourceSizeBytes  Int?
+  sourceModifiedAt DateTime?
+  googleFileId     String?
+  googleUrl        String?
+  googleFolderId   String?
+  uploadStatus     PaymentHistoryUploadStatus @default(LOCAL_ONLY)
+  errorMessage     String?
+  uploadedAt       DateTime?
+  createdAt        DateTime                   @default(now())
+  sheet            PaymentHistorySheet        @relation(fields: [sheetId], references: [id], onDelete: Cascade)
+
+  @@index([sheetId, createdAt])
 }
 
 model ImportBatch {

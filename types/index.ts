@@ -31,6 +31,7 @@ export type SerializedAttachment = {
   sourceRelativePath: string;
   importedAt: string;
   capturedAt: string | null;
+  sourceModifiedAt: string | null;
   clinicalEntryId: string | null;
 };
 
@@ -57,6 +58,7 @@ export type SerializedPatientDetail = {
   clinicalEntries: Array<{
     id: string;
     entryDate: string;
+    updatedAt: string;
     tooth: string | null;
     diagnosis: string | null;
     treatment: string | null;
@@ -98,6 +100,19 @@ export type SerializedPatientDetail = {
     createdAt: string;
     updatedAt: string;
     attachment: SerializedAttachment;
+    versions: Array<{
+      id: string;
+      sourceSha256: string | null;
+      sourceSizeBytes: number | null;
+      sourceModifiedAt: string | null;
+      googleFileId: string | null;
+      googleUrl: string | null;
+      googleFolderId: string | null;
+      uploadStatus: PaymentHistoryUploadStatus;
+      errorMessage: string | null;
+      uploadedAt: string | null;
+      createdAt: string;
+    }>;
   }>;
   odontogramRecords: DentalRecord[];
   odontogramRevision: number;

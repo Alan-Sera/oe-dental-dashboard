@@ -1,11 +1,13 @@
 "use server";
 
+import { createHash, randomBytes } from "node:crypto";
 import { copyFile, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { revalidatePath } from "next/cache";
 
 import { recordAudit } from "@/lib/actions/audit.actions";
 import { getClinicSettings } from "@/lib/actions/settings.actions";
+import { requireSession } from "@/lib/auth";
 import {
   getTextHistoryBackupDir,
   getTextHistoryBlockBackupDir,
@@ -15,10 +17,11 @@ import { prisma } from "@/lib/prisma";
 import {
   createDeletedTextHistoryBlockBackupFileName,
   createTextHistoryBackupFileName,
+  clinicalNotesFromTextFile,
   detectPreferredLineEnding,
   isPlainTextAttachment,
+  linkedTextMatchesClinicalNotes,
   normalizeLineEndings,
-  stripByteOrderMark,
 } from "@/lib/text-attachments";
 import {
   clinicalEntrySchema,
@@ -76,6 +79,7 @@ export async function linkTextAttachmentAsClinicalHistory(input: {
   patientId: string;
   attachmentId: string;
 }) {
+  await requireSession();
   if (!input.patientId || !input.attachmentId) {
     throw new Error("Archivo clínico inválido");
   }
@@ -124,7 +128,7 @@ export async function linkTextAttachmentAsClinicalHistory(input: {
     throw new Error("El archivo de historia ya no existe en la ruta vinculada");
   }
 
-  const notes = stripByteOrderMark(await readFile(absolutePath, "utf8"));
+  const notes = clinicalNotesFromTextFile(await readFile(absolutePath, "utf8"), attachment.originalName);
   const backupDir = getTextHistoryBackupDir();
   await mkdir(backupDir, { recursive: true });
 
@@ -141,9 +145,7 @@ export async function linkTextAttachmentAsClinicalHistory(input: {
       data: {
         patientId: attachment.patientId,
         entryDate: new Date(),
-        notes: notes.length
-          ? notes
-          : `Archivo .txt vacío: ${attachment.originalName}`,
+        notes,
       },
     });
 
@@ -178,6 +180,7 @@ export async function linkTextAttachmentAsClinicalHistory(input: {
 export async function updateLinkedTextClinicalHistory(
   input: LinkedTextClinicalHistoryInput,
 ) {
+  await requireSession();
   const parsed = linkedTextClinicalHistorySchema.parse(input);
   const entry = await prisma.clinicalEntry.findFirst({
     where: {
@@ -198,6 +201,9 @@ export async function updateLinkedTextClinicalHistory(
 
   if (!entry) {
     throw new Error("Historia no encontrada");
+  }
+  if (entry.updatedAt.toISOString() !== parsed.expectedEntryUpdatedAt) {
+    throw new Error("La historia cambió en otra sesión. Actualiza el expediente antes de guardarla.");
   }
 
   const textAttachment = entry.attachments.find((attachment) =>
@@ -222,6 +228,22 @@ export async function updateLinkedTextClinicalHistory(
 
   if (!fileStats.isFile()) {
     throw new Error("El archivo de historia ya no existe en la ruta vinculada");
+  }
+
+  const currentContent = await readFile(absolutePath, "utf8");
+  if (!linkedTextMatchesClinicalNotes(currentContent, entry.notes, textAttachment.originalName)) {
+    throw new Error("El archivo cambió fuera de la app. Resuelve el conflicto antes de editar esta historia.");
+  }
+
+  const backupFileName = await backupTextFile({
+    absolutePath,
+    patientId: entry.patientId,
+    attachmentId: textAttachment.id,
+    originalName: textAttachment.originalName
+  });
+  const backedUpContent = await readFile(path.join(getTextHistoryBackupDir(), backupFileName), "utf8");
+  if (backedUpContent !== currentContent || await readFile(absolutePath, "utf8") !== currentContent) {
+    throw new Error("El archivo cambió mientras se preparaba el guardado. Vuelve a abrir la historia.");
   }
 
   let deletedBlockBackupFileName: string | null = null;
@@ -254,6 +276,10 @@ export async function updateLinkedTextClinicalHistory(
     where: { id: entry.id },
     data: { notes: nextFileContent },
   });
+  await prisma.attachment.update({
+    where: { id: textAttachment.id },
+    data: { sourceModifiedAt: (await stat(absolutePath)).mtime, sizeBytes: Buffer.byteLength(nextFileContent, "utf8") }
+  });
 
   await recordAudit(
     "clinical_entry.text_file_updated",
@@ -262,6 +288,7 @@ export async function updateLinkedTextClinicalHistory(
     {
       patientId: entry.patientId,
       attachmentId: textAttachment.id,
+      backupFileName,
       deletedBlockBackupFileName,
     },
   );
@@ -269,4 +296,127 @@ export async function updateLinkedTextClinicalHistory(
   revalidatePath("/dashboard");
 
   return updatedEntry;
+}
+
+export async function resolveLinkedTextClinicalConflict(input: {
+  patientId: string;
+  attachmentId: string;
+  expectedSourceHash: string;
+  expectedEntryUpdatedAt: string;
+  resolution: "use-file" | "use-app";
+}) {
+  await requireSession();
+  if (!/^[a-f0-9]{64}$/.test(input.expectedSourceHash) ||
+      (input.resolution !== "use-file" && input.resolution !== "use-app")) {
+    throw new Error("La resolución del conflicto no es válida.");
+  }
+  const attachment = await prisma.attachment.findFirst({
+    where: { id: input.attachmentId, patientId: input.patientId },
+    include: { patient: true, clinicalEntry: true }
+  });
+  if (!attachment?.clinicalEntry ||
+      !isPlainTextAttachment(attachment.originalName, attachment.mimeType)) {
+    throw new Error("No se encontró una historia clínica vinculada a este archivo.");
+  }
+  if (attachment.clinicalEntry.updatedAt.toISOString() !== input.expectedEntryUpdatedAt) {
+    throw new Error("La historia cambió en otra sesión. Actualiza el expediente antes de resolver el conflicto.");
+  }
+  const settings = await getClinicSettings();
+  const absolutePath = resolveLinkedAttachmentPath({
+    patientsRootPath: settings.patientsRootPath,
+    patientFolderRelativePath: attachment.patient.localFolderRelativePath,
+    localRelativePath: attachment.localRelativePath
+  });
+  const currentContent = await readFile(absolutePath, "utf8");
+  if (createHash("sha256").update(currentContent).digest("hex") !== input.expectedSourceHash ||
+      linkedTextMatchesClinicalNotes(currentContent, attachment.clinicalEntry.notes, attachment.originalName)) {
+    throw new Error("El archivo volvió a cambiar. Actualiza el expediente antes de resolver el conflicto.");
+  }
+  const backupFileName = await backupTextFile({
+    absolutePath,
+    patientId: input.patientId,
+    attachmentId: attachment.id,
+    originalName: attachment.originalName
+  });
+  const backupContent = await readFile(path.join(getTextHistoryBackupDir(), backupFileName), "utf8");
+  if (backupContent !== currentContent || await readFile(absolutePath, "utf8") !== currentContent) {
+    throw new Error("El archivo cambió mientras se creaba el respaldo. Actualiza el expediente.");
+  }
+
+  if (input.resolution === "use-file") {
+    const previousEntry = attachment.clinicalEntry;
+    const notes = clinicalNotesFromTextFile(currentContent, attachment.originalName);
+    const sourceStats = await stat(absolutePath);
+    const nextEntry = await prisma.$transaction(async (tx) => {
+      const created = await tx.clinicalEntry.create({
+        data: {
+          patientId: input.patientId,
+          entryDate: new Date(),
+          tooth: previousEntry.tooth,
+          diagnosis: previousEntry.diagnosis,
+          treatment: previousEntry.treatment,
+          notes
+        }
+      });
+      await tx.attachment.update({
+        where: { id: attachment.id },
+        data: { clinicalEntryId: created.id, sourceModifiedAt: sourceStats.mtime,
+          sizeBytes: Buffer.byteLength(currentContent, "utf8") }
+      });
+      await tx.auditLog.create({
+        data: {
+          event: "clinical_entry.external_file_imported",
+          entity: "ClinicalEntry",
+          entityId: created.id,
+          metadata: JSON.stringify({ patientId: input.patientId, attachmentId: attachment.id,
+            previousEntryId: previousEntry.id, backupFileName })
+        }
+      });
+      return created;
+    });
+    revalidatePath(`/patients/${input.patientId}`);
+    revalidatePath("/dashboard");
+    return { entryId: nextEntry.id, backupFileName };
+  }
+
+  await writeFile(absolutePath, attachment.clinicalEntry.notes, "utf8");
+  try {
+    const restoredStats = await stat(absolutePath);
+    await prisma.$transaction([
+      prisma.attachment.update({ where: { id: attachment.id }, data: {
+        sourceModifiedAt: restoredStats.mtime, sizeBytes: restoredStats.size
+      } }),
+      prisma.auditLog.create({ data: {
+        event: "clinical_entry.external_file_replaced",
+        entity: "ClinicalEntry",
+        entityId: attachment.clinicalEntry.id,
+        metadata: JSON.stringify({ patientId: input.patientId, attachmentId: attachment.id, backupFileName })
+      } })
+    ]);
+  } catch (error) {
+    if (await readFile(absolutePath, "utf8") === attachment.clinicalEntry.notes) {
+      await copyFile(path.join(getTextHistoryBackupDir(), backupFileName), absolutePath);
+    }
+    throw error;
+  }
+  revalidatePath(`/patients/${input.patientId}`);
+  return { entryId: attachment.clinicalEntry.id, backupFileName };
+}
+
+async function backupTextFile(input: {
+  absolutePath: string;
+  patientId: string;
+  attachmentId: string;
+  originalName: string;
+}) {
+  const backupDir = getTextHistoryBackupDir();
+  await mkdir(backupDir, { recursive: true });
+  const backupFileName = `${createTextHistoryBackupFileName({
+    timestamp: new Date(),
+    patientId: input.patientId,
+    attachmentId: input.attachmentId,
+    originalName: input.originalName.slice(0, 40)
+  })}_${randomBytes(8).toString("hex")}`;
+  await copyFile(input.absolutePath, path.join(backupDir, backupFileName));
+  return backupFileName;
 }
