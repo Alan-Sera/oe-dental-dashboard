@@ -2,7 +2,7 @@
   "name": "oe-dental-dashboard",
   "description": "Desktop management platform for dental practices",
   "author": "Alan Serafin Colin",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "private": true,
   "main": "electron/main.cjs",
   "packageManager": "pnpm@11.2.2",

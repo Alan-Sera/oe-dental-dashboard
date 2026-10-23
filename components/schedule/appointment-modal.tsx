@@ -540,11 +540,11 @@ export function AppointmentModal({
                 {confirmingDelete ? "¿Confirmar eliminación?" : "Eliminar cita"}
               </Button>
             ) : null}
-            <Button type="button" variant="ghost" onClick={onClose} disabled={isPending}>
-              Cancelar
-            </Button>
             <Button type="submit" disabled={isPending}>
               {isPending ? "Guardando..." : isAdopting ? "Vincular cita" : "Guardar cita"}
+            </Button>
+            <Button type="button" variant="ghost" onClick={onClose} disabled={isPending}>
+              Cancelar
             </Button>
           </DialogFooter>
         </form>
